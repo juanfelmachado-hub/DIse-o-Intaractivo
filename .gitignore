@@ -1,0 +1,12 @@
+# Dependencias (se instalan con npm install)
+node_modules/
+
+# Archivos del sistema / editor
+.DS_Store
+.vscode/
+.claude/
+
+# Cielos HDR originales (pesados, no los usa el proyecto; se usan los .jpg de static/textures/sky)
+*.exr
+
+# Nota: dist/ SÍ se sube, porque GitHub Pages sirve el cuento desde /dist/
