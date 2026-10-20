@@ -10,7 +10,7 @@ export class SafePlaceActivity extends Activity {
         const { ui, hotspots, pointer } = this.ctx
         const d = this.data
         ui.showActivity(d.title)
-        this.say(d.intro)
+        this.instruct(d.intro)
         Object.entries(d.targets).forEach(([id, t], i) => {
             const marker = this.scene.markers[id]
             const obj = this.scene.hotspots[id]

@@ -11,6 +11,7 @@ import { Environment } from '../world/Environment.js'
 import { Book } from '../book/Book.js'
 import { PageTurner } from '../book/PageTurner.js'
 import { setAnisotropy } from '../book/PageArt.js'
+import { prepareCover } from '../book/CoverArt.js'
 import { Guardian } from '../models/characters/Guardian.js'
 import { UI } from '../ui/UI.js'
 import { Hotspots } from '../ui/Hotspots.js'
@@ -42,6 +43,8 @@ export class Experience {
         Guardian.light = new THREE.PointLight('#bff5a0', 0, 2.4, 2)
         this.scene.add(Guardian.light)
 
+        // la portada se ilustra con los modelos del cuento antes de armar el libro
+        prepareCover(this.renderer)
         this.book = new Book()
         this.scene.add(this.book.root, this.book.shadow)
 

@@ -34,7 +34,7 @@ export class SafeRouteActivity extends Activity {
         const nico = scene.nico
         const origin = shoes.position.clone()
         ui.setStop(0)
-        this.say(stop.prompt)
+        this.instruct(stop.prompt)
 
         return new Promise((resolve) => {
             let placed = false
@@ -82,7 +82,7 @@ export class SafeRouteActivity extends Activity {
         const nico = scene.nico
         const steps = scene.footprints
         ui.setStop(1)
-        this.say(stop.prompt)
+        this.instruct(stop.prompt)
 
         return new Promise((resolve) => {
             let next = 0
@@ -132,7 +132,7 @@ export class SafeRouteActivity extends Activity {
         const scene = this.scene
         const nico = scene.nico
         ui.setStop(2)
-        this.say(stop.prompt)
+        this.instruct(stop.prompt)
 
         return new Promise((resolve) => {
             let solved = false

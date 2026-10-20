@@ -1,5 +1,5 @@
 /**
- * Escenario 3 — Después del temblor (página 10). La sala quedó desordenada:
+ * Escenario 3 — Después del temblor (páginas 11 y 12). La sala quedó desordenada:
  * bloques regados, vidrios en el piso junto a la ventana y los zapatos de Nico.
  */
 import * as THREE from 'three'
@@ -63,8 +63,9 @@ export class ExitScene extends BaseScene {
         this.shoes.rotation.y = -0.3
         this.piece(this.shoes, 'pop', 0.5)
 
-        // Nico sigue agachado debajo de la mesa
-        this.addNico(-0.9, -0.55, { face: 0, pose: 'kneel' })
+        // Nico sigue agachado debajo de la mesa (o ya salió: setup.nico = 'out')
+        if (this.setup.nico === 'out') this.addNico(-0.75, 0.45, { face: 0, pose: 'idle' })
+        else this.addNico(-0.9, -0.55, { face: 0, pose: 'kneel' })
         this.guardianOffset.set(0.45, 0.75, 0.25)
         this.addGuardian(true)
 

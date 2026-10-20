@@ -19,6 +19,8 @@ import { createActivity } from '../activities/index.js'
 import { makePageTexture, makeTitleTexture, makeEndTexture } from '../book/PageArt.js'
 
 const words = (s) => (s ? s.trim().split(/\s+/).length : 0)
+/** Tiempo de lectura de un bloque: 3 a 5 s (instructivo), un poco más si es largo. */
+const readTime = (s) => (s ? Math.min(5.6, Math.max(3, 1.5 + words(s) * 0.27)) : 0)
 
 /** Agrupa story.pages en dobles páginas físicas del libro. */
 function buildSpreads(pages) {
@@ -206,6 +208,7 @@ export class StoryController {
         this.incoming = null
         this.scene?.endCarry()
         this.scene?.setOpenness(1)
+        this.ctx.ui.setSpeakers(this.scene)
         this.index += dir
         this.enterSpread()
     }
@@ -255,7 +258,11 @@ export class StoryController {
         const beat = s.page.beats[i]
         const { ui, quake, env } = this.ctx
         this.beat = i
-        ui.showText({ text: beat.text, dialogue: beat.dialogue }, { step: i, steps: s.page.beats.length })
+        const layout = s.page.layout ?? {}
+        ui.showText({
+            text: beat.text, dialogue: beat.dialogue,
+            at: beat.at ?? layout.at, tone: beat.tone ?? layout.tone,
+        }, { step: i, steps: s.page.beats.length })
         if (beat.dialogue) this.scene?.onDialogue(beat.dialogue.who)
         if (beat.quake !== undefined) {
             const [value, duration] = Array.isArray(beat.quake) ? beat.quake : [beat.quake, 1.2]
@@ -264,8 +271,8 @@ export class StoryController {
         if (beat.mood) env.setMood(beat.mood, 2.5)
 
         this.beatTl = this.scene ? this.scene.runSequence(beat.do ?? []) : null
-        // tiempo de lectura pensado para niños de 7 a 11 años
-        const read = 2 + (words(beat.text) + words(beat.dialogue?.text)) * 0.4
+        // tiempo de lectura pensado para niños de 7 a 11 años (3 a 5 s por bloque)
+        const read = readTime(beat.text) + readTime(beat.dialogue?.text) * (beat.text ? 0.75 : 1)
         const wait = Math.max(read, (this.beatTl?.duration() ?? 0) + 0.8)
         const last = i === s.page.beats.length - 1
         this.beatTimer = gsap.delayedCall(wait, () => (last ? this.afterBeats() : this.playBeat(i + 1)))
@@ -328,6 +335,7 @@ export class StoryController {
             book.stage.add(this.scene.group)
             gsap.to(this.scene, { openness: 1, duration: 1.8, ease: 'power1.inOut' })
         }
+        ui.setSpeakers(this.scene)
         if (s.activity?.id === ref) {
             this.phase = 'beats'
             this.beatTimer = gsap.delayedCall(1.6, () => this.startActivity(s.activity))

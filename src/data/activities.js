@@ -11,7 +11,7 @@
  *  - instrucciones de una sola frase.
  */
 export const activities = {
-    /** Juego 1 — entre las páginas 5 y 6 */
+    /** Juego 1 — después de la página 6 ("¡Allá! Vamos despacito.") */
     safePlace: {
         title: '¿Dónde me protejo?',
         guide: '¡Psst! Sí, tú, que estás leyendo. Nico necesita tu ayuda: toca el lugar donde estará más seguro.',
@@ -30,7 +30,7 @@ export const activities = {
         success: '¡Eso es! Lejos de ventanas y de cosas que se caen.',
     },
 
-    /** Juego 2 — entre las páginas 6 y 7 */
+    /** Juego 2 — después de la página 7 (agáchate y cúbrete) */
     protectSteps: {
         title: 'Agáchate, cúbrete y sujétate',
         guide: '¡Ahora te toca a ti! Practica con Nico: toca los tres pasos mágicos, en orden.',
@@ -44,7 +44,7 @@ export const activities = {
         success: '¡Lo lograste! Ya sabes cómo protegerte.',
     },
 
-    /** Juego 3 — entre las páginas 10 y 11 */
+    /** Juego 3 — después de la página 12 (antes de salir al patio) */
     safeRoute: {
         title: 'Camino al lugar seguro',
         guide: '¡Hola otra vez! Ayúdame a sacar a Nico: primero los zapatos, luego pasitos lentos y al final un lugar abierto.',

@@ -1,151 +1,253 @@
 /**
- * Nico — personaje principal, estilo "arcilla" del moodboard (cabeza grande,
- * formas redondas, colores pastel).
+ * Nico — personaje principal. Usa el modelo 3D entregado (models/nico.glb,
+ * convertido del FBX). El FBX no traía esqueleto: se le agregó uno sencillo
+ * (cadera, columna, pecho, cabeza, brazos con codo y piernas con rodilla y
+ * tobillo) con pesos suaves para que la ropa se doble sin romperse.
  *
  * Animación por capas:
  *   1. Pose: valores (this.p) que gsap interpola entre poses predefinidas.
- *   2. Procedural: respirar, parpadear, caminar, temblar (en update()).
+ *   2. Resortes: cada grupo del cuerpo sigue su pose con un poco de peso e
+ *      inercia (las piernas y la cadera responden primero, luego el torso, los
+ *      brazos y la cabeza) → movimiento encadenado, sin saltos.
+ *   3. Equilibrio: al bajar o subir, el torso se inclina y los brazos se
+ *      adelantan según la velocidad de la cadera (centro de gravedad sobre los
+ *      pies). Las piernas usan IK: los pies quedan plantados en el piso.
+ *   4. Procedural: respirar, parpadear, caminar, temblar (en update()).
  * Para agregar una pose nueva basta con sumar una entrada en POSES.
  */
 import * as THREE from 'three'
 import gsap from 'gsap'
+import { clone as cloneRig } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { geo, mat, add, glowSprite } from '../kit.js'
-import { palette } from '../../data/theme.js'
+import { assets } from '../assets.js'
 
-const C = {
-    skin: '#f7d2b6',
-    hair: '#7b4a2d',
-    sweater: '#f6b94a',
-    sweaterDark: '#ec9f35',
-    pants: '#5eaff2',
-    sock: '#ffffff',
-    shoe: palette.red,
-    cheek: '#f59a9a',
-    eye: '#2b2233',
+const MOUTH = '#6b3a32'
+const HIP_Y = 0.25 // altura de la cadera de pie
+const DROP = 0.15 // cuánto baja la cadera con crouch = 1
+const L_THIGH = 0.08
+const L_SHIN = 0.08
+const STRIDE = 0.05 // medio paso (las piernas del modelo son cortitas)
+
+/**
+ * Ángulos en radianes (ejes del personaje: x = lado, y = arriba, z = adelante).
+ *  armX < 0  brazo hacia adelante/arriba        armZ  abre el brazo hacia afuera (R < 0, L > 0)
+ *  elbow > 0 dobla el codo                      crouch 0…1 baja la cadera (sit ≈ 1.15: sentado en el piso)
+ *  hipZ      cadera atrás (<0) para equilibrar  fRz / fLz  pie derecho / izquierdo adelante
+ *  lean > 0  torso hacia adelante               plant 1 = pies plantados (IK), 0 = piernas libres
+ */
+const BASE = {
+    armRx: 0.06, armRz: -0.07, elbowR: 0.18, armLx: 0.06, armLz: 0.07, elbowL: 0.18,
+    crouch: 0, hipZ: 0, fRz: 0, fLz: 0, lean: 0, headX: 0, headY: 0, headZ: 0,
+    plant: 1, legRx: 0, legLx: 0, knee: 0.12,
 }
-
-const HIP = 0.24
-
-/** Ángulos en radianes. armX < 0 = brazo hacia adelante/arriba. */
+const P = (o) => ({ ...BASE, ...o })
 export const POSES = {
-    idle:    { armLx: 0.08, armLz: 0.12, armRx: 0.08, armRz: -0.12, legLx: 0, legRx: 0, crouch: 0, lean: 0, headX: 0, headY: 0, headZ: 0 },
-    show:    { armLx: 0.1, armLz: 0.15, armRx: -1.35, armRz: -0.25, legLx: 0, legRx: 0, crouch: 0, lean: 0, headX: 0.12, headY: -0.25, headZ: 0.05 },
-    reach:   { armLx: 0.2, armLz: 0.25, armRx: -2.75, armRz: -0.15, legLx: 0.12, legRx: -0.1, crouch: 0, lean: -0.08, headX: -0.25, headY: 0, headZ: 0 },
-    worried: { armLx: -0.5, armLz: 0.55, armRx: -1.2, armRz: -0.5, legLx: 0.05, legRx: -0.05, crouch: 0.05, lean: 0.05, headX: 0, headY: 0, headZ: 0.08 },
-    run:     { armLx: -0.6, armLz: 0.2, armRx: 0.5, armRz: -0.2, legLx: 0, legRx: 0, crouch: 0, lean: 0.18, headX: 0, headY: 0, headZ: 0 },
-    stop:    { armLx: 0.35, armLz: 0.5, armRx: 0.35, armRz: -0.5, legLx: 0.25, legRx: -0.15, crouch: 0, lean: -0.15, headX: -0.1, headY: 0.15, headZ: 0 },
-    kneel:   { armLx: -0.35, armLz: 0.2, armRx: -0.35, armRz: -0.2, legLx: -1.45, legRx: -1.45, crouch: 0.85, lean: 0.12, headX: 0.05, headY: 0, headZ: 0 },
-    crouch:  { armLx: -0.9, armLz: 0.1, armRx: -0.9, armRz: -0.1, legLx: -1.55, legRx: -1.55, crouch: 1, lean: 0.55, headX: 0.25, headY: 0, headZ: 0 },
-    cover:   { armLx: -2.85, armLz: 0.42, armRx: -2.85, armRz: -0.42, legLx: -1.55, legRx: -1.55, crouch: 1, lean: 0.55, headX: 0.35, headY: 0, headZ: 0 },
-    hold:    { armLx: -2.85, armLz: 0.42, armRx: -1.15, armRz: -0.85, legLx: -1.55, legRx: -1.55, crouch: 1, lean: 0.5, headX: 0.3, headY: -0.2, headZ: 0 },
-    peek:    { armLx: -0.5, armLz: 0.3, armRx: -1.1, armRz: -0.8, legLx: -1.5, legRx: -1.5, crouch: 0.9, lean: 0.2, headX: -0.15, headY: 0.35, headZ: 0.1 },
-    sit:     { armLx: -0.2, armLz: 0.35, armRx: -0.2, armRz: -0.35, legLx: -1.5, legRx: -1.5, crouch: 0.95, lean: -0.05, headX: -0.05, headY: 0, headZ: 0 },
-    cheer:   { armLx: -2.7, armLz: 0.45, armRx: -2.7, armRz: -0.45, legLx: 0, legRx: 0, crouch: 0, lean: -0.05, headX: -0.2, headY: 0, headZ: 0 },
-    dangle:  { armLx: -2.4, armLz: 0.6, armRx: -2.4, armRz: -0.6, legLx: 0.3, legRx: -0.3, crouch: 0, lean: 0, headX: -0.15, headY: 0, headZ: 0 },
+    idle: P({}),
+    show: P({ armRx: -1.15, armRz: -0.2, elbowR: 0.75, headX: 0.16, headY: -0.25, lean: 0.03 }),
+    reach: P({ armRx: -2.75, armRz: -0.12, elbowR: 0.08, armLx: 0.2, armLz: 0.22, lean: -0.08, headX: -0.28, fRz: 0.025, fLz: -0.015 }),
+    worried: P({ armRx: -0.75, armRz: 0.25, elbowR: 1.55, armLx: -0.75, armLz: -0.25, elbowL: 1.55, crouch: 0.12, hipZ: -0.01, lean: 0.1, headZ: 0.08, headX: 0.05 }),
+    run: P({ armRx: -0.2, elbowR: 1.2, armLx: -0.2, elbowL: 1.2, lean: 0.2, crouch: 0.08 }),
+    stop: P({ armRx: 0.25, armRz: -0.55, elbowR: 0.35, armLx: 0.25, armLz: 0.55, elbowL: 0.35, lean: -0.14, crouch: 0.1, fRz: 0.045, fLz: -0.03, headX: -0.1, headY: 0.15 }),
+    // debajo de la mesa, esperando: agachado sobre los talones, manos en las rodillas
+    kneel: P({ crouch: 0.72, hipZ: -0.035, lean: 0.32, armRx: -0.75, armRz: 0.05, elbowR: 0.55, armLx: -0.75, armLz: -0.05, elbowL: 0.55, headX: 0.02 }),
+    // "¡Agáchate!": bien pequeñito, como una tortuga (manos al piso, cabeza abajo)
+    crouch: P({ crouch: 1, hipZ: -0.045, lean: 0.78, armRx: -0.95, armRz: 0.12, elbowR: 0.55, armLx: -0.95, armLz: -0.12, elbowL: 0.55, headX: 0.3 }),
+    // "¡Cúbrete!": codos al frente y manos a los lados de la cabeza y la nuca
+    cover: P({ crouch: 1, hipZ: -0.045, lean: 0.55, armRx: -1.95, armRz: 0.42, elbowR: 1.85, armLx: -1.95, armLz: -0.42, elbowL: 1.85, headX: 0.32 }),
+    // "¡Sujétate!": un brazo cubre la cabeza, el otro agarra la pata de la mesa
+    hold: P({ crouch: 1, hipZ: -0.045, lean: 0.5, armRx: -1.2, armRz: -0.6, elbowR: 0.3, armLx: -1.95, armLz: -0.42, elbowL: 1.85, headX: 0.3, headY: -0.15 }),
+    peek: P({ crouch: 0.75, hipZ: -0.035, lean: 0.22, armRx: -1.05, armRz: -0.35, elbowR: 0.45, armLx: -0.7, armLz: -0.05, elbowL: 0.6, headX: -0.18, headY: 0.38, headZ: 0.1 }),
+    // sentado en el suelo, con las manos sobre las rodillas
+    sit: P({ crouch: 1.17, hipZ: -0.08, fRz: 0.05, fLz: 0.05, lean: 0.14, armRx: -0.85, armRz: 0.05, elbowR: 0.25, armLx: -0.85, armLz: -0.05, elbowL: 0.25, headX: -0.04 }),
+    cheer: P({ armRx: -2.75, armRz: -0.4, elbowR: 0.2, armLx: -2.75, armLz: 0.4, elbowL: 0.2, lean: -0.05, headX: -0.2 }),
+    dangle: P({ armRx: -2.5, armRz: -0.55, elbowR: 0.25, armLx: -2.5, armLz: 0.55, elbowL: 0.25, plant: 0, legRx: 0.28, legLx: -0.22, knee: 0.35, headX: -0.12 }),
 }
+
+/** Resortes por grupo: [frecuencia, amortiguamiento]. */
+const SPRING = {
+    legs: [17, 0.9], body: [12, 0.8], arms: [10, 0.62], head: [9, 0.72],
+}
+const GROUP = {
+    crouch: 'legs', hipZ: 'legs', fRz: 'legs', fLz: 'legs', plant: 'legs', legRx: 'legs', legLx: 'legs', knee: 'legs',
+    lean: 'body',
+    armRx: 'arms', armRz: 'arms', elbowR: 'arms', armLx: 'arms', armLz: 'arms', elbowL: 'arms',
+    headX: 'head', headY: 'head', headZ: 'head',
+}
+
+// ---------------------------------------------------------------- plantilla compartida
+let TEMPLATE = null
+
+function hex(color) { return '#' + color.getHexString() }
+
+const ROUGH = { piel: 0.68, pelo: 0.82, ojos: 0.22, ceja: 0.9, zapato: 0.6 }
+function roughFor(name) {
+    const n = name.toLowerCase()
+    for (const [k, r] of Object.entries(ROUGH)) if (n.includes(k)) return r
+    return 0.76
+}
+
+/** Prepara una sola vez el modelo cargado: materiales del kit, sombras y datos de reposo del esqueleto. */
+function template() {
+    if (TEMPLATE) return TEMPLATE
+    const src = assets.nico
+    if (!src) throw new Error('[cuento] El modelo de Nico no está cargado')
+    src.updateMatrixWorld(true)
+    const sock = mat.clay('#fbf6ee', 0.85)
+    src.traverse((o) => {
+        if (!o.isMesh) return
+        const m = o.material
+        const isEye = /ojo|pupila|ceja|nariz/.test(o.name) || /ojos|cejas/.test(m.name)
+        o.userData.matName = m.name
+        o.material = mat.clay(hex(m.color), roughFor(m.name))
+        o.castShadow = !isEye
+        o.receiveShadow = false
+        o.frustumCulled = false
+    })
+    // datos de reposo de cada hueso, en el espacio del personaje
+    const rest = {}
+    const inv = new THREE.Matrix4().copy(src.matrixWorld).invert()
+    const m = new THREE.Matrix4()
+    src.traverse((o) => {
+        if (!o.isBone) return
+        m.multiplyMatrices(inv, o.matrixWorld)
+        const pos = new THREE.Vector3()
+        const q = new THREE.Quaternion()
+        m.decompose(pos, q, new THREE.Vector3())
+        rest[o.name] = { pos, q, localPos: o.position.clone(), localQ: o.quaternion.clone() }
+    })
+    for (const [name, r] of Object.entries(rest)) {
+        const bone = src.getObjectByName(name)
+        const parent = bone.parent
+        const pq = rest[parent.name]?.q ?? (() => {
+            m.multiplyMatrices(inv, parent.matrixWorld)
+            const q = new THREE.Quaternion()
+            m.decompose(new THREE.Vector3(), q, new THREE.Vector3())
+            return q
+        })()
+        r.parentInv = pq.clone().invert()
+    }
+    TEMPLATE = { src, rest, sock }
+    return TEMPLATE
+}
+
+const noRaycast = () => {}
+const _q = new THREE.Quaternion()
+const _e = new THREE.Euler()
+const _v = new THREE.Vector3()
+const _axis = new THREE.Vector3()
+const _qs = new THREE.Quaternion()
+const _q2 = new THREE.Quaternion()
+const _qt = new THREE.Quaternion()
 
 export class Nico extends THREE.Group {
     constructor() {
         super()
         this.name = 'nico'
         this.p = { ...POSES.idle, lift: 0 }
+        this.s = { ...this.p } // estado suavizado (resortes)
+        this.sv = {} // velocidades de los resortes
+        for (const k of Object.keys(GROUP)) this.sv[k] = 0
         this.walking = 0
+        this.walkSpeed = 0.7
         this.walkPhase = 0
+        this.walkAmt = 0
         this.blink = 0
         this.nextBlink = 2
         this.heartGlow = 0
+        this.prevCrouch = 0
+        this.balance = 0
         this.build()
     }
 
     build() {
-        const skin = mat.clay(C.skin, 0.7)
-        const sweater = mat.clay(C.sweater)
-        const pants = mat.clay(C.pants)
-
-        // ---- caderas + piernas
-        this.hips = new THREE.Group()
-        this.hips.position.y = HIP
-        this.add(this.hips)
-        this.legs = [-1, 1].map((side) => {
-            const leg = new THREE.Group()
-            leg.position.set(side * 0.07, 0, 0)
-            add(leg, geo.capsule(0.058, 0.12), pants, [0, -0.11, 0])
-            const sock = add(leg, geo.sphere(0.062, 16, 12), mat.clay(C.sock), [0, -0.205, 0.025])
-            sock.scale.set(1, 0.62, 1.4)
-            const shoe = add(leg, geo.rbox(0.13, 0.08, 0.2, 0.035), mat.clay(C.shoe, 0.6), [0, -0.205, 0.03])
-            shoe.visible = false
-            leg.userData.shoe = shoe
-            leg.userData.sock = sock
-            this.hips.add(leg)
-            return leg
+        const T = template()
+        this.rest = T.rest
+        this.model = cloneRig(T.src)
+        this.add(this.model)
+        this.bones = {}
+        this.model.traverse((o) => { if (o.isBone) this.bones[o.name] = o })
+        this.parts = {}
+        this.model.traverse((o) => {
+            if (o.name && (o.isMesh || o.isGroup)) this.parts[o.name] = o
+            // los toques se detectan con la caja `hit` (más grande y barata que la malla)
+            if (o.isMesh) o.raycast = noRaycast
         })
 
-        // ---- cuerpo (se inclina desde la cadera)
-        this.body = new THREE.Group()
-        this.hips.add(this.body)
-        const torso = add(this.body, geo.capsule(0.145, 0.1, 8, 16), sweater, [0, 0.15, 0])
-        torso.scale.set(1, 1, 0.9)
-        add(this.body, geo.torus(0.1, 0.025, 8, 20), mat.clay(C.sweaterDark), [0, 0.3, 0]).rotation.x = Math.PI / 2
+        // zapatos ↔ calcetines (la actividad 3 se los pone)
+        this.shoes = [this.parts.zapatoR, this.parts.zapatoL].filter(Boolean)
+        this.socks = this.shoes.map((shoe) => {
+            const body = shoe.isSkinnedMesh ? shoe : shoe.children.find((c) => c.userData.matName === 'zapato') ?? shoe.children[0]
+            const s = new THREE.SkinnedMesh(body.geometry, T.sock)
+            s.bind(body.skeleton, body.bindMatrix)
+            s.castShadow = true
+            s.frustumCulled = false
+            s.visible = false
+            body.parent.add(s)
+            return s
+        })
+
+        // ojos (parpadeo): eje "arriba" del personaje dentro de cada hueso
+        this.eyes = ['eyeR', 'eyeL'].map((n) => this.bones[n]).filter(Boolean)
+        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.rest.eyeR.q.clone().invert())
+        const ax = ['x', 'y', 'z'].reduce((a, k) => (Math.abs(up[k]) > Math.abs(up[a]) ? k : a), 'x')
+        this.eyeAxis = ax
+
+        // boca (el modelo no trae boca: se agrega una pequeña para las expresiones)
+        const mouthMat = mat.clay(MOUTH, 0.6)
+        this.mouths = {
+            smile: this.attach('head', new THREE.Mesh(geo.torus(0.015, 0.0042, 6, 16, Math.PI), mouthMat), [-0.004, 0.66, 0.151]),
+            o: this.attach('head', new THREE.Mesh(geo.sphere(0.0095, 12, 10), mouthMat), [-0.004, 0.652, 0.151]),
+            worried: this.attach('head', new THREE.Mesh(geo.torus(0.012, 0.0038, 6, 16, Math.PI), mouthMat), [-0.004, 0.647, 0.149]),
+        }
+        // pegadas a la cara (la superficie se inclina hacia atrás bajo la nariz)
+        for (const m of Object.values(this.mouths)) m.rotateX(0.3)
+        this.mouths.smile.rotateZ(Math.PI)
+        this.mouths.o.scale.set(0.85, 1.15, 0.5)
+        this.face('smile')
 
         // corazón (brilla cuando despierta el Guardián)
         this.heart = glowSprite('#ffb36b', 0.0, 0.95)
-        this.heart.position.set(0, 0.17, 0.16)
-        this.body.add(this.heart)
+        this.attach('chest', this.heart, [0, 0.46, 0.125])
 
-        // ---- brazos
-        this.arms = [-1, 1].map((side) => {
-            const arm = new THREE.Group()
-            arm.position.set(side * 0.155, 0.26, 0)
-            add(arm, geo.capsule(0.046, 0.12), sweater, [0, -0.1, 0])
-            add(arm, geo.sphere(0.052, 14, 10), skin, [0, -0.2, 0])
-            this.body.add(arm)
-            return arm
-        })
-        // arms[0] = lado -x (derecho de Nico), arms[1] = lado +x (izquierdo)
-        this.armR = this.arms[0]
-        this.armL = this.arms[1]
-        this.hand = new THREE.Group()
-        this.hand.position.set(0, -0.24, 0.02)
-        this.armR.add(this.hand)
-
-        // ---- cabeza
-        this.head = new THREE.Group()
-        this.head.position.y = 0.5
-        this.body.add(this.head)
-        add(this.head, geo.sphere(0.185, 28, 20), skin, [0, 0, 0])
-        const hair = add(this.head, geo.hemi(0.195, 28, 12, 0.55), mat.clay(C.hair, 0.85), [0, 0.012, -0.012])
-        hair.rotation.x = -0.32
-        for (const [x, y, z, s] of [[-0.08, 0.125, 0.115, 0.065], [0, 0.14, 0.125, 0.07], [0.08, 0.125, 0.115, 0.065], [0.15, 0.06, 0.07, 0.055], [-0.15, 0.06, 0.07, 0.055]]) {
-            add(this.head, geo.sphere(s, 14, 10), mat.clay(C.hair, 0.85), [x, y, z])
-        }
-        add(this.head, geo.sphere(0.04, 12, 8), skin, [0.183, -0.01, 0])
-        add(this.head, geo.sphere(0.04, 12, 8), skin, [-0.183, -0.01, 0])
-
-        this.eyes = [-1, 1].map((side) => {
-            const eye = new THREE.Group()
-            eye.position.set(side * 0.066, 0.005, 0.165)
-            add(eye, geo.sphere(0.026, 14, 10), mat.clay(C.eye, 0.3), [0, 0, 0], { cast: false })
-            add(eye, geo.sphere(0.009, 8, 6), mat.basic('#ffffff'), [0.008, 0.01, 0.022], { cast: false })
-            this.head.add(eye)
-            return eye
-        })
-        for (const side of [-1, 1]) {
-            const cheek = add(this.head, geo.sphere(0.036, 12, 8), mat.clay(C.cheek, 0.9), [side * 0.112, -0.055, 0.138], { cast: false })
-            cheek.scale.set(1, 0.6, 0.45)
-        }
-        this.mouths = {
-            smile: add(this.head, geo.torus(0.032, 0.009, 6, 16, Math.PI), mat.clay('#7a2e3a', 0.6), [0, -0.055, 0.172], { cast: false }),
-            o: add(this.head, geo.sphere(0.024, 12, 10), mat.clay('#7a2e3a', 0.6), [0, -0.068, 0.168], { cast: false }),
-            worried: add(this.head, geo.torus(0.026, 0.008, 6, 16, Math.PI), mat.clay('#7a2e3a', 0.6), [0, -0.085, 0.17], { cast: false }),
-        }
-        this.mouths.smile.rotation.z = Math.PI
-        this.mouths.o.scale.set(0.9, 1.2, 0.5)
-        this.face('smile')
+        // mano derecha: aquí se sostiene el bloque azul
+        this.hand = this.attach('forearmR', new THREE.Group(), [-0.158, 0.3, 0.035])
 
         // zona de toque generosa (actividades)
         this.hit = new THREE.Mesh(geo.box(0.5, 0.95, 0.5), mat.hit())
         this.hit.position.y = 0.47
         this.add(this.hit)
+
+        // descalzo (con calcetines) hasta que se pone los zapatos
+        this.setShoes(false)
+        // punto sobre la cabeza: de aquí sale la colita de su globo de diálogo
+        this.speechAnchor = this.attach('head', new THREE.Object3D(), [0, 0.97, 0.02])
+        this.applyRig(0)
+    }
+
+    /** Cuelga un objeto de un hueso usando coordenadas del personaje en reposo. */
+    attach(boneName, obj, [x, y, z]) {
+        const bone = this.bones[boneName]
+        const r = this.rest[boneName]
+        const inv = r.q.clone().invert()
+        obj.position.set(x, y, z).sub(r.pos).applyQuaternion(inv)
+        obj.quaternion.copy(inv)
+        obj.castShadow = false
+        bone.add(obj)
+        return obj
+    }
+
+    /** Rota un hueso con ángulos en ejes del personaje (relativos a su padre). */
+    joint(name, x = 0, y = 0, z = 0, order = 'XYZ') {
+        _q.setFromEuler(_e.set(x, y, z, order))
+        this.jointQ(name, _q)
+    }
+
+    /** Igual que joint(), con un cuaternión en ejes del personaje. */
+    jointQ(name, q) {
+        const b = this.bones[name]
+        if (!b) return
+        const r = this.rest[name]
+        b.quaternion.copy(r.parentInv).multiply(q).multiply(r.q)
     }
 
     // ------------------------------------------------------------ API
@@ -158,19 +260,27 @@ export class Nico extends THREE.Group {
         const target = POSES[name]
         if (!target) return gsap.timeline()
         this.currentPose = name
+        // agacharse/levantarse: nunca de golpe (el peso baja y sube con control)
+        const big = Math.abs(target.crouch - this.p.crouch) > 0.25
+        if (big) {
+            duration = Math.max(duration, 0.85)
+            ease = 'power2.inOut'
+        }
         return gsap.to(this.p, { ...target, duration, ease, overwrite: 'auto' })
     }
 
     poseInstant(name) {
         Object.assign(this.p, POSES[name])
+        Object.assign(this.s, POSES[name])
+        for (const k of Object.keys(this.sv)) this.sv[k] = 0
+        this.prevCrouch = this.p.crouch
         this.currentPose = name
+        this.applyRig(0)
     }
 
     setShoes(on) {
-        for (const leg of this.legs) {
-            leg.userData.shoe.visible = on
-            leg.userData.sock.visible = !on
-        }
+        this.shoes.forEach((s) => { s.visible = on })
+        this.socks.forEach((s) => { s.visible = !on })
     }
 
     /** Sostener un objeto en la mano derecha (ej. el bloque azul). */
@@ -192,7 +302,7 @@ export class Nico extends THREE.Group {
         const duration = Math.max(0.35, dist / speed)
         const tl = gsap.timeline()
         if (face) tl.add(this.turnTo(x, z, 0.35), 0)
-        tl.call(() => { this.walking = run ? 1.6 : 1 }, null, 0.1)
+        tl.call(() => { this.walking = run ? 1.6 : 1; this.walkSpeed = speed }, null, 0.1)
         tl.to(this.position, { x, z, duration, ease: 'sine.inOut' }, 0.1)
         tl.call(() => { this.walking = 0 })
         return tl
@@ -210,59 +320,130 @@ export class Nico extends THREE.Group {
     /** Pequeño salto de reacción. */
     hop() {
         return gsap.timeline()
-            .to(this.p, { lift: 0.12, duration: 0.18, ease: 'power2.out' })
+            .to(this.p, { lift: 0.1, duration: 0.18, ease: 'power2.out' })
             .to(this.p, { lift: 0, duration: 0.35, ease: 'bounce.out' })
     }
 
     // ------------------------------------------------------------ loop
-    update(dt, t, quake) {
-        const p = this.p
-        // caminar
-        let swing = 0
-        let bob = 0
-        if (this.walking > 0) {
-            this.walkPhase += dt * 10 * this.walking
-            swing = Math.sin(this.walkPhase) * 0.55
-            bob = Math.abs(Math.cos(this.walkPhase)) * 0.025
-        } else {
-            this.walkPhase = 0
+    springs(dt) {
+        const h = Math.min(dt, 1 / 30) / 2
+        for (const [k, g] of Object.entries(GROUP)) {
+            const [w, z] = SPRING[g]
+            for (let i = 0; i < 2; i++) {
+                const a = w * w * (this.p[k] - this.s[k]) - 2 * z * w * this.sv[k]
+                this.sv[k] += a * h
+                this.s[k] += this.sv[k] * h
+            }
         }
-        // respirar
+        this.s.lift = this.p.lift
+    }
+
+    update(dt, t, quake) {
+        this.springs(dt)
+        // equilibrio: mientras la cadera sube o baja, el torso se adelanta y
+        // los brazos se abren un poco (centro de gravedad sobre los pies)
+        const vel = dt > 0 ? (this.s.crouch - this.prevCrouch) / dt : 0
+        this.prevCrouch = this.s.crouch
+        const target = Math.min(1, Math.abs(vel) / 1.6)
+        this.balance += (target - this.balance) * Math.min(1, dt * 9)
+        this.applyRig(t, dt, quake)
+    }
+
+    applyRig(t = 0, dt = 0, quake = null) {
+        const s = this.s
+        const B = this.bones
+        const bal = this.balance
+
+        // ---- caminar (pasos cortos y rápidos: piernas cortitas)
+        const walking = this.walking > 0
+        this.walkAmt += ((walking ? 1 : 0) - this.walkAmt) * Math.min(1, dt * 8)
+        if (walking) this.walkPhase += dt * (Math.PI * this.walkSpeed * this.walking) / (2 * STRIDE) * 0.55
+        const wa = this.walkAmt
+        const ph = this.walkPhase
         const breath = Math.sin(t * 2.2) * 0.012
 
-        this.hips.position.y = HIP - p.crouch * 0.19 + p.lift + bob
-        this.legs[0].rotation.x = p.legRx + swing
-        this.legs[1].rotation.x = p.legLx - swing
-        this.body.rotation.x = p.lean + breath * 0.5
-        this.body.scale.y = 1 + breath * 0.4
-        this.armR.rotation.x = p.armRx - swing * 0.7
-        this.armR.rotation.z = p.armRz
-        this.armL.rotation.x = p.armLx + swing * 0.7
-        this.armL.rotation.z = p.armLz
-        this.head.rotation.set(p.headX + breath, p.headY, p.headZ)
+        // ---- cadera
+        // rodillas apenas flojas de pie; al caminar la cadera baja en cada apoyo
+        const bob = wa * (0.006 + Math.abs(Math.sin(ph)) * 0.01)
+        const hipY = HIP_Y - 0.004 - s.crouch * DROP + s.lift - bob
+        const hipZ = s.hipZ - bal * 0.012
+        const hr = this.rest.hips
+        _v.set(0, hipY - hr.pos.y, hipZ).applyQuaternion(hr.parentInv)
+        B.hips.position.copy(hr.localPos).add(_v)
+        const sway = quake && quake.intensity > 0.01 ? quake.shake.x * 0.08 : 0
+        this.joint('hips', 0, wa * Math.sin(ph) * 0.08, 0)
 
-        // temblor: Nico se tambalea un poco
-        if (quake.intensity > 0.01) {
-            this.body.rotation.z = quake.shake.x * 0.08
-            this.head.rotation.z += quake.shake.z * 0.06
-        } else {
-            this.body.rotation.z *= 0.9
+        // ---- torso: la inclinación se reparte entre columna y pecho
+        const lean = s.lean + bal * 0.32 + wa * 0.06
+        this.joint('spine', lean * 0.45 + breath * 0.3, -wa * Math.sin(ph) * 0.1, sway)
+        this.joint('chest', lean * 0.55 - breath * 0.5, 0, sway * 0.4)
+        this.joint('head', s.headX + breath * 0.6 - bal * 0.1, s.headY, s.headZ + (quake && quake.intensity > 0.01 ? quake.shake.z * 0.06 : 0))
+
+        // ---- brazos (balanceo al caminar y al equilibrarse)
+        const swing = wa * Math.sin(ph) * 0.55
+        this.joint('upperArmR', s.armRx - swing - bal * 0.45, 0, s.armRz - bal * 0.15)
+        this.joint('forearmR', -(s.elbowR + bal * 0.3 + wa * 0.35), 0, 0)
+        this.joint('upperArmL', s.armLx + swing - bal * 0.45, 0, s.armLz + bal * 0.15)
+        this.joint('forearmL', -(s.elbowL + bal * 0.3 + wa * 0.35), 0, 0)
+
+        // ---- piernas: IK con los pies plantados (o libres si plant = 0)
+        this.leg('R', s.fRz + wa * Math.sin(ph) * STRIDE, wa * Math.max(0, Math.cos(ph)) * 0.035, s.legRx + wa * Math.sin(ph) * 0.5, hipY, hipZ)
+        this.leg('L', s.fLz - wa * Math.sin(ph) * STRIDE, wa * Math.max(0, -Math.cos(ph)) * 0.035, s.legLx - wa * Math.sin(ph) * 0.5, hipY, hipZ)
+
+        // ---- parpadeo
+        if (dt) {
+            this.nextBlink -= dt
+            if (this.nextBlink < 0) {
+                this.blink = 0.14
+                this.nextBlink = 2 + Math.random() * 3
+            }
+            this.blink = Math.max(0, this.blink - dt)
         }
+        const ey = this.blink > 0 ? 0.12 : 1
+        for (const e of this.eyes) { e.scale.set(1, 1, 1); e.scale[this.eyeAxis] = ey }
 
-        // parpadeo
-        this.nextBlink -= dt
-        if (this.nextBlink < 0) {
-            this.blink = 0.14
-            this.nextBlink = 2 + Math.random() * 3
-        }
-        this.blink = Math.max(0, this.blink - dt)
-        const ey = this.blink > 0 ? 0.15 : 1
-        this.eyes[0].scale.y = this.eyes[1].scale.y = ey
-
-        // corazón
+        // ---- corazón
         const hg = this.heartGlow
         this.heart.visible = hg > 0.01
-        this.heart.scale.setScalar(0.08 + hg * 0.38)
+        this.heart.scale.setScalar(0.06 + hg * 0.3)
         this.heart.material.opacity = hg
+    }
+
+    /**
+     * Pierna de 2 huesos en el plano sagital. Con plant = 1 el tobillo va a su
+     * punto en el piso (adelante = +z); con plant = 0 se usan ángulos libres.
+     */
+    leg(side, footZ, footLift, fkThigh, hipY, hipZ) {
+        const s = this.s
+        const rt = this.rest[`thigh${side}`]
+        const ra = this.rest[`foot${side}`]
+        // posición de la articulación de la cadera (la pelvis no rota en x)
+        const hy = rt.pos.y - HIP_Y + hipY
+        const hz = rt.pos.z + hipZ
+        const ay = ra.pos.y + footLift
+        const az = ra.pos.z + footZ
+        const dy = ay - hy
+        const dz = az - hz
+        const reach = L_THIGH + L_SHIN
+        const d = Math.min(reach - 1e-4, Math.max(Math.abs(L_THIGH - L_SHIN) + 0.012, Math.hypot(dy, dz)))
+        const phi = Math.atan2(dz, -dy)
+        const alpha = Math.acos(THREE.MathUtils.clamp((L_THIGH * L_THIGH + d * d - L_SHIN * L_SHIN) / (2 * L_THIGH * d), -1, 1))
+        const beta = Math.acos(THREE.MathUtils.clamp((L_THIGH * L_THIGH + L_SHIN * L_SHIN - d * d) / (2 * L_THIGH * L_SHIN), -1, 1))
+        const ikThigh = -(phi + alpha)
+        const ikKnee = Math.PI - beta
+        const w = THREE.MathUtils.clamp(s.plant, 0, 1)
+        const thigh = ikThigh * w + fkThigh * (1 - w)
+        const knee = ikKnee * w + s.knee * (1 - w)
+        // las rodillas se abren un poco al agacharse: el giro es alrededor del
+        // eje cadera–tobillo, así el pie no se mueve del lugar
+        const spread = (side === 'R' ? -1 : 1) * Math.min(1, s.crouch) * 0.22 * w
+        _axis.set(0, dy, dz).normalize()
+        _qs.setFromAxisAngle(_axis, -spread)
+        _q2.setFromEuler(_e.set(thigh, 0, 0))
+        this.jointQ(`thigh${side}`, _qt.multiplyQuaternions(_qs, _q2))
+        this.joint(`shin${side}`, knee, 0, 0)
+        // el pie queda plano sobre el piso (deshace la flexión y la apertura)
+        _q2.setFromEuler(_e.set(-(thigh + knee) * w, 0, 0))
+        this.jointQ(`foot${side}`, _qt.multiplyQuaternions(_q2, _qs.invert()))
     }
 }

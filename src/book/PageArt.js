@@ -11,11 +11,12 @@
 import * as THREE from 'three'
 import { palette } from '../data/theme.js'
 import { seeded } from '../models/kit.js'
+import { getCoverIllustration } from './CoverArt.js'
 
 const W = 768
 const H = 1024
+// una sola familia tipográfica en todo el libro (Instructivo de texto y diálogos)
 const FONT = "'Fredoka', 'Trebuchet MS', sans-serif"
-const SCRIPT = "'Pacifico', 'Brush Script MT', cursive"
 
 let maxAnisotropy = 4
 export function setAnisotropy(value) { maxAnisotropy = Math.min(8, value) }
@@ -166,6 +167,15 @@ function drawConfetti(g, rnd) {
     g.globalAlpha = 1
 }
 
+/** Color de cada escena (folio y marcas del pie de página). */
+const SCENE_ACCENT = {
+    room: palette.orange,
+    underTable: '#9b6fd6',
+    exit: '#3d8fd6',
+    route: '#d9a21b',
+    patio: '#4f9a57',
+}
+
 const floors = {
     room(g, side, rnd) { drawWood(g, rnd); drawRug(g, side) },
     exit(g, side, rnd) { drawWood(g, rnd); drawRug(g, side, H * 0.5, 300, 240) },
@@ -222,33 +232,34 @@ export function makePageTexture(page, side) {
     roundRect(g, x0, top, x1 - x0, H - top - bottom, 26)
     g.stroke()
 
-    // pie de página
-    g.textBaseline = 'middle'
-    const footY = H - bottom / 2 + 6
+    // pie de página (misma retícula en todas las hojas): título corrido en la
+    // hoja izquierda y folio en la derecha, alineados a la misma línea base.
+    // El color del folio identifica la escena (continuidad entre páginas).
+    g.textBaseline = 'alphabetic'
+    const base = H - bottom / 2 + 16
+    const accent = SCENE_ACCENT[page.scene] ?? palette.red
+    g.fillStyle = 'rgba(59,47,74,.14)'
+    g.fillRect(side === 'left' ? outer + 8 : spine + 26, H - bottom + 26, (side === 'left' ? W - spine - outer - 34 : W - outer - spine - 34), 2)
     if (side === 'left' && page.title) {
+        g.fillStyle = accent
+        g.beginPath()
+        g.arc(outer + 22, base - 13, 9, 0, Math.PI * 2)
+        g.fill()
         g.fillStyle = palette.ink
-        g.font = `600 44px ${FONT}`
+        g.font = `600 40px ${FONT}`
         g.textAlign = 'left'
-        g.fillText(page.title, outer + 8, footY, W - outer - 120)
+        g.fillText(page.title, outer + 44, base, W - outer - 140)
     }
     if (side === 'right' && page.number !== undefined) {
-        const cx = W - outer - 36
-        g.fillStyle = palette.red
+        const cx = W - outer - 34
+        g.fillStyle = accent
         g.beginPath()
-        g.arc(cx, footY, 36, 0, Math.PI * 2)
+        g.arc(cx, base - 13, 32, 0, Math.PI * 2)
         g.fill()
         g.fillStyle = '#fff'
-        g.font = `700 40px ${FONT}`
+        g.font = `700 36px ${FONT}`
         g.textAlign = 'center'
-        g.fillText(String(page.number), cx, footY + 2)
-        // puntos de la paleta
-        const dots = [palette.orange, palette.yellow, palette.green, palette.blue, palette.lilac]
-        dots.forEach((c, i) => {
-            g.fillStyle = c
-            g.beginPath()
-            g.arc(cx - 70 - i * 30, footY, 9, 0, Math.PI * 2)
-            g.fill()
-        })
+        g.fillText(String(page.number), cx, base)
     }
 
     // sombra del lomo
@@ -274,26 +285,55 @@ export function makeTitleTexture(side, text) {
     g.drawImage(tex.image, 0, 0)
     tex.dispose()
 
-    g.textAlign = 'center'
-    g.textBaseline = 'middle'
+    g.textBaseline = 'alphabetic'
     if (side === 'right') {
-        g.fillStyle = 'rgba(255,250,240,0.85)'
-        roundRect(g, 90, 280, W - 160, 400, 40)
+        // título: jerarquía fuerte y una sola tipografía
+        g.fillStyle = 'rgba(255,248,236,.94)'
+        roundRect(g, 80, 230, W - 150, 520, 44)
         g.fill()
-        g.fillStyle = palette.red
-        g.font = `86px ${SCRIPT}`
-        const words = text.split(' ')
-        const lines = [words.slice(0, 2).join(' '), words.slice(2, 4).join(' '), words.slice(4).join(' ')].filter(Boolean)
-        lines.forEach((l, i) => g.fillText(l, W / 2 + 10, 380 + i * 104))
-    } else {
-        g.fillStyle = 'rgba(255,250,240,0.85)'
-        roundRect(g, 120, 380, W - 200, 250, 40)
-        g.fill()
+        g.textAlign = 'center'
+        const cx = W / 2 + 8
+        const lines = splitTitle(text)
         g.fillStyle = palette.ink
-        g.font = `500 40px ${FONT}`
-        wrap(g, text, W / 2 - 20, 450, W - 280, 54)
+        g.font = `600 70px ${FONT}`
+        g.fillText(lines[0], cx, 360)
+        g.font = `500 52px ${FONT}`
+        g.fillText(lines[1], cx, 440)
+        g.fillStyle = palette.red
+        g.font = `700 150px ${FONT}`
+        g.fillText(lines[2], cx, 590)
+        leaf(g, cx, 668, 1)
+    } else {
+        // subtítulo: bloque corto, alineado a la izquierda, líneas cortas
+        g.fillStyle = 'rgba(255,248,236,.94)'
+        roundRect(g, 110, 360, W - 200, 300, 40)
+        g.fill()
+        g.fillStyle = palette.orange
+        g.fillRect(160, 420, 70, 8)
+        g.fillStyle = palette.ink
+        g.font = `500 44px ${FONT}`
+        g.textAlign = 'left'
+        wrap(g, text, 160, 495, W - 340, 60)
     }
     return finish(canvas)
+}
+
+/** "El susurro de la Tierra" → ["El susurro", "de la", "Tierra"] */
+function splitTitle(text) {
+    const w = text.split(' ')
+    if (w.length >= 4) return [w.slice(0, 2).join(' '), w.slice(2, -1).join(' '), w[w.length - 1]]
+    return ['', '', text]
+}
+
+/** La hojita del Guardián (emblema del cuento). */
+function leaf(g, x, y, s = 1) {
+    g.fillStyle = '#4fae5b'
+    g.beginPath()
+    g.ellipse(x - 22 * s, y - 6 * s, 30 * s, 14 * s, -0.6, 0, Math.PI * 2)
+    g.ellipse(x + 22 * s, y - 6 * s, 30 * s, 14 * s, 0.6, 0, Math.PI * 2)
+    g.fill()
+    g.fillStyle = '#3b8d48'
+    g.fillRect(x - 3 * s, y - 4 * s, 6 * s, 34 * s)
 }
 
 /** Doble página final: "Fin" y la última frase del Guardián. */
@@ -305,37 +345,39 @@ export function makeEndTexture(side) {
     const tex = makePageTexture({ id: 'end', scene: 'title' }, side)
     g.drawImage(tex.image, 0, 0)
     tex.dispose()
-    g.textAlign = 'center'
-    g.textBaseline = 'middle'
+    g.textBaseline = 'alphabetic'
     if (side === 'left') {
-        g.fillStyle = 'rgba(255,250,240,0.88)'
-        roundRect(g, 110, 300, W - 190, 360, 40)
+        g.fillStyle = 'rgba(255,248,236,.94)'
+        roundRect(g, 110, 300, W - 190, 380, 44)
         g.fill()
+        g.textAlign = 'center'
         g.fillStyle = palette.red
-        g.font = `150px ${SCRIPT}`
-        g.fillText('Fin', W / 2 - 10, 450)
+        g.font = `700 190px ${FONT}`
+        g.fillText('Fin', W / 2 - 10, 540)
         const dots = [palette.red, palette.orange, palette.yellow, palette.green, palette.blue, palette.lilac]
         dots.forEach((c, i) => {
             g.fillStyle = c
             g.beginPath()
-            g.arc(W / 2 - 135 + i * 50, 590, 13, 0, Math.PI * 2)
+            g.arc(W / 2 - 135 + i * 50, 610, 12, 0, Math.PI * 2)
             g.fill()
         })
     } else {
-        g.fillStyle = 'rgba(255,250,240,0.88)'
-        roundRect(g, 90, 330, W - 170, 330, 40)
+        // la última frase del Guardián, como cita: alineada a la izquierda
+        g.fillStyle = 'rgba(243,236,255,.96)'
+        roundRect(g, 90, 300, W - 170, 380, 44)
         g.fill()
-        g.fillStyle = '#4fae5b'
-        g.beginPath()
-        g.ellipse(W / 2 - 34, 270, 46, 22, -0.6, 0, Math.PI * 2)
-        g.ellipse(W / 2 + 26, 270, 46, 22, 0.6, 0, Math.PI * 2)
-        g.fill()
+        g.strokeStyle = '#e2a93b'
+        g.lineWidth = 6
+        roundRect(g, 90, 300, W - 170, 380, 44)
+        g.stroke()
+        leaf(g, 160, 395, 0.8)
         g.fillStyle = palette.ink
-        g.font = `500 42px ${FONT}`
-        wrap(g, 'Cuando haya peligro, yo te aviso… y tú te cuidas.', W / 2 - 4, 420, W - 260, 58)
-        g.fillStyle = '#3f9a3c'
+        g.font = `600 46px ${FONT}`
+        g.textAlign = 'left'
+        wrap(g, 'Cuando haya peligro, yo te aviso… y tú te cuidas.', 150, 480, W - 320, 62)
+        g.fillStyle = '#6a3fb5'
         g.font = `600 34px ${FONT}`
-        g.fillText('— el Guardián', W / 2, 600)
+        g.fillText('— el Guardián', 150, 640)
     }
     return finish(canvas)
 }
@@ -355,7 +397,11 @@ function wrap(g, text, x, y, maxWidth, lineHeight) {
     g.fillText(line, x, yy)
 }
 
-/** Portada: título en letra cursiva (como en los archivos de Blender). */
+/**
+ * Portada (referencias editoriales): ilustración a sangre con los modelos del
+ * cuento (book/CoverArt.js) y el título grande arriba, con la palabra
+ * principal ("Tierra") como protagonista. Sin textos inventados.
+ */
 export function makeCoverTexture(title, label = null) {
     const CW = 768
     const CH = 1024
@@ -363,87 +409,75 @@ export function makeCoverTexture(title, label = null) {
     canvas.width = CW
     canvas.height = CH
     const g = canvas.getContext('2d')
-    const rnd = seeded(7)
-
-    // cuero / cartón de la tapa
-    const grd = g.createLinearGradient(0, 0, CW, CH)
-    grd.addColorStop(0, '#dd6a47')
-    grd.addColorStop(1, '#c4532f')
-    g.fillStyle = grd
-    g.fillRect(0, 0, CW, CH)
-    for (let i = 0; i < 2600; i++) {
-        g.fillStyle = rnd() > 0.5 ? 'rgba(255,220,190,0.05)' : 'rgba(90,30,10,0.06)'
-        g.fillRect(rnd() * CW, rnd() * CH, 2, 2)
+    const art = getCoverIllustration()
+    if (art) g.drawImage(art, 0, 0, CW, CH)
+    else {
+        const grd = g.createLinearGradient(0, 0, 0, CH)
+        grd.addColorStop(0, '#6fb4ee')
+        grd.addColorStop(0.6, '#fde7cc')
+        grd.addColorStop(0.61, '#a9d68c')
+        grd.addColorStop(1, '#8cc873')
+        g.fillStyle = grd
+        g.fillRect(0, 0, CW, CH)
     }
-    // lomo
-    g.fillStyle = 'rgba(80,20,10,0.18)'
-    g.fillRect(0, 0, 46, CH)
-    g.fillStyle = 'rgba(255,220,190,0.18)'
-    g.fillRect(46, 0, 4, CH)
+    // velo suave arriba para que el título se lea sobre el cielo
+    const veil = g.createLinearGradient(0, 0, 0, CH * 0.5)
+    veil.addColorStop(0, 'rgba(60,110,190,.28)')
+    veil.addColorStop(1, 'rgba(60,110,190,0)')
+    g.fillStyle = veil
+    g.fillRect(0, 0, CW, CH * 0.5)
 
-    // marcos
-    g.strokeStyle = 'rgba(255,231,184,0.9)'
-    g.lineWidth = 5
-    roundRect(g, 90, 60, CW - 140, CH - 120, 34)
-    g.stroke()
-    g.lineWidth = 2
-    roundRect(g, 108, 78, CW - 176, CH - 156, 26)
-    g.stroke()
-
-    // título con relieve
+    // título
+    const cx = CW / 2 + 20 // el lomo ocupa el borde izquierdo
+    const [l1, l2, l3] = splitTitle(title)
     g.textAlign = 'center'
-    g.textBaseline = 'middle'
-    g.font = `104px ${SCRIPT}`
-    const lines = ['El susurro', 'de la', 'Tierra']
-    if (title && title !== 'El susurro de la Tierra') { lines.length = 0; lines.push(title) }
-    lines.forEach((l, i) => {
-        const y = 250 + i * 128
-        g.fillStyle = 'rgba(110,30,15,0.55)'
-        g.fillText(l, CW / 2 + 22, y + 6)
-        g.fillStyle = '#ffe7b8'
-        g.fillText(l, CW / 2 + 18, y)
-    })
+    g.textBaseline = 'alphabetic'
+    g.lineJoin = 'round'
+    const ink = '#2b2140'
+    const word = (text, size, y, fill, weight = 700) => {
+        g.font = `${weight} ${size}px ${FONT}`
+        g.fillStyle = 'rgba(43,33,64,.35)'
+        g.fillText(text, cx, y + size * 0.07)
+        g.strokeStyle = ink
+        g.lineWidth = size * 0.13
+        g.strokeText(text, cx, y)
+        g.fillStyle = fill
+        g.fillText(text, cx, y)
+    }
+    word(l1, 104, 168, '#fff6e6')
+    word(l2, 62, 246, '#fff6e6', 600)
+    const tg = g.createLinearGradient(0, 270, 0, 430)
+    tg.addColorStop(0, '#ffe58a')
+    tg.addColorStop(1, '#f9b24a')
+    word(l3, 190, 410, tg)
 
-    // emblema: la hojita del Guardián
-    const ex = CW / 2 + 18
-    const ey = label ? 790 : 730
-    g.fillStyle = 'rgba(255,231,184,0.95)'
-    g.beginPath()
-    g.arc(ex, ey, 62, 0, Math.PI * 2)
-    g.fill()
-    g.fillStyle = '#4fae5b'
-    g.beginPath()
-    g.ellipse(ex - 20, ey - 6, 30, 15, -0.6, 0, Math.PI * 2)
-    g.ellipse(ex + 20, ey - 6, 30, 15, 0.6, 0, Math.PI * 2)
-    g.fill()
-    g.fillStyle = '#3b8d48'
-    g.fillRect(ex - 3, ey - 4, 6, 40)
-
-    // puntos de la paleta
-    const dots = [palette.red, palette.orange, palette.yellow, palette.green, palette.blue, palette.lilac]
-    dots.forEach((c, i) => {
-        g.fillStyle = '#ffe7b8'
-        g.beginPath()
-        g.arc(ex - 125 + i * 50, label ? 900 : 870, 15, 0, Math.PI * 2)
-        g.fill()
-        g.fillStyle = c
-        g.beginPath()
-        g.arc(ex - 125 + i * 50, label ? 900 : 870, 11, 0, Math.PI * 2)
-        g.fill()
-    })
+    // lomo: sombra y filo de luz
+    const sp = g.createLinearGradient(0, 0, 56, 0)
+    sp.addColorStop(0, 'rgba(60,20,10,.42)')
+    sp.addColorStop(1, 'rgba(60,20,10,0)')
+    g.fillStyle = sp
+    g.fillRect(0, 0, 56, CH)
+    g.fillStyle = 'rgba(255,240,220,.22)'
+    g.fillRect(46, 0, 3, CH)
 
     if (label) {
         g.save()
-        g.translate(CW / 2 + 18, 650)
-        g.rotate(-0.06)
+        g.translate(cx, 500)
+        g.rotate(-0.05)
         g.fillStyle = palette.yellow
-        roundRect(g, -130, -50, 260, 100, 50)
+        roundRect(g, -120, -50, 240, 100, 50)
         g.fill()
+        g.strokeStyle = ink
+        g.lineWidth = 6
+        roundRect(g, -120, -50, 240, 100, 50)
+        g.stroke()
         g.fillStyle = palette.red
-        g.font = `70px ${SCRIPT}`
-        g.fillText(label, 0, 2)
+        g.font = `700 68px ${FONT}`
+        g.textBaseline = 'middle'
+        g.fillText(label, 0, 4)
         g.restore()
     }
+    paperGrain(g, 3)
     return finish(canvas)
 }
 

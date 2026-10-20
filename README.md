@@ -25,8 +25,8 @@ Atajo para revisar una página concreta: `http://localhost:5173/?pagina=6`
 
 ```text
 src/
-  main.js                 arranque + carga progresiva (tipografías y cielos)
-  index.html / style.css  interfaz Liquid Glass
+  main.js                 arranque + carga progresiva (tipografía, cielos y modelos .glb)
+  index.html / style.css  interfaz: textos según el Instructivo de texto y diálogos
 
   data/                   ← CONTENIDO EDITABLE (sin lógica)
     story.js              páginas, momentos (beats), diálogos, acciones, atmósferas
@@ -38,33 +38,45 @@ src/
   book/
     Book.js               libro, hoja curvable (malla 25×7) y tapa
     PageTurner.js         arrastre físico de la hoja/tapa (resorte, umbral, inercia, rebote)
-    PageArt.js            ilustraciones impresas en las hojas
+    PageArt.js            ilustraciones impresas en las hojas, portada y pies de página
+    CoverArt.js           ilustración de la portada pintada con los modelos 3D del cuento
   scenes/                 escenarios pop-up: Room, UnderTable, Exit, Route, Patio
   activities/             SafePlace, ProtectSteps, SafeRoute
   models/
     kit.js                geometrías y materiales compartidos (cacheados)
-    characters/           Nico y el Guardián (poses + animación procedural)
+    assets.js             carga de static/models (niño, pinos y rocas)
+    characters/           Nico (modelo con esqueleto, IK en piernas) y el Guardián
     objects/              muebles y objetos del patio
   animations/
     popup.js              mecanismo pop-up: cada pieza nace guardada en el lomo, sale de la
                           ranura, se desliza a su lugar y se levanta (resorte elástico);
                           al cerrar vuelve al lomo. Sincronizado con la apertura de la página
     motions.js            bamboleos, brillos, onomatopeyas
-  world/                  cielo (HDRI), paisaje low-poly, luces, partículas
-  ui/                     UI (burbujas, pista de arrastre, globo del Guardián), Hotspots
+  world/                  cielo (HDRI), paisaje (pinos y rocas entregados), luces, partículas
+  ui/                     UI (narrador, globos con colita, instrucciones, pista de arrastre), Hotspots
   utils/Pointer.js        puntero: actividades primero, luego el arrastre de la hoja
 
 static/textures/sky/      HDRI entregados, convertidos a JPG livianos (noche / atardecer)
+static/models/nico.glb    el niño (personajej.fbx + esqueleto agregado en Blender)
+static/models/naturaleza.glb  pinos y rocas de arbolito.blend
 ```
 
 ## Cómo editar
 
 - **Cambiar un texto o diálogo**: `src/data/story.js` → `beats[].text` / `beats[].dialogue`.
+  Bloques de 8 a 18 palabras, una idea por bloque y un personaje por globo.
+- **Dónde va el narrador**: `layout.at` de cada página (`'top'`, `'top-left'`,
+  `'top-right'`, `'side-left'`, `'side-right'`) y `layout.tone` (`'dark'` en el temblor
+  y debajo de la mesa). Los globos de diálogo se ubican solos junto a quien habla.
 - **Agregar una página**: añade una entrada a `pages` con `scene`, `mood`, `camera` y `beats`.
 - **Cambiar la animación de un momento**: `beats[].do` lista acciones del escenario
   (`'nico.pose:cover'`, `'tower.fall'`, `['a', 'b']` en paralelo…). Las acciones
   genéricas están en `scenes/BaseScene.js`; las propias de cada escenario en su archivo.
 - **Nueva pose de Nico**: agrega una entrada en `POSES` (`models/characters/Nico.js`).
+  Las piernas se resuelven con IK (los pies quedan plantados); `crouch`, `lean` y
+  `hipZ` controlan cuánto baja la cadera, cuánto se inclina el torso y cuánto se
+  echa atrás la cadera para mantener el equilibrio. Cada grupo del cuerpo sigue
+  su pose con un resorte (`SPRING`).
 - **Nuevo escenario**: extiende `BaseScene`, constrúyelo en `build()` con `piece(obj, pliegue)`
   (`'front' | 'back' | 'left' | 'right' | 'none'`) y regístralo en `scenes/index.js`.
   `backdrop()` crea un telón en V de dos paneles que se para en el lomo y se abre como
@@ -93,3 +105,24 @@ static/textures/sky/      HDRI entregados, convertidos a JPG livianos (noche / a
   las páginas 1 y 2 (el borrador no tiene página 2).
 - **Instructivo de mini juegos** → las 3 actividades, en los momentos indicados y
   bloqueando SIGUIENTE hasta completarlas.
+
+## Revisión 4 (modelo, entorno, historia y diseño editorial)
+
+- **Niño**: `personajej.fbx` convertido a `static/models/nico.glb`. El FBX no traía
+  esqueleto: se le agregó uno (cadera, columna, pecho, cabeza, ojos, cejas, brazos con
+  codo y piernas con rodilla y tobillo) con pesos suaves para que la camisa, la
+  pantaloneta y las mangas se doblen sin romperse. Se corrigieron las caras invertidas
+  de las piezas con escala negativa del FBX. Se le agregó una boquita discreta (el
+  modelo no trae boca) para las expresiones que pide el cuento.
+- **Agacharse**: pies plantados (IK), rodillas y cadera que se flexionan juntas, cadera
+  hacia atrás y torso hacia adelante para mantener el equilibrio, brazos que se adelantan
+  durante el movimiento y cabeza que baja al final. Bajar y subir toman ~0.9 s con
+  aceleración y frenado suaves.
+- **Entorno**: pinos y rocas de `arbolito.blend` (sin materiales: verde, café y gris
+  tierra). El archivo no tiene arbustos: se usan sus formas geodésicas en verde.
+- **Historia**: texto de *CUENTO FINAL*, repartido en 16 páginas para respetar los
+  bloques del instructivo (máximo 3 momentos por página).
+- **Editorial**: una sola tipografía (Fredoka); narrador en recuadro crema u oscuro en
+  la zona libre de cada escena; Nico y el Guardián en globos con colita; instrucciones
+  de juego con ícono; palabras clave resaltadas; folio con color por escena.
+- **Portada**: ilustración a sangre con los modelos del cuento y el título grande.

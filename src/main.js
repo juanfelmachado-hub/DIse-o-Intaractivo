@@ -1,18 +1,19 @@
 /**
  * El susurro de la Tierra — punto de entrada.
  *
- * Carga progresiva: primero tipografías y cielos (≈450 KB en total), luego se
- * compila la escena y se muestra la portada.
+ * Carga progresiva: primero tipografías, cielos y modelos (niño, pinos y rocas),
+ * luego se compila la escena y se muestra la portada.
  *
  * Atajo de desarrollo: agrega ?pagina=p6 (o ?pagina=a1, ?pagina=4) a la URL
  * para abrir el libro directamente en esa doble página/actividad.
  */
 import * as THREE from 'three'
 import { Experience } from './core/Experience.js'
+import { loadAssets } from './models/assets.js'
 
 async function loadFonts() {
     if (!document.fonts) return
-    const fonts = ['500 32px Fredoka', '600 32px Fredoka', '700 32px Fredoka', '64px Pacifico']
+    const fonts = ['400 32px Fredoka', '500 32px Fredoka', '600 32px Fredoka', '700 32px Fredoka']
     const timeout = new Promise((r) => setTimeout(r, 3500))
     await Promise.race([Promise.all(fonts.map((f) => document.fonts.load(f))), timeout]).catch(() => {})
 }
@@ -26,7 +27,7 @@ function loadTextures() {
 
 async function boot() {
     const canvas = document.querySelector('canvas.webgl')
-    const [, textures] = await Promise.all([loadFonts(), loadTextures()])
+    const [, textures] = await Promise.all([loadFonts(), loadTextures(), loadAssets(import.meta.env.BASE_URL)])
 
     const experience = new Experience(canvas, textures)
     window.experience = experience // útil para depurar desde la consola

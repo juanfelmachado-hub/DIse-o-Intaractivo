@@ -18,8 +18,13 @@
  *  mood     atmósfera del mundo alrededor del libro (ver data/theme.js → moods)
  *  camera   encuadre (ver data/theme.js → cameraShots)
  *  quake    intensidad del temblor al llegar a la página (0 = quieto, 1 = fuerte)
- *  beats    momentos dentro de la página. Cada clic en SIGUIENTE avanza un momento;
- *           al terminar los momentos se pasa la página.
+ *  layout   { at, tone } dónde va el texto del narrador y su color de panel
+ *           at:   'top' | 'top-left' | 'top-right' | 'side-left' | 'side-right'
+ *                 (zona libre de la ilustración: pared, techo o cielo; se alterna
+ *                 entre escenas. Los globos de diálogo siempre van junto a quien habla.)
+ *           tone: 'light' (panel crema) | 'dark' (panel oscuro: temblor, debajo de la mesa)
+ *  beats    momentos dentro de la página. Avanzan solos con un tiempo de lectura
+ *           de 3 a 5 s por bloque; al terminar, el lector arrastra la hoja.
  *
  *  Momento (beat)
  *  --------------
@@ -29,6 +34,10 @@
  *            ejecuta varias acciones a la vez. Ej: ['nico.pose:crouch', ['a', 'b']]
  *  quake     intensidad del temblor (número) o [intensidad, duración en segundos]
  *  mood      cambia la atmósfera durante el momento
+ *  at, tone  cambian la zona o el color del panel solo en este momento
+ *
+ *  Texto (Instructivo de texto y diálogos): bloques de 8 a 18 palabras, una sola
+ *  idea por bloque y un solo personaje por globo. Fuente: "CUENTO FINAL".
  *
  *  Actividad
  *  ---------
@@ -54,18 +63,19 @@ export const story = {
     titleSpread: { left: 'Un cuento sobre cómo cuidarnos cuando la tierra se mueve', right: 'El susurro de la Tierra' },
 
     pages: [
+        // =================================================== ESCENA 1 · LA SALA
         // ------------------------------------------------------------------ 1
         {
             id: 'p1', type: 'page', number: 1, title: 'Un gran sueño',
             scene: 'room', setup: { tower: 'empty', nico: 'tower' },
-            mood: 'afternoon', camera: 'wide', quake: 0,
+            mood: 'afternoon', camera: 'wide', quake: 0, layout: { at: 'top-right' },
             beats: [
                 {
                     text: 'Nico tenía siete años y un gran sueño: construir la torre de bloques más alta del mundo.',
                     do: ['tower.build'],
                 },
                 {
-                    text: 'Esa tarde le faltaba solo un bloque. El azul, su favorito.',
+                    text: 'Esa tarde, en la sala de su casa, le faltaba solo un bloque. El azul, su favorito.',
                     do: ['nico.showBlock'],
                 },
             ],
@@ -74,20 +84,19 @@ export const story = {
         {
             id: 'p2', type: 'page', number: 2, title: 'Un ruido extraño',
             scene: 'room', setup: { tower: 'built', nico: 'tower' },
-            mood: 'afternoon', camera: 'wide', quake: 0,
+            mood: 'afternoon', camera: 'wide', quake: 0, layout: { at: 'side-right' },
             beats: [
                 {
-                    text: 'Estiró la mano con mucho cuidado y…',
+                    text: 'Estiró la mano con mucho cuidado y, de pronto…',
                     do: ['nico.reach'],
                 },
                 {
-                    text: 'El piso hizo un ruido extraño. Un ruido grave, como un gruñido que venía de muy abajo.',
+                    text: '…el piso hizo un ruido extraño, grave, como un gruñido que venía de muy abajo.',
                     do: [['nico.face:o', 'rumble']],
                     quake: [0.14, 1.5], mood: 'rumble',
                 },
                 {
-                    text: 'Los vasos empezaron a tintinear en la cocina. Nico se quedó quieto, con el bloque azul en la mano.',
-                    dialogue: { who: 'nico', text: '¿Qué fue eso?' },
+                    text: 'Los vasos empezaron a tintinear en la cocina.',
                     do: [['glasses.clink', 'nico.pose:show']],
                     quake: [0.22, 1.2],
                 },
@@ -97,99 +106,120 @@ export const story = {
         {
             id: 'p3', type: 'page', number: 3, title: '¡La casa tiembla!',
             scene: 'room', setup: { tower: 'built', nico: 'tower', face: 'o' },
-            mood: 'quake', camera: 'wide', quake: 0.3,
+            mood: 'rumble', camera: 'wide', quake: 0.16, layout: { at: 'top-right' },
             beats: [
+                {
+                    text: 'Nico se quedó quieto, con el bloque azul en la mano.',
+                    dialogue: { who: 'nico', text: '¿Qué fue eso?' },
+                    do: ['nico.pose:show'],
+                },
                 {
                     text: '¡La casa empezó a temblar!',
                     do: ['nico.pose:worried'],
-                    quake: [0.75, 1.2],
+                    quake: [0.75, 1.2], mood: 'quake', tone: 'dark',
                 },
                 {
-                    text: 'La lámpara se balanceó de un lado a otro. La torre se derrumbó en mil pedazos.',
+                    text: 'La lámpara se balanceó de un lado a otro y la torre se derrumbó en mil pedazos.',
                     do: [['tower.fall', 'wobble:lampara']],
-                },
-                {
-                    text: 'La tierra se estaba moviendo. Y justo en ese instante, algo se despertó dentro del pecho de Nico.',
-                    do: ['nico.heart:2'],
-                    quake: [0.5, 1.5],
+                    tone: 'dark',
                 },
             ],
         },
         // ------------------------------------------------------------------ 4
         {
             id: 'p4', type: 'page', number: 4, title: 'Una voz valiente',
-            scene: 'room', setup: { tower: 'fallen', nico: 'center', face: 'o', heart: true },
-            mood: 'quake', camera: 'wide', quake: 0.42,
+            scene: 'room', setup: { tower: 'fallen', nico: 'center', face: 'o' },
+            mood: 'quake', camera: 'wide', quake: 0.42, layout: { at: 'top-left', tone: 'dark' },
             beats: [
+                {
+                    text: 'La tierra se estaba moviendo. Y justo en ese instante, algo se despertó dentro del pecho de Nico.',
+                    do: ['nico.heart:2'],
+                    quake: [0.5, 1.5],
+                },
                 {
                     text: 'Era una voz pequeñita, pero muy valiente.',
                     dialogue: { who: 'guardian', text: '¡Aquí estoy! ¡Soy tu Guardián! Me desperté para cuidarte.' },
                     do: ['guardian.appear', 'nico.face:smile'],
                 },
+            ],
+        },
+        // ------------------------------------------------------------------ 5
+        {
+            id: 'p5', type: 'page', number: 5, title: '¡Espera!',
+            scene: 'room', setup: { tower: 'fallen', nico: 'center', guardian: true },
+            mood: 'quake', camera: 'wide', quake: 0.42, layout: { at: 'top-left', tone: 'dark' },
+            beats: [
                 {
                     text: 'Nico quería correr hacia la puerta.',
                     do: ['nico.runToDoor'],
                 },
                 {
-                    dialogue: { who: 'guardian', text: '¡Espera! Mientras la tierra se mueve, no se corre. Primero, nos protegemos.' },
+                    dialogue: { who: 'guardian', text: '¡Espera! Mientras la tierra se mueve, no se corre.' },
                     do: ['guardian.stop'],
+                },
+                {
+                    dialogue: { who: 'guardian', text: 'Primero, nos protegemos.' },
+                    do: ['guardian.glow'],
                 },
             ],
         },
-        // ------------------------------------------------------------------ 5
+        // ------------------------------------------------------------------ 6
         {
-            id: 'p5', type: 'page', number: 5, title: 'Mira a tu alrededor',
+            id: 'p6', type: 'page', number: 6, title: 'Mira a tu alrededor',
             scene: 'room', setup: { tower: 'fallen', nico: 'center', guardian: true },
-            mood: 'quake', camera: 'wide', quake: 0.4,
+            mood: 'quake', camera: 'wide', quake: 0.4, layout: { at: 'side-left', tone: 'dark' },
             beats: [
                 {
-                    dialogue: { who: 'guardian', text: 'Mira a tu alrededor. Aléjate de las ventanas y de las cosas que se pueden caer.' },
+                    dialogue: { who: 'guardian', text: 'Mira a tu alrededor y aléjate de las ventanas y de las cosas que se pueden caer.' },
                     do: [['nico.lookAround', 'hazards.wobble']],
                 },
                 {
                     text: 'Nico vio la mesa grande del comedor, fuerte y firme.',
-                    dialogue: { who: 'guardian', text: '¡Allá! Vamos despacito.' },
                     do: ['table.glow'],
+                },
+                {
+                    dialogue: { who: 'guardian', text: '¡Allá! Vamos despacito.' },
                 },
             ],
         },
-        // ---------------------------------------------------- Actividad 1
+        // ---------------------------------------------------- Juego 1
         { id: 'a1', type: 'activity', activity: 'safePlace', samePage: true },
 
-        // ------------------------------------------------------------------ 6
+        // ====================================== ESCENA 1 · DEBAJO DE LA MESA
+        // ------------------------------------------------------------------ 7
         {
-            id: 'p6', type: 'page', number: 6, title: 'Tres pasos mágicos',
+            id: 'p7', type: 'page', number: 7, title: 'Tres pasos mágicos',
             scene: 'underTable', setup: { nicoPose: 'kneel' },
-            mood: 'quake', camera: 'close', quake: 0.38,
+            mood: 'quake', camera: 'close', quake: 0.38, layout: { at: 'top', tone: 'dark' },
             beats: [
                 {
-                    dialogue: { who: 'guardian', text: 'Ahora, tres pasos mágicos.' },
+                    text: 'Nico llegó hasta la mesa y el Guardián le enseñó tres pasos mágicos.',
                     do: ['guardian.glow'],
                 },
                 {
-                    text: 'Nico se agachó debajo de la mesa, bien pequeñito, como una tortuga.',
                     dialogue: { who: 'guardian', text: 'Uno: ¡agáchate!' },
+                    text: 'Nico se agachó debajo de la mesa, bien pequeñito, como una tortuga.',
                     do: ['nico.pose:crouch'],
                 },
                 {
-                    text: 'Nico se tapó la cabeza y el cuello con los brazos.',
                     dialogue: { who: 'guardian', text: 'Dos: ¡cúbrete!' },
+                    text: 'Se tapó la cabeza y el cuello con los brazos.',
                     do: ['nico.pose:cover'],
                 },
             ],
         },
-        // ---------------------------------------------------- Actividad 2
+        // ---------------------------------------------------- Juego 2
         { id: 'a2', type: 'activity', activity: 'protectSteps', samePage: true },
 
-        // ------------------------------------------------------------------ 7
+        // ------------------------------------------------------------------ 8
         {
-            id: 'p7', type: 'page', number: 7, title: '¡Sujétate!',
+            id: 'p8', type: 'page', number: 8, title: '¡Sujétate!',
             scene: 'underTable', setup: { nicoPose: 'cover' },
-            mood: 'quake', camera: 'close', quake: 0.45,
+            mood: 'quake', camera: 'close', quake: 0.45, layout: { at: 'top-left', tone: 'dark' },
             beats: [
                 {
-                    text: 'Nico agarró fuerte una pata de la mesa.',
                     dialogue: { who: 'guardian', text: 'Tres: ¡sujétate!' },
+                    text: 'Agarró fuerte una pata de la mesa.',
                     do: ['nico.pose:hold'],
                 },
                 {
@@ -197,72 +227,94 @@ export const story = {
                     do: ['sounds'],
                 },
                 {
-                    dialogue: { who: 'guardian', text: 'Aquí estoy contigo. No te sueltes. Ya va a pasar.' },
-                    do: ['guardian.hug'],
-                },
-            ],
-        },
-        // ------------------------------------------------------------------ 8
-        {
-            id: 'p8', type: 'page', number: 8, title: 'Pum, pum, pum',
-            scene: 'underTable', setup: { nicoPose: 'hold' },
-            mood: 'quake', camera: 'close', quake: 0.4,
-            beats: [
-                {
-                    text: 'Nico sentía el corazón como un tambor: pum, pum, pum.',
+                    text: 'El corazón de Nico latía como un tambor: pum, pum, pum.',
                     do: ['heartbeat'],
-                },
-                {
-                    dialogue: { who: 'guardian', text: 'Soy yo. Te doy energía para que estés atento.' },
-                    do: ['guardian.energy'],
-                },
-                {
-                    text: 'Nico respiró hondo y se quedó quieto, bien agarrado. Poco a poco, el temblor se hizo más suave… más suave…',
-                    quake: [0.06, 6], mood: 'calming',
                 },
             ],
         },
         // ------------------------------------------------------------------ 9
         {
-            id: 'p9', type: 'page', number: 9, title: 'Silencio',
-            scene: 'underTable', setup: { nicoPose: 'hold', shards: true },
-            mood: 'still', camera: 'close', quake: 0,
+            id: 'p9', type: 'page', number: 9, title: 'Aquí estoy contigo',
+            scene: 'underTable', setup: { nicoPose: 'hold' },
+            mood: 'quake', camera: 'close', quake: 0.4, layout: { at: 'top-right', tone: 'dark' },
             beats: [
                 {
-                    text: 'Hasta que la casa se quedó quieta. Silencio.',
-                    do: ['silence'],
+                    dialogue: { who: 'guardian', text: 'Soy yo. Te doy energía para que estés atento.' },
+                    do: ['guardian.energy'],
                 },
                 {
-                    dialogue: { who: 'nico', text: '¿Ya puedo salir?' },
-                    do: ['nico.peek'],
+                    dialogue: { who: 'guardian', text: 'Aquí estoy contigo. No te sueltes. Ya va a pasar.' },
+                    do: ['guardian.hug'],
                 },
                 {
-                    dialogue: { who: 'guardian', text: 'Espera un momentito. Mira bien antes de moverte. Puede haber cosas rotas en el piso.' },
-                    do: ['shards.glint'],
+                    text: 'Nico respiró hondo y se quedó quieto, bien agarrado.',
                 },
             ],
         },
         // ----------------------------------------------------------------- 10
         {
-            id: 'p10', type: 'page', number: 10, title: 'Sin correr',
-            scene: 'exit', setup: {},
-            mood: 'still', camera: 'wide', quake: 0,
+            id: 'p10', type: 'page', number: 10, title: 'Silencio',
+            scene: 'underTable', setup: { nicoPose: 'hold', shards: true },
+            mood: 'calming', camera: 'close', quake: 0.3, layout: { at: 'top', tone: 'dark' },
             beats: [
+                {
+                    text: 'Poco a poco, el temblor se hizo más suave… más suave…',
+                    quake: [0.06, 5], mood: 'calming',
+                },
+                {
+                    text: '…hasta que la casa se quedó en silencio.',
+                    do: ['silence'],
+                    quake: [0, 2], mood: 'still', tone: 'light',
+                },
+                {
+                    dialogue: { who: 'nico', text: '¿Ya puedo salir?' },
+                    do: ['nico.peek'],
+                    tone: 'light',
+                },
+            ],
+        },
+
+        // ================================================= ESCENA 2 · EL PASILLO
+        // ----------------------------------------------------------------- 11
+        {
+            id: 'p11', type: 'page', number: 11, title: 'Mira bien',
+            scene: 'exit', setup: {},
+            mood: 'still', camera: 'wide', quake: 0, layout: { at: 'side-left' },
+            beats: [
+                {
+                    dialogue: { who: 'guardian', text: 'Espera un momentito. Mira bien antes de moverte. Puede haber cosas rotas en el piso.' },
+                    do: ['shards.glint'],
+                },
                 {
                     text: 'Nico salió despacito de debajo de la mesa.',
                     do: ['nico.crawlOut'],
                 },
                 {
-                    dialogue: { who: 'guardian', text: 'Ahora caminamos, sin correr y sin empujar. Con zapatos, por si hay vidrios.' },
+                    dialogue: { who: 'guardian', text: 'Ahora ponte los zapatos, por si hay vidrios.' },
                     do: [['shoes.glint', 'shards.glint']],
-                },
-                {
-                    text: 'Nico se puso los zapatos y caminó con cuidado hacia la puerta.',
-                    do: ['nico.shoesOn', 'door.open'],
                 },
             ],
         },
-        // ---------------------------------------------------- Actividad 3
+        // ----------------------------------------------------------------- 12
+        {
+            id: 'p12', type: 'page', number: 12, title: 'Sin correr',
+            scene: 'exit', setup: { nico: 'out' },
+            mood: 'still', camera: 'wide', quake: 0, layout: { at: 'top-left' },
+            beats: [
+                {
+                    dialogue: { who: 'guardian', text: 'Y caminamos sin correr y sin empujar.' },
+                },
+                {
+                    text: 'Nico se puso los zapatos y avanzó con cuidado por el pasillo,',
+                    do: ['nico.shoesOn'],
+                },
+                {
+                    text: 'mirando dónde pisaba, hasta llegar a la puerta de la casa.',
+                    do: ['door.open'],
+                },
+            ],
+        },
+        // ---------------------------------------------------- Juego 3
         {
             id: 'a3', type: 'activity', activity: 'safeRoute',
             number: '★', title: 'Camino al lugar seguro',
@@ -270,11 +322,12 @@ export const story = {
             mood: 'still', camera: 'route', quake: 0,
         },
 
-        // ----------------------------------------------------------------- 11
+        // =================================================== ESCENA 3 · EL PATIO
+        // ----------------------------------------------------------------- 13
         {
-            id: 'p11', type: 'page', number: 11, title: 'Un lugar abierto',
+            id: 'p13', type: 'page', number: 13, title: 'Un lugar abierto',
             scene: 'patio', setup: { nico: 'door' },
-            mood: 'golden', camera: 'patio', quake: 0,
+            mood: 'golden', camera: 'patio', quake: 0, layout: { at: 'top' },
             beats: [
                 {
                     text: 'Afuera, el Guardián le señaló un lugar abierto, en medio del patio.',
@@ -285,16 +338,32 @@ export const story = {
                     do: ['hazards.wobble'],
                 },
                 {
-                    text: 'Nico se sentó allí. Esperaría a que llegara un adulto de confianza.',
+                    text: 'Nico se sentó en el suelo, con las manos sobre las rodillas.',
                     do: ['nico.pose:sit'],
                 },
             ],
         },
-        // ----------------------------------------------------------------- 12
+        // ----------------------------------------------------------------- 14
         {
-            id: 'p12', type: 'page', number: 12, title: 'La réplica',
+            id: 'p14', type: 'page', number: 14, title: 'Ya no estaba solo',
             scene: 'patio', setup: { nico: 'center', nicoPose: 'sit' },
-            mood: 'golden', camera: 'patio', quake: 0,
+            mood: 'golden', camera: 'patio', quake: 0, layout: { at: 'top-left' },
+            beats: [
+                {
+                    text: 'Todavía sentía el corazón rápido, pero ya no estaba solo.',
+                    do: ['nico.heart:2'],
+                },
+                {
+                    text: 'Esperaría allí a que llegara un adulto de confianza.',
+                    do: ['guardian.glow'],
+                },
+            ],
+        },
+        // ----------------------------------------------------------------- 15
+        {
+            id: 'p15', type: 'page', number: 15, title: 'La réplica',
+            scene: 'patio', setup: { nico: 'center', nicoPose: 'sit' },
+            mood: 'golden', camera: 'patio', quake: 0, layout: { at: 'top-right' },
             beats: [
                 {
                     text: 'De pronto, la tierra se movió otra vez, un poquito.',
@@ -306,17 +375,17 @@ export const story = {
                     do: ['guardian.glow'],
                 },
                 {
-                    text: 'Nico se agachó, se cubrió la cabeza y esperó. Esta vez, ya sabía qué hacer.',
+                    text: 'Nico se agachó, se cubrió la cabeza con los brazos y esperó. Esta vez, ya sabía qué hacer.',
                     do: ['nico.pose:cover', 'calm'],
                     quake: [0, 4], mood: 'golden',
                 },
             ],
         },
-        // ----------------------------------------------------------------- 13
+        // ----------------------------------------------------------------- 16
         {
-            id: 'p13', type: 'page', number: 13, title: 'Gracias, Guardián',
+            id: 'p16', type: 'page', number: 16, title: 'Gracias, Guardián',
             scene: 'patio', setup: { nico: 'center', nicoPose: 'kneel' },
-            mood: 'golden', camera: 'patio', quake: 0,
+            mood: 'golden', camera: 'patio', quake: 0, layout: { at: 'top' },
             beats: [
                 {
                     text: 'Cuando todo se calmó, Nico sonrió.',

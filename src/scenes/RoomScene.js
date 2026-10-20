@@ -1,5 +1,5 @@
 /**
- * Escenario 1 — La sala de Nico (páginas 1 a 5 y actividad "¿Dónde me protejo?").
+ * Escenario 1 — La sala de Nico (páginas 1 a 6 y actividad "¿Dónde me protejo?").
  * Contiene todos los objetos que pide el instructivo: mesa fuerte, ventana
  * grande, lámpara colgante, estante con libros, cuadro y sofá.
  */

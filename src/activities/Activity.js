@@ -66,6 +66,12 @@ export class Activity {
         this.scene.onDialogue('guardian')
     }
 
+    /** Instrucción del juego (recuadro con ícono; se va cuando el niño empieza a jugar). */
+    instruct(text) {
+        this.ctx.ui.hideBubble(this.ctx.ui.el.dialogue)
+        this.ctx.ui.instruct(text)
+    }
+
     later(fn, ms) {
         this.timers.push(setTimeout(fn, ms))
     }
@@ -73,6 +79,7 @@ export class Activity {
     finish(message) {
         if (this.finished) return
         this.finished = true
+        this.ctx.ui.hideInstruction()
         if (message) this.say(message, 'ok')
         this.ctx.ui.completeActivity()
         this.cleanup()
@@ -91,6 +98,7 @@ export class Activity {
         this.cleanup()
         const { ui } = this.ctx
         ui.hideGuardianBubble()
+        ui.hideInstruction()
         ui.showVeil(false)
         ui.hideSteps()
         ui.hideActivity()

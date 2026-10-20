@@ -9,7 +9,7 @@ import { BaseScene } from './BaseScene.js'
 import { geo, mat, add } from '../models/kit.js'
 import { palette } from '../data/theme.js'
 import { createTable, createWindow, createWall, createShoes, createDoor, createBlock } from '../models/objects/furniture.js'
-import { createPole, createCable, createTallWall, createPaperTree, createBush, createFlower, createRing, createFootprint } from '../models/objects/outdoor.js'
+import { createPole, createCable, createTallWall, createTree, createBush, createFlower, createRing, createFootprint } from '../models/objects/outdoor.js'
 
 export class RouteScene extends BaseScene {
     build() {
@@ -69,7 +69,7 @@ export class RouteScene extends BaseScene {
         this.piece(c1, 'back', 0, { follow: polePiece, pivot: this.poleHolder.position.clone() })
         this.piece(c2, 'back', 0, { follow: polePiece, pivot: this.poleHolder.position.clone() })
 
-        const tree = createPaperTree({ s: 1.0 })
+        const tree = createTree({ h: 1.5, variant: 2 })
         tree.position.set(2.55, 0, -0.55)
         this.piece(tree, 'front', 0.35)
         for (const [x, z, c] of [[0.55, -1.25, palette.green], [2.85, 0.15, '#7cc96b']]) {

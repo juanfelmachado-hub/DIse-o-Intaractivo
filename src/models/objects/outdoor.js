@@ -1,11 +1,11 @@
 /**
- * Objetos del patio. Los árboles y arbustos son recortes de papel extruidos,
- * como el libro pop-up del moodboard; el arcoíris viene de la imagen del
- * libro-castillo del moodboard.
+ * Objetos del patio. Los árboles (pinos) y los arbustos usan los modelos de
+ * arbolito.blend; el arcoíris viene de la imagen del libro-castillo del moodboard.
  */
 import * as THREE from 'three'
 import { geo, mat, add } from '../kit.js'
 import { palette } from '../../data/theme.js'
+import { assets } from '../assets.js'
 
 /** Poste con travesaño. Origen en la base. userData.top = punto donde nacen los cables. */
 export function createPole({ h = 1.9 } = {}) {
@@ -91,48 +91,38 @@ export function createFacade({ w = 2.3, h = 1.5 } = {}) {
     return g
 }
 
-/** Árbol de papel recortado (copa en forma de nube). */
-export function createPaperTree({ color = '#3f8f72', trunk = '#ef95a9', s = 1 } = {}) {
+/**
+ * Pino (modelo de arbolito.blend). `h` = altura en el escenario; dos variantes.
+ * El archivo no trae materiales: copa verde y tronco café.
+ */
+export function createTree({ color = '#4f9a57', trunk = '#8a5a3c', h = 1.55, variant = 1 } = {}) {
+    const N = assets.nature
+    const kind = variant === 2
+        ? { copa: N.pino_2_copa, tronco: N.pino_2_tronco, h: 2.113 }
+        : { copa: N.pino_1_copa, tronco: N.pino_1_tronco, h: 1.687 }
     const g = new THREE.Group()
     g.name = 'arbol'
-    const canopy = geo.custom('paperCanopy', () => {
-        const shape = new THREE.Shape()
-        const bumps = [[0, 0.95, 0.32], [-0.3, 0.75, 0.3], [0.32, 0.78, 0.3], [-0.18, 0.5, 0.28], [0.2, 0.5, 0.28]]
-        shape.absarc(0, 0.62, 0.42, 0, Math.PI * 2, false)
-        const geoms = bumps.map(([x, y, r]) => {
-            const sh = new THREE.Shape()
-            sh.absarc(x, y, r, 0, Math.PI * 2, false)
-            return sh
-        })
-        const all = [shape, ...geoms]
-        return new THREE.ExtrudeGeometry(all, { depth: 0.05, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 2, curveSegments: 16 })
-    })
-    add(g, canopy, mat.clay(color, 0.9), [0, 0, -0.025])
-    const trunkGeo = geo.custom('paperTrunk', () => {
-        const sh = new THREE.Shape()
-        sh.moveTo(-0.07, 0)
-        sh.lineTo(0.07, 0)
-        sh.lineTo(0.05, 0.4)
-        sh.lineTo(0.14, 0.55)
-        sh.lineTo(0.1, 0.58)
-        sh.lineTo(0.02, 0.48)
-        sh.lineTo(-0.05, 0.6)
-        sh.lineTo(-0.09, 0.56)
-        sh.lineTo(-0.04, 0.42)
-        sh.closePath()
-        return new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: false })
-    })
-    add(g, trunkGeo, mat.clay(trunk, 0.9), [0, 0, -0.02])
-    g.scale.setScalar(s)
+    const k = h / kind.h
+    const copa = add(g, kind.copa, mat.flat(color), [0, 0, 0])
+    const tronco = add(g, kind.tronco, mat.flat(trunk), [0, 0, 0])
+    copa.scale.setScalar(k)
+    tronco.scale.setScalar(k)
     return g
 }
 
+/**
+ * Arbusto: las formas geodésicas de arbolito.blend (no se entregó un modelo
+ * de arbusto aparte), agrupadas y en verde.
+ */
 export function createBush(color = palette.green) {
+    const N = assets.nature
     const g = new THREE.Group()
-    const m = mat.clay(color, 0.85)
-    add(g, geo.sphere(0.16, 14, 10), m, [0, 0.1, 0])
-    add(g, geo.sphere(0.12, 12, 8), m, [-0.15, 0.07, 0.02])
-    add(g, geo.sphere(0.12, 12, 8), m, [0.15, 0.07, 0.02])
+    const m = mat.flat(color)
+    const parts = [[N.roca_1, 0, 0, 0.36, 0.42], [N.roca_2, -0.15, 0.03, 0.34, 0.36], [N.roca_3, 0.16, 0.02, 0.32, 0.34]]
+    for (const [geom, x, z, s, sy] of parts) {
+        const b = add(g, geom, m, [x, 0.035, z])
+        b.scale.set(s, sy, s)
+    }
     return g
 }
 

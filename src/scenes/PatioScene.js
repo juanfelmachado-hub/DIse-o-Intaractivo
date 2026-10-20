@@ -1,5 +1,5 @@
 /**
- * Escenario 4 — El patio (páginas 11 a 13). Lugar abierto en el centro, lejos
+ * Escenario 4 — El patio (páginas 13 a 16). Lugar abierto en el centro, lejos
  * de la pared alta, del poste y de los cables. Al final aparece un arcoíris
  * pop-up (referencia del moodboard).
  */
@@ -9,7 +9,7 @@ import { BaseScene } from './BaseScene.js'
 import { palette } from '../data/theme.js'
 import { createDoor } from '../models/objects/furniture.js'
 import {
-    createPole, createCable, createTallWall, createFacade, createPaperTree,
+    createPole, createCable, createTallWall, createFacade, createTree,
     createBush, createFlower, createRing, createRainbow,
 } from '../models/objects/outdoor.js'
 import { sparkle, glint } from '../animations/motions.js'
@@ -39,10 +39,10 @@ export class PatioScene extends BaseScene {
         this.piece(createCable(top.clone().add(new THREE.Vector3(-0.22, 0, 0)), new THREE.Vector3(-0.55, 1.5, -1.55), 0.35), 'back', 0, { follow: polePiece, pivot: pv })
         this.piece(createCable(top.clone().add(new THREE.Vector3(0.22, 0, 0)), new THREE.Vector3(2.5, 1.4, -1.65), 0.25), 'back', 0, { follow: polePiece, pivot: pv })
 
-        const t1 = createPaperTree({ s: 1.15 })
+        const t1 = createTree({ h: 1.7, variant: 2 })
         t1.position.set(-2.7, 0, 1.05)
         this.piece(t1, 'front', 0.3)
-        const t2 = createPaperTree({ s: 0.9, color: '#5fae74', trunk: '#f08a45' })
+        const t2 = createTree({ h: 1.35, color: '#5ca865' })
         t2.position.set(0.75, 0, -1.55)
         this.piece(t2, 'front', 0.32)
 

@@ -1,10 +1,11 @@
 /**
  * Paisaje alrededor del libro (secundario): pasto, colinas pastel, montañas
- * low-poly y árboles estilizados como en los .blend (cipreses y árboles de copa
- * redonda con tronco terracota). Geometrías simples y compartidas.
+ * low-poly, y los pinos y rocas entregados (arbolito.blend → naturaleza.glb).
+ * Geometrías simples y compartidas.
  */
 import * as THREE from 'three'
 import { seeded } from '../models/kit.js'
+import { assets } from '../models/assets.js'
 
 function jitter(geometry, amount, seed, keepBottom = true) {
     const pos = geometry.attributes.position
@@ -33,11 +34,16 @@ export class Nature {
         this.hillMat = new THREE.MeshStandardMaterial({ color: '#b9e09a', roughness: 1 })
         this.mountainMat = new THREE.MeshStandardMaterial({ color: '#dcd3ee', roughness: 1, flatShading: true })
         this.leafMats = [
-            new THREE.MeshStandardMaterial({ color: '#86c24f', roughness: 0.9, flatShading: true }),
-            new THREE.MeshStandardMaterial({ color: '#6fae45', roughness: 0.9, flatShading: true }),
-            new THREE.MeshStandardMaterial({ color: '#9bcf5c', roughness: 0.9, flatShading: true }),
+            new THREE.MeshStandardMaterial({ color: '#72b266', roughness: 0.9, flatShading: true }),
+            new THREE.MeshStandardMaterial({ color: '#64a762', roughness: 0.9, flatShading: true }),
+            new THREE.MeshStandardMaterial({ color: '#80bd70', roughness: 0.9, flatShading: true }),
         ]
-        this.trunkMat = new THREE.MeshStandardMaterial({ color: '#c0643c', roughness: 0.85, flatShading: true })
+        this.trunkMat = new THREE.MeshStandardMaterial({ color: '#8a5a3c', roughness: 0.9, flatShading: true })
+        this.rockMats = [
+            new THREE.MeshStandardMaterial({ color: '#a59b90', roughness: 0.95, flatShading: true }),
+            new THREE.MeshStandardMaterial({ color: '#968c84', roughness: 0.95, flatShading: true }),
+            new THREE.MeshStandardMaterial({ color: '#b3a796', roughness: 0.95, flatShading: true }),
+        ]
         this.cloudMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, transparent: true, opacity: 0.9, depthWrite: false })
 
         this.buildGround()
@@ -81,62 +87,56 @@ export class Nature {
         })
     }
 
+    /**
+     * Pinos y rocas de arbolito.blend (models/naturaleza.glb). El archivo no
+     * trae materiales: copa verde, tronco café y rocas gris tierra.
+     */
     buildTrees() {
         const rnd = seeded(42)
-        const cypress = [0, 1, 2].map((s) => jitter(new THREE.ConeGeometry(0.62, 2.8, 7, 5), 0.16, s + 10, true))
-        const blob = [0, 1, 2].map((s) => jitter(new THREE.IcosahedronGeometry(1, 1), 0.22, s + 20, false))
-        const trunk = new THREE.CylinderGeometry(0.1, 0.17, 1, 6)
-
-        const makeCypress = (i) => {
-            const t = new THREE.Group()
-            const leaf = new THREE.Mesh(cypress[i % 3], this.leafMats[i % 3])
-            leaf.position.y = 1.85
-            const tr = new THREE.Mesh(trunk, this.trunkMat)
-            tr.scale.set(1, 0.6, 1)
-            tr.position.y = 0.3
-            t.add(leaf, tr)
-            return t
-        }
-        const makeRound = (i) => {
-            const t = new THREE.Group()
-            const tr = new THREE.Mesh(trunk, this.trunkMat)
-            tr.scale.set(1.5, 2.2, 1.5)
-            tr.position.y = 1.1
-            tr.rotation.z = (rnd() - 0.5) * 0.25
-            t.add(tr)
-            const branch = new THREE.Mesh(trunk, this.trunkMat)
-            branch.scale.set(0.8, 1.1, 0.8)
-            branch.position.set(0.35, 2.0, 0)
-            branch.rotation.z = -0.7
-            t.add(branch)
-            const n = 3 + (i % 2)
-            for (let k = 0; k < n; k++) {
-                const c = new THREE.Mesh(blob[(i + k) % 3], this.leafMats[(i + k) % 3])
-                const a = (k / n) * Math.PI * 2 + rnd()
-                c.position.set(Math.cos(a) * 0.75, 2.75 + rnd() * 0.5, Math.sin(a) * 0.45)
-                const s = 0.9 + rnd() * 0.45
-                c.scale.set(s * 1.15, s * 0.85, s)
-                t.add(c)
-            }
-            return t
-        }
-
-        // [tipo, x, z, escala] — nunca delante del libro (cámara en +z)
-        const layout = [
-            ['c', -7.2, -3.2, 1.25], ['r', -10.5, -5.8, 1.05], ['c', -5.2, -7.5, 1.0], ['r', -13.5, -1.0, 1.2],
-            ['c', -9.2, 1.8, 1.1], ['r', 8.6, -4.2, 1.25], ['c', 6.8, -7.4, 1.15], ['c', 11.2, -2.0, 1.0],
-            ['r', 13.6, 2.2, 1.1], ['c', 9.8, 3.6, 0.95], ['r', -2.5, -11.5, 1.2], ['c', 2.6, -12.0, 1.3],
-            ['r', 5.5, -14.5, 1.0], ['c', -7.8, -13.2, 1.1], ['c', -15.5, -8.5, 1.3], ['r', 17.5, -8.0, 1.3],
-            ['c', 16.0, -12.5, 1.0], ['r', -18.5, 3.5, 1.1],
+        const N = assets.nature
+        const pines = [
+            { copa: N.pino_1_copa, tronco: N.pino_1_tronco, h: 1.687 },
+            { copa: N.pino_2_copa, tronco: N.pino_2_tronco, h: 2.113 },
         ]
-        layout.forEach(([type, x, z, s], i) => {
-            const t = type === 'c' ? makeCypress(i) : makeRound(i)
+        const makePine = (i, height) => {
+            const kind = pines[i % 2]
+            const t = new THREE.Group()
+            t.add(new THREE.Mesh(kind.copa, this.leafMats[i % 3]), new THREE.Mesh(kind.tronco, this.trunkMat))
+            t.userData.k = height / kind.h
+            return t
+        }
+
+        // [x, z, altura] — mismos lugares que los árboles anteriores (nunca delante del libro)
+        const layout = [
+            [-7.2, -3.2, 4.1], [-10.5, -5.8, 3.9], [-5.2, -7.5, 3.3], [-13.5, -1.0, 4.4],
+            [-9.2, 1.8, 3.6], [8.6, -4.2, 4.6], [6.8, -7.4, 3.8], [11.2, -2.0, 3.3],
+            [13.6, 2.2, 4.0], [9.8, 3.6, 3.1], [-2.5, -11.5, 4.4], [2.6, -12.0, 4.3],
+            [5.5, -14.5, 3.7], [-7.8, -13.2, 3.6], [-15.5, -8.5, 4.3], [17.5, -8.0, 4.8],
+            [16.0, -12.5, 3.3], [-18.5, 3.5, 4.0],
+        ]
+        layout.forEach(([x, z, h], i) => {
+            const t = makePine(i, h)
             t.position.set(x, 0, z)
-            t.scale.setScalar(s)
+            t.scale.setScalar(t.userData.k)
             t.rotation.y = rnd() * Math.PI * 2
             t.userData.phase = rnd() * Math.PI * 2
             this.trees.push(t)
             this.group.add(t)
+        })
+
+        // rocas al pie de algunos pinos y entre las colinas
+        const rocks = [N.roca_1, N.roca_2, N.roca_3]
+        const stones = [
+            [-6.0, -2.1, 1.3], [-8.7, -4.5, 0.9], [-11.6, 0.4, 1.5], [7.4, -2.9, 1.2], [10.0, -5.6, 1.6],
+            [12.3, 0.6, 1.0], [-3.9, -9.6, 1.4], [4.0, -10.4, 1.1], [-16.5, -5.6, 1.8], [15.2, -6.0, 1.4],
+            [-9.8, 3.4, 0.8], [8.4, 4.6, 0.9],
+        ]
+        stones.forEach(([x, z, s], i) => {
+            const r = new THREE.Mesh(rocks[i % 3], this.rockMats[i % 3])
+            r.position.set(x, 0, z)
+            r.scale.set(s, s * (0.8 + rnd() * 0.3), s)
+            r.rotation.y = rnd() * Math.PI * 2
+            this.group.add(r)
         })
     }
 

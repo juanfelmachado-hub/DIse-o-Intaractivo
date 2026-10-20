@@ -12,7 +12,7 @@ export class ProtectStepsActivity extends Activity {
         const { ui, quake } = this.ctx
         const d = this.data
         ui.showActivity(d.title)
-        this.say(d.intro)
+        this.instruct(d.intro)
         quake.to(0.3, 1.2)
         this.scene.nico.pose('kneel', 0.8)
         this.expected = 0

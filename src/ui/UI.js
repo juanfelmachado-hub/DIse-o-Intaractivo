@@ -1,7 +1,15 @@
 /**
- * Interfaz HTML (Liquid Glass): burbujas de narración y diálogo, pista de
- * arrastre de la hoja, globo del Guardián cuando le habla al lector y los
- * elementos de las actividades.
+ * Interfaz HTML: texto del cuento, pista de arrastre de la hoja, globo del
+ * Guardián cuando le habla al lector y los elementos de las actividades.
+ *
+ * Texto según el "Instructivo de texto y diálogos":
+ *  - narrador: recuadro crema (u oscuro en el temblor) en la zona libre de
+ *    cada escena; la zona cambia entre escenas (data/story.js → layout.at);
+ *  - Nico y el Guardián: globo con colita que apunta al personaje, siempre
+ *    al lado y por encima de él (nunca sobre su cara) y sin tapar al narrador;
+ *  - instrucciones de juego: recuadro corto con ícono que desaparece en
+ *    cuanto el niño empieza a jugar;
+ *  - palabras clave (agáchate, cúbrete, sujétate, despacito) en negrita y color.
  *
  * No hay botones de navegación: las páginas se pasan arrastrándolas.
  * La UI no conoce la historia: el StoryController le dice qué mostrar.
@@ -19,11 +27,26 @@ const HINTS = {
     close: { label: 'Arrastra la hoja para cerrar el libro', anchor: 'left', dir: 'right' },
 }
 
+const KEYWORDS = new Set(['agáchate', 'cúbrete', 'sujétate', 'despacito'])
+const bare = (w) => w.toLowerCase().replace(/[^a-záéíóúüñ]/g, '')
+
 function wordsHTML(text) {
     return text
         .split(' ')
-        .map((w, i) => `<span class="w" style="--i:${i}">${escapeHTML(w)}${' '}</span>`)
+        .map((w, i) => {
+            const kw = KEYWORDS.has(bare(w)) ? ' kw' : ''
+            return `<span class="w${kw}" style="--i:${i}">${escapeHTML(w)}${' '}</span>`
+        })
         .join('')
+}
+
+/** Zona del narrador según el tamaño de la pantalla (en celular, siempre arriba). */
+function resolveZone(at = 'top-left') {
+    const w = window.innerWidth
+    const h = window.innerHeight
+    if (w < 760) return h > w * 1.2 ? 'top' : at.replace('side-', 'top-')
+    if (at.startsWith('side-') && w / h < 1.45) return at.replace('side-', 'top-')
+    return at
 }
 
 function escapeHTML(s) {
@@ -47,15 +70,38 @@ export class UI {
             hintLabel: $('[data-hint-label]'),
             toast: $('[data-toast]'),
             gBubble: $('[data-guardian-bubble]'),
+            gSpeaker: $('[data-g-speaker]'),
             veil: $('[data-veil]'),
+            instruction: $('[data-instruction]'),
         }
         this.el.narrationText = this.el.narration.querySelector('.bubble__text')
         this.el.dialogueText = this.el.dialogue.querySelector('.bubble__text')
         this.el.gBubbleText = this.el.gBubble.querySelector('.g-bubble__text')
+        this.el.instructionText = this.el.instruction.querySelector('.instruction__text')
+        this.el.gSpeaker.innerHTML = `${avatars.guardian ?? ''}<span>${escapeHTML(story.characters.guardian.name)}</span>`
         this.hint = null
         this.gTarget = null
         this.gDismiss = null
         this.el.gBubble.addEventListener('click', () => this.gDismiss?.())
+        // a quién apunta la colita de cada globo (lo fija el StoryController)
+        this.speakers = {}
+        this.speech = { who: null, x: 0, y: 0, init: false }
+        this.lastTime = performance.now()
+        // la instrucción de juego se va cuando el niño empieza a jugar
+        const played = () => {
+            if (!this.el.instruction.hidden) this.instructTimer = setTimeout(() => this.hideInstruction(), 250)
+        }
+        for (const type of ['pointerdown', 'click', 'keydown']) window.addEventListener(type, played, true)
+        window.addEventListener('resize', () => { this.speech.init = false; this.placeNarrator() })
+    }
+
+    /** Personajes de la doble página actual (para anclar sus globos). */
+    setSpeakers(scene) {
+        this.speakers = {
+            nico: scene?.nico?.speechAnchor ?? null,
+            guardian: scene?.guardian ?? null,
+        }
+        this.speech.init = false
     }
 
     // ------------------------------------------------------------ carga
@@ -124,8 +170,12 @@ export class UI {
 
     /** Proyecta los elementos que siguen a objetos 3D. */
     update(camera, book) {
+        const now = performance.now()
+        const dt = Math.min(0.1, (now - this.lastTime) / 1000)
+        this.lastTime = now
         const w = window.innerWidth
         const h = window.innerHeight
+        this.placeSpeech(camera, dt, w, h)
         if (this.hint && !this.el.hint.hidden && book) {
             book.anchors[this.hint.anchor].getWorldPosition(v)
             v.project(camera)
@@ -147,13 +197,119 @@ export class UI {
         }
     }
 
+    /**
+     * Globo de diálogo: al lado del personaje y por encima de su cabeza, con la
+     * colita apuntándole. Se queda quieto mientras se lee (solo se corrige si el
+     * personaje se mueve de verdad) y esquiva el recuadro del narrador.
+     */
+    placeSpeech(camera, dt, w, h) {
+        const el = this.el.dialogue
+        const sp = this.speech
+        if (el.hidden || !sp.who) return
+        const g = w < 760 ? 12 : 20
+        const bw = el.offsetWidth
+        const bh = el.offsetHeight
+        const target = this.speakers[sp.who]
+        let ax
+        let ay
+        if (target && target.parent) {
+            target.getWorldPosition(v)
+            v.project(camera)
+            ax = ((v.x + 1) / 2) * w
+            ay = ((1 - v.y) / 2) * h
+        } else {
+            ax = w * 0.5
+            ay = h * 0.55
+        }
+        let side = ax > w * 0.56 ? 'left' : 'right'
+        const place = (sd) => (sd === 'right' ? ax + 10 : ax - 10 - bw)
+        let x = place(side)
+        if (x < g || x + bw > w - g) {
+            const other = side === 'right' ? 'left' : 'right'
+            const ox = place(other)
+            if (ox >= g && ox + bw <= w - g) { side = other; x = ox }
+        }
+        x = Math.min(w - g - bw, Math.max(g, x))
+        let y = ay - bh - 18
+        // celular vertical: el globo sube a la zona libre de arriba (el cielo)
+        // y la colita sigue apuntando hacia el personaje
+        if (w < 760 && h > w * 1.2) y = Math.min(y, h * 0.4 - bh)
+        let below = false
+        if (y < g) { y = ay + 34; below = true }
+        y = Math.min(h - g - bh, Math.max(g, y))
+        // no tapar al narrador
+        const n = this.el.narration
+        if (!n.hidden && !n.classList.contains('is-leaving')) {
+            const r = n.getBoundingClientRect()
+            const hit = (xx, yy) => xx < r.right + 10 && xx + bw > r.left - 10 && yy < r.bottom + 10 && yy + bh > r.top - 10
+            if (hit(x, y)) {
+                const right = r.right + 14
+                const left = r.left - 14 - bw
+                if (right + bw <= w - g && Math.abs(right - x) < w * 0.5) x = right
+                else if (left >= g) x = left
+                if (hit(x, y)) y = Math.min(h - g - bh, r.bottom + 14)
+            }
+        }
+        if (!sp.init) {
+            sp.x = x
+            sp.y = y
+            sp.init = true
+        } else if (Math.hypot(x - sp.x, y - sp.y) > 24 || sp.moving) {
+            // solo se reacomoda si el personaje se movió bastante
+            sp.moving = Math.hypot(x - sp.x, y - sp.y) > 1
+            const k = 1 - Math.pow(0.002, dt)
+            sp.x += (x - sp.x) * k
+            sp.y += (y - sp.y) * k
+        }
+        el.dataset.side = side
+        el.dataset.below = below ? 'true' : 'false'
+        el.style.setProperty('--tail-x', `${Math.min(bw - 26, Math.max(26, ax - sp.x))}px`)
+        el.style.translate = `${Math.round(sp.x)}px ${Math.round(sp.y)}px`
+    }
+
     // ------------------------------------------------------------ texto
-    /** Muestra la narración y/o el diálogo de un momento del cuento. */
-    showText({ text, dialogue } = {}, progress = null) {
-        this.setBubble(this.el.narration, this.el.narrationText, text)
+    /**
+     * Muestra la narración y/o el diálogo de un momento del cuento.
+     * @param at   zona del narrador ('top', 'top-left', 'top-right', 'side-left', 'side-right')
+     * @param tone 'light' | 'dark'
+     */
+    showText({ text, dialogue, at, tone } = {}, progress = null) {
+        const n = this.el.narration
+        if (text) {
+            this.zone = at ?? this.zone ?? 'top-left'
+            n.dataset.at = this.zone
+            n.dataset.tone = tone === 'dark' ? 'dark' : 'light'
+        }
+        this.setBubble(n, this.el.narrationText, text)
+        if (text) this.placeNarrator()
         if (dialogue) this.say(dialogue.who, dialogue.text)
         else this.hideBubble(this.el.dialogue)
         this.setDots(text ? progress : null)
+    }
+
+    placeNarrator() {
+        const n = this.el.narration
+        if (this.zone) n.dataset.zone = resolveZone(this.zone)
+    }
+
+    /** Instrucción de un juego: recuadro corto con ícono (crema, borde naranja). */
+    instruct(text) {
+        clearTimeout(this.instructTimer)
+        const el = this.el.instruction
+        this.el.instructionText.innerHTML = wordsHTML(text)
+        el.hidden = false
+        el.classList.remove('is-leaving')
+        el.style.animation = 'none'
+        void el.offsetWidth
+        el.style.animation = ''
+    }
+
+    hideInstruction() {
+        const el = this.el.instruction
+        if (el.hidden) return
+        el.classList.add('is-leaving')
+        clearTimeout(this.instructTimer)
+        this.instructTimer = setTimeout(() => { if (el.classList.contains('is-leaving')) { el.hidden = true; el.classList.remove('is-leaving') } }, 300)
     }
 
     setDots(progress) {
@@ -167,7 +323,9 @@ export class UI {
         const d = this.el.dialogue
         const ch = story.characters[who] ?? { name: who, color: '#5b4d6e' }
         this.el.speaker.innerHTML = `${avatars[who] ?? ''}<span>${escapeHTML(ch.name)}</span>`
-        this.el.speaker.style.setProperty('--speaker-color', ch.color)
+        d.dataset.who = who
+        if (this.speech.who !== who || d.hidden) this.speech.init = false
+        this.speech.who = who
         d.classList.remove('is-ok', 'is-oops', 'is-leaving')
         this.setBubble(d, this.el.dialogueText, text, true)
         if (tone) d.classList.add(tone === 'ok' ? 'is-ok' : 'is-oops')
@@ -202,6 +360,7 @@ export class UI {
     clearText() {
         this.hideBubble(this.el.narration)
         this.hideBubble(this.el.dialogue)
+        this.hideInstruction()
     }
 
     // ------------------------------------------------------------ actividades

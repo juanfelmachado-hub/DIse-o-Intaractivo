@@ -1,5 +1,5 @@
 /**
- * Escenario 2 — Debajo de la mesa (páginas 6 a 9 y actividad
+ * Escenario 2 — Debajo de la mesa (páginas 7 a 10 y actividad
  * "Agáchate, cúbrete y sujétate"). Composición cercana: la mesa grande ocupa
  * el centro como un refugio y Nico queda protegido debajo.
  */
