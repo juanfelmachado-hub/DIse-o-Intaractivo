@@ -1,439 +1,357 @@
 /**
- * Interfaz HTML: texto del cuento, pista de arrastre de la hoja, globo del
- * Guardián cuando le habla al lector y los elementos de las actividades.
+ * Interfaz HTML según la "Guía visual" (§3, §7 y §8).
  *
- * Texto según el "Instructivo de texto y diálogos":
- *  - narrador: recuadro crema (u oscuro en el temblor) en la zona libre de
- *    cada escena; la zona cambia entre escenas (data/story.js → layout.at);
- *  - Nico y el Guardián: globo con colita que apunta al personaje, siempre
- *    al lado y por encima de él (nunca sobre su cara) y sin tapar al narrador;
- *  - instrucciones de juego: recuadro corto con ícono que desaparece en
- *    cuanto el niño empieza a jugar;
- *  - palabras clave (agáchate, cúbrete, sujétate, despacito) en negrita y color.
+ *  - Banda narrativa (abajo): el texto de la historia y el botón "siguiente",
+ *    que solo avanza momentos (nunca cambia de página).
+ *  - Tarjeta de diálogo (izquierda): Nico o el Guardián, con avatar y nombre.
+ *    Un diálogo a la vez; las pistas de los juegos también van aquí.
+ *  - Tarjeta de misión (derecha): lo que el niño debe hacer. Se compacta al
+ *    jugar y pasa a verde con "¡Lo lograste!" al terminar.
+ *  - Sonidos escritos: en la escena, junto a lo que suena.
+ *  - Barra de página (debajo del libro): un segmento por tarea; dorada y con
+ *    pulso cuando la página está lista.
  *
- * No hay botones de navegación: las páginas se pasan arrastrándolas.
+ * Nunca más de dos contenedores con texto completo a la vez: la banda cuenta
+ * como uno, así que si hay diálogo y misión, la misión va compacta.
  * La UI no conoce la historia: el StoryController le dice qué mostrar.
  */
 import * as THREE from 'three'
 import { story } from '../data/story.js'
-import { avatars, stepIcons } from './icons.js'
+import { avatars, missionIcons } from './icons.js'
+import { playSfx } from '../audio/sfx.js'
 
 const $ = (sel) => document.querySelector(sel)
 const v = new THREE.Vector3()
 
-const HINTS = {
-    cover: { label: 'Arrastra la tapa para abrir el cuento', anchor: 'cover', dir: 'left' },
-    next: { label: 'Arrastra la hoja para pasar la página', anchor: 'right', dir: 'left' },
-    close: { label: 'Arrastra la hoja para cerrar el libro', anchor: 'left', dir: 'right' },
-}
-
-const KEYWORDS = new Set(['agáchate', 'cúbrete', 'sujétate', 'despacito'])
+const KEYWORDS = new Set(['agáchate', 'cúbrete', 'sujétate', 'despacito', 'temblar', 'réplica'])
 const bare = (w) => w.toLowerCase().replace(/[^a-záéíóúüñ]/g, '')
-
-function wordsHTML(text) {
-    return text
-        .split(' ')
-        .map((w, i) => {
-            const kw = KEYWORDS.has(bare(w)) ? ' kw' : ''
-            return `<span class="w${kw}" style="--i:${i}">${escapeHTML(w)}${' '}</span>`
-        })
-        .join('')
-}
-
-/** Zona del narrador según el tamaño de la pantalla (en celular, siempre arriba). */
-function resolveZone(at = 'top-left') {
-    const w = window.innerWidth
-    const h = window.innerHeight
-    if (w < 760) return h > w * 1.2 ? 'top' : at.replace('side-', 'top-')
-    if (at.startsWith('side-') && w / h < 1.45) return at.replace('side-', 'top-')
-    return at
-}
 
 function escapeHTML(s) {
     return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+
+/** Texto con las palabras clave en negrita (y en naranja oscuro dentro de la banda). */
+function richText(text) {
+    return text.split(' ').map((w) => (KEYWORDS.has(bare(w)) ? `<strong class="kw">${escapeHTML(w)}</strong>` : escapeHTML(w))).join(' ')
+}
+
+function enter(el, delay = 0) {
+    el.hidden = false
+    el.classList.remove('is-leaving')
+    el.style.setProperty('--delay', `${delay}ms`)
+    el.classList.remove('is-entering')
+    void el.offsetWidth
+    el.classList.add('is-entering')
 }
 
 export class UI {
     constructor() {
         this.el = {
             loader: $('[data-loader]'),
-            narration: $('[data-narration]'),
-            dialogue: $('[data-dialogue]'),
-            speaker: $('[data-speaker]'),
-            dots: $('[data-dots]'),
-            activity: $('[data-activity]'),
-            activityTitle: $('[data-activity-title]'),
-            activityStops: $('[data-activity-stops]'),
-            tray: $('[data-tray]'),
+            scene: $('[data-scene]'),
+            canvas: $('canvas.webgl'),
+            storyText: $('[data-story-text]'),
+            next: $('[data-story-next]'),
+            dialog: $('[data-dialog]'),
+            dialogName: $('[data-dialog-name]'),
+            dialogText: $('[data-dialog-text]'),
+            avatar: $('[data-avatar]'),
+            mission: $('[data-mission]'),
+            missionIcon: $('[data-mission-icon]'),
+            missionText: $('[data-mission-text]'),
+            turtle: $('[data-turtle]'),
+            strip: $('[data-strip]'),
+            stripLabel: $('[data-strip-label]'),
+            stripSteps: $('[data-strip-steps]'),
+            go: $('[data-strip-go]'),
+            sfx: $('[data-sfx]'),
             hotspots: $('[data-hotspots]'),
-            hint: $('[data-hint]'),
-            hintLabel: $('[data-hint-label]'),
-            toast: $('[data-toast]'),
-            gBubble: $('[data-guardian-bubble]'),
-            gSpeaker: $('[data-g-speaker]'),
             veil: $('[data-veil]'),
-            instruction: $('[data-instruction]'),
+            radar: $('[data-radar]'),
+            drum: $('[data-drum]'),
         }
-        this.el.narrationText = this.el.narration.querySelector('.bubble__text')
-        this.el.dialogueText = this.el.dialogue.querySelector('.bubble__text')
-        this.el.gBubbleText = this.el.gBubble.querySelector('.g-bubble__text')
-        this.el.instructionText = this.el.instruction.querySelector('.instruction__text')
-        this.el.gSpeaker.innerHTML = `${avatars.guardian ?? ''}<span>${escapeHTML(story.characters.guardian.name)}</span>`
-        this.hint = null
-        this.gTarget = null
-        this.gDismiss = null
-        this.el.gBubble.addEventListener('click', () => this.gDismiss?.())
-        // a quién apunta la colita de cada globo (lo fija el StoryController)
-        this.speakers = {}
-        this.speech = { who: null, x: 0, y: 0, init: false }
-        this.lastTime = performance.now()
-        // la instrucción de juego se va cuando el niño empieza a jugar
-        const played = () => {
-            if (!this.el.instruction.hidden) this.instructTimer = setTimeout(() => this.hideInstruction(), 250)
-        }
-        for (const type of ['pointerdown', 'click', 'keydown']) window.addEventListener(type, played, true)
-        window.addEventListener('resize', () => { this.speech.init = false; this.placeNarrator() })
+        this.avatarImages = {}
+        this.mission = null // { icon, text, short }
+        this.missionPlaying = false
+        this.missionExpanded = false
+        this.pageTasks = []
+        this.done = new Set()
+        this.stripMode = 'page'
+        this.onNext = null
+        this.onGo = null
+        this.el.turtle.innerHTML = missionIcons.turtle
+
+        this.el.next.addEventListener('click', () => {
+            if (this.el.next.getAttribute('aria-disabled') === 'true') return this.nudgeMission()
+            playSfx('siguiente')
+            this.onNext?.()
+        })
+        this.el.go.addEventListener('click', () => this.onGo?.())
+        // la misión compacta vuelve a crecer si el niño la toca
+        this.el.mission.addEventListener('click', () => this.expandMission())
+        // Teclado (§12): Enter o flecha derecha avanzan el texto
+        window.addEventListener('keydown', (e) => {
+            if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return
+            const tag = document.activeElement?.tagName
+            if (e.key === 'Enter' && (tag === 'BUTTON' || tag === 'A')) return
+            if (e.key === 'Enter' || e.key === 'ArrowRight') {
+                e.preventDefault()
+                this.onKeyNext?.()
+            }
+        })
     }
 
-    /** Personajes de la doble página actual (para anclar sus globos). */
-    setSpeakers(scene) {
-        this.speakers = {
-            nico: scene?.nico?.speechAnchor ?? null,
-            guardian: scene?.guardian ?? null,
-        }
-        this.speech.init = false
-    }
-
-    // ------------------------------------------------------------ carga
     hideLoader() {
         this.el.loader.classList.add('is-done')
         setTimeout(() => this.el.loader.remove(), 1200)
     }
 
-    // ------------------------------------------------------------ pista de arrastre
-    showDragHint(kind, delay = 0) {
-        clearTimeout(this.hintTimer)
-        this.hintTimer = setTimeout(() => {
-            const h = HINTS[kind]
-            this.hint = h
-            const el = this.el.hint
-            this.el.hintLabel.textContent = h.label
-            el.dataset.dir = h.dir
-            el.hidden = false
-            el.classList.remove('is-leaving')
-        }, delay * 1000)
+    /** Rostros de Nico y del Guardián (pintados con los modelos 3D). */
+    setAvatars(images) {
+        this.avatarImages = images ?? {}
     }
 
-    hideDragHint() {
-        clearTimeout(this.hintTimer)
-        if (this.el.hint.hidden) return
-        this.el.hint.classList.add('is-leaving')
-        this.hint = null
-        setTimeout(() => { if (!this.hint) this.el.hint.hidden = true }, 300)
-    }
-
-    toast(text) {
-        const t = this.el.toast
-        t.textContent = text
-        t.hidden = false
-        t.classList.remove('is-in')
+    // ------------------------------------------------------------ banda narrativa
+    /** Si `text` es undefined, la banda conserva el último texto del narrador. */
+    setNarration(text) {
+        if (text === undefined) return
+        const t = this.el.storyText
+        if (t.dataset.text === text) return
+        t.dataset.text = text
+        t.innerHTML = richText(text)
+        t.classList.remove('is-entering')
         void t.offsetWidth
-        t.classList.add('is-in')
-        clearTimeout(this.toastTimer)
-        this.toastTimer = setTimeout(() => { t.hidden = true }, 2400)
+        t.classList.add('is-entering')
     }
 
-    // ------------------------------------------------------------ el Guardián habla al lector
-    showGuardianBubble(text, target, onDismiss) {
-        const b = this.el.gBubble
-        this.gTarget = target
-        this.gDismiss = onDismiss
-        this.el.gBubbleText.innerHTML = wordsHTML(text)
-        b.hidden = false
-        b.classList.remove('is-leaving')
-        b.style.animation = 'none'
-        void b.offsetWidth
-        b.style.animation = ''
+    clearNarration() {
+        this.el.storyText.dataset.text = ''
+        this.el.storyText.innerHTML = ''
     }
 
-    hideGuardianBubble() {
-        const b = this.el.gBubble
-        this.gDismiss = null
-        if (b.hidden) return
-        b.classList.add('is-leaving')
-        setTimeout(() => { if (b.classList.contains('is-leaving')) { b.hidden = true; this.gTarget = null } }, 320)
+    setNext(enabled) {
+        this.el.next.setAttribute('aria-disabled', String(!enabled))
     }
 
+    // ------------------------------------------------------------ diálogo (izquierda)
+    say(speaker, text, { delay = 250, hint = false } = {}) {
+        const d = this.el.dialog
+        const show = () => {
+            d.dataset.speaker = speaker
+            this.el.dialogName.textContent = story.characters[speaker]?.name ?? speaker
+            this.el.dialogText.innerHTML = richText(text)
+            const img = this.avatarImages[speaker]
+            this.el.avatar.style.backgroundImage = img ? `url(${img})` : `url("data:image/svg+xml,${encodeURIComponent(avatars[speaker] ?? '')}")`
+            enter(d, hint ? 0 : delay)
+            this.layoutMission()
+        }
+        clearTimeout(this.dialogTimer)
+        // un diálogo a la vez: si cambia quien habla, la tarjeta anterior sale primero
+        if (!d.hidden && d.dataset.speaker !== speaker) {
+            d.classList.add('is-leaving')
+            this.dialogTimer = setTimeout(show, 150)
+        } else show()
+        if (hint) playSfx('pista')
+    }
+
+    hideDialog() {
+        const d = this.el.dialog
+        clearTimeout(this.dialogTimer)
+        if (d.hidden) return
+        d.classList.remove('is-entering')
+        d.classList.add('is-leaving')
+        this.dialogTimer = setTimeout(() => {
+            d.hidden = true
+            d.classList.remove('is-leaving')
+            this.layoutMission()
+        }, 150)
+    }
+
+    get dialogVisible() { return !this.el.dialog.hidden && !this.el.dialog.classList.contains('is-leaving') }
+
+    // ------------------------------------------------------------ misión (derecha)
+    setMission(m, { delay = 500 } = {}) {
+        this.mission = m
+        this.missionPlaying = false
+        this.missionExpanded = false
+        const el = this.el.mission
+        el.dataset.state = 'idle'
+        this.el.missionIcon.innerHTML = missionIcons[m.icon] ?? missionIcons.estrella
+        this.layoutMission()
+        enter(el, delay)
+    }
+
+    /** Al empezar a jugar la misión se compacta (ícono y 2 o 3 palabras). */
+    playing(on = true) {
+        this.missionPlaying = on
+        this.missionExpanded = false
+        this.layoutMission()
+    }
+
+    expandMission() {
+        if (!this.mission || this.el.mission.dataset.state === 'success') return
+        this.missionExpanded = true
+        // dos contenedores como máximo: el diálogo se retira mientras la misión crece
+        if (this.dialogVisible) this.hideDialog()
+        this.layoutMission()
+        clearTimeout(this.expandTimer)
+        this.expandTimer = setTimeout(() => { this.missionExpanded = false; this.layoutMission() }, 4000)
+    }
+
+    layoutMission() {
+        const m = this.mission
+        const el = this.el.mission
+        if (!m || el.dataset.state === 'success') return
+        const compact = !this.missionExpanded && (this.missionPlaying || this.dialogVisible)
+        el.dataset.state = compact ? 'compact' : 'idle'
+        this.el.missionText.textContent = compact ? m.short : m.text
+    }
+
+    nudgeMission() {
+        const el = this.el.mission
+        if (el.hidden) return
+        el.classList.remove('is-nudged')
+        void el.offsetWidth
+        el.classList.add('is-nudged')
+    }
+
+    /** Éxito: la misión pasa a verde con una estrella. */
+    missionSuccess(text = '¡Lo lograste!') {
+        const el = this.el.mission
+        this.mission = null
+        el.hidden = false
+        el.dataset.state = 'success'
+        this.el.missionIcon.innerHTML = missionIcons.estrella
+        this.el.missionText.textContent = text
+        enter(el, 0)
+        playSfx('acierto')
+    }
+
+    hideMission() {
+        this.mission = null
+        this.el.mission.hidden = true
+        this.el.turtle.hidden = true
+    }
+
+    showTurtle(on, onTap) {
+        const b = this.el.turtle
+        b.hidden = !on
+        b.onclick = on ? () => onTap?.() : null
+    }
+
+    // ------------------------------------------------------------ sonidos escritos
+    /** Onomatopeya en x, y (% de la escena). */
+    sfx(text, x, y) {
+        const el = document.createElement('span')
+        el.className = 'sfx'
+        el.textContent = text
+        el.style.left = `${x}%`
+        el.style.top = `${y}%`
+        this.el.sfx.appendChild(el)
+        playSfx('sonido-escrito')
+        setTimeout(() => el.remove(), 1200)
+    }
+
+    /** Onomatopeya junto a un punto 3D (en el mundo). */
+    sfxAt(text, world, camera) {
+        v.copy(world).project(camera)
+        const x = Math.min(92, Math.max(8, ((v.x + 1) / 2) * 100))
+        const y = Math.min(88, Math.max(10, ((1 - v.y) / 2) * 100))
+        this.sfx(text, x, y)
+    }
+
+    // ------------------------------------------------------------ barra de página
+    /**
+     * @param tasks  ids de las tareas de la página ('leer', 'juego-…')
+     * @param mode   'page' | 'last' (en la última página la barra lista dice "¡Fin del cuento!")
+     */
+    startPage(tasks, done = [], mode = 'page') {
+        this.pageTasks = tasks
+        this.done = new Set(done)
+        this.stripMode = mode
+        this.el.stripSteps.innerHTML = tasks.map(() => '<li class="step"></li>').join('')
+        this.el.go.setAttribute('aria-label', mode === 'last' ? 'Volver al inicio del libro' : 'Pasar la página')
+        this.renderStrip()
+    }
+
+    /** Portada: la barra invita a abrir el libro. */
+    coverStrip() {
+        this.pageTasks = []
+        this.done = new Set()
+        this.stripMode = 'cover'
+        this.el.stripSteps.innerHTML = ''
+        this.el.strip.dataset.state = 'ready'
+        this.el.stripLabel.textContent = '¡Abre el cuento!'
+        this.el.go.setAttribute('aria-disabled', 'false')
+        this.el.go.setAttribute('aria-label', 'Abrir el libro')
+    }
+
+    completeTask(id) {
+        if (!this.pageTasks.includes(id) || this.done.has(id)) return false
+        this.done.add(id)
+        return this.renderStrip()
+    }
+
+    get ready() { return this.pageTasks.length > 0 && this.done.size === this.pageTasks.length }
+
+    /** Devuelve true si la página acaba de quedar lista. */
+    renderStrip() {
+        ;[...this.el.stripSteps.children].forEach((el, i) => el.classList.toggle('is-done', this.done.has(this.pageTasks[i])))
+        const ready = this.ready
+        const wasReady = this.el.strip.dataset.state === 'ready'
+        this.el.strip.dataset.state = ready ? 'ready' : 'pending'
+        this.el.stripLabel.textContent = ready ? (this.stripMode === 'last' ? '¡Fin del cuento!' : '¡Página lista! Pásala') : 'Sigue explorando'
+        this.el.go.setAttribute('aria-disabled', String(!ready))
+        if (ready && !wasReady) playSfx('pagina-lista')
+        return ready && !wasReady
+    }
+
+    /** Intento de pasar la página antes de tiempo: la barra se sacude. */
+    denyTurn() {
+        const s = this.el.strip
+        s.classList.remove('is-denied')
+        void s.offsetWidth
+        s.classList.add('is-denied')
+        this.el.stripLabel.textContent = 'Aún hay algo por hacer'
+        clearTimeout(this.denyTimer)
+        this.denyTimer = setTimeout(() => this.renderStrip(), 1500)
+        playSfx('pagina-bloqueada')
+    }
+
+    /** Mientras gira la hoja, la barra se desvanece (250 ms). */
+    setTurning(on) {
+        this.el.strip.classList.toggle('is-turning', on)
+    }
+
+    // ------------------------------------------------------------ El Guardián le habla al lector
     showVeil(on) {
         this.el.veil.classList.toggle('is-on', on)
     }
 
-    /** Proyecta los elementos que siguen a objetos 3D. */
-    update(camera, book) {
-        const now = performance.now()
-        const dt = Math.min(0.1, (now - this.lastTime) / 1000)
-        this.lastTime = now
-        const w = window.innerWidth
-        const h = window.innerHeight
-        this.placeSpeech(camera, dt, w, h)
-        if (this.hint && !this.el.hint.hidden && book) {
-            book.anchors[this.hint.anchor].getWorldPosition(v)
-            v.project(camera)
-            const x = Math.min(w - 120, Math.max(120, ((v.x + 1) / 2) * w))
-            const y = Math.min(h - 60, Math.max(60, ((1 - v.y) / 2) * h))
-            this.el.hint.style.translate = `${x}px ${y}px`
-        }
-        if (this.gTarget && !this.el.gBubble.hidden) {
-            this.gTarget.getWorldPosition(v)
-            v.project(camera)
-            const x = ((v.x + 1) / 2) * w
-            const y = ((1 - v.y) / 2) * h
-            const left = x > w * 0.5
-            const b = this.el.gBubble
-            b.dataset.side = left ? 'left' : 'right'
-            const off = Math.min(150, w * 0.11)
-            const bx = left ? x - off : x + off
-            b.style.translate = `calc(${bx}px - ${left ? '100%' : '0px'}) calc(${y}px - 50%)`
+    // ------------------------------------------------------------ elementos de los juegos
+    /** Coordenadas de un punto 3D dentro de la escena (px). */
+    toScene(world, camera, out = { x: 0, y: 0, visible: true }) {
+        const r = this.el.canvas.getBoundingClientRect()
+        v.copy(world).project(camera)
+        out.x = ((v.x + 1) / 2) * r.width
+        out.y = ((1 - v.y) / 2) * r.height
+        out.visible = v.z < 1
+        return out
+    }
+
+    update(camera) {
+        const d = this.drumTarget
+        if (d && !this.el.drum.hidden) {
+            d.getWorldPosition(v)
+            const p = this.toScene(v, camera)
+            this.el.drum.style.translate = `${p.x}px ${p.y}px`
         }
     }
 
-    /**
-     * Globo de diálogo: al lado del personaje y por encima de su cabeza, con la
-     * colita apuntándole. Se queda quieto mientras se lee (solo se corrige si el
-     * personaje se mueve de verdad) y esquiva el recuadro del narrador.
-     */
-    placeSpeech(camera, dt, w, h) {
-        const el = this.el.dialogue
-        const sp = this.speech
-        if (el.hidden || !sp.who) return
-        const g = w < 760 ? 12 : 20
-        const bw = el.offsetWidth
-        const bh = el.offsetHeight
-        const target = this.speakers[sp.who]
-        let ax
-        let ay
-        if (target && target.parent) {
-            target.getWorldPosition(v)
-            v.project(camera)
-            ax = ((v.x + 1) / 2) * w
-            ay = ((1 - v.y) / 2) * h
-        } else {
-            ax = w * 0.5
-            ay = h * 0.55
-        }
-        let side = ax > w * 0.56 ? 'left' : 'right'
-        const place = (sd) => (sd === 'right' ? ax + 10 : ax - 10 - bw)
-        let x = place(side)
-        if (x < g || x + bw > w - g) {
-            const other = side === 'right' ? 'left' : 'right'
-            const ox = place(other)
-            if (ox >= g && ox + bw <= w - g) { side = other; x = ox }
-        }
-        x = Math.min(w - g - bw, Math.max(g, x))
-        let y = ay - bh - 18
-        // celular vertical: el globo sube a la zona libre de arriba (el cielo)
-        // y la colita sigue apuntando hacia el personaje
-        if (w < 760 && h > w * 1.2) y = Math.min(y, h * 0.4 - bh)
-        let below = false
-        if (y < g) { y = ay + 34; below = true }
-        y = Math.min(h - g - bh, Math.max(g, y))
-        // no tapar al narrador
-        const n = this.el.narration
-        if (!n.hidden && !n.classList.contains('is-leaving')) {
-            const r = n.getBoundingClientRect()
-            const hit = (xx, yy) => xx < r.right + 10 && xx + bw > r.left - 10 && yy < r.bottom + 10 && yy + bh > r.top - 10
-            if (hit(x, y)) {
-                const right = r.right + 14
-                const left = r.left - 14 - bw
-                if (right + bw <= w - g && Math.abs(right - x) < w * 0.5) x = right
-                else if (left >= g) x = left
-                if (hit(x, y)) y = Math.min(h - g - bh, r.bottom + 14)
-            }
-        }
-        if (!sp.init) {
-            sp.x = x
-            sp.y = y
-            sp.init = true
-        } else if (Math.hypot(x - sp.x, y - sp.y) > 24 || sp.moving) {
-            // solo se reacomoda si el personaje se movió bastante
-            sp.moving = Math.hypot(x - sp.x, y - sp.y) > 1
-            const k = 1 - Math.pow(0.002, dt)
-            sp.x += (x - sp.x) * k
-            sp.y += (y - sp.y) * k
-        }
-        el.dataset.side = side
-        el.dataset.below = below ? 'true' : 'false'
-        el.style.setProperty('--tail-x', `${Math.min(bw - 26, Math.max(26, ax - sp.x))}px`)
-        el.style.translate = `${Math.round(sp.x)}px ${Math.round(sp.y)}px`
-    }
-
-    // ------------------------------------------------------------ texto
-    /**
-     * Muestra la narración y/o el diálogo de un momento del cuento.
-     * @param at   zona del narrador ('top', 'top-left', 'top-right', 'side-left', 'side-right')
-     * @param tone 'light' | 'dark'
-     */
-    showText({ text, dialogue, at, tone } = {}, progress = null) {
-        const n = this.el.narration
-        if (text) {
-            this.zone = at ?? this.zone ?? 'top-left'
-            n.dataset.at = this.zone
-            n.dataset.tone = tone === 'dark' ? 'dark' : 'light'
-        }
-        this.setBubble(n, this.el.narrationText, text)
-        if (text) this.placeNarrator()
-        if (dialogue) this.say(dialogue.who, dialogue.text)
-        else this.hideBubble(this.el.dialogue)
-        this.setDots(text ? progress : null)
-    }
-
-    placeNarrator() {
-        const n = this.el.narration
-        if (this.zone) n.dataset.zone = resolveZone(this.zone)
-    }
-
-    /** Instrucción de un juego: recuadro corto con ícono (crema, borde naranja). */
-    instruct(text) {
-        clearTimeout(this.instructTimer)
-        const el = this.el.instruction
-        this.el.instructionText.innerHTML = wordsHTML(text)
-        el.hidden = false
-        el.classList.remove('is-leaving')
-        el.style.animation = 'none'
-        void el.offsetWidth
-        el.style.animation = ''
-    }
-
-    hideInstruction() {
-        const el = this.el.instruction
-        if (el.hidden) return
-        el.classList.add('is-leaving')
-        clearTimeout(this.instructTimer)
-        this.instructTimer = setTimeout(() => { if (el.classList.contains('is-leaving')) { el.hidden = true; el.classList.remove('is-leaving') } }, 300)
-    }
-
-    setDots(progress) {
-        const d = this.el.dots
-        if (!progress || progress.steps < 2) { d.innerHTML = ''; return }
-        d.innerHTML = Array.from({ length: progress.steps }, (_, i) => `<i class="${i <= progress.step ? 'on' : ''}"></i>`).join('')
-    }
-
-    /** Diálogo de un personaje (también se usa para la retroalimentación de las actividades). */
-    say(who, text, tone = null) {
-        const d = this.el.dialogue
-        const ch = story.characters[who] ?? { name: who, color: '#5b4d6e' }
-        this.el.speaker.innerHTML = `${avatars[who] ?? ''}<span>${escapeHTML(ch.name)}</span>`
-        d.dataset.who = who
-        if (this.speech.who !== who || d.hidden) this.speech.init = false
-        this.speech.who = who
-        d.classList.remove('is-ok', 'is-oops', 'is-leaving')
-        this.setBubble(d, this.el.dialogueText, text, true)
-        if (tone) d.classList.add(tone === 'ok' ? 'is-ok' : 'is-oops')
-    }
-
-    setBubble(bubble, textEl, text, force = false) {
-        if (!text) return this.hideBubble(bubble)
-        if (!force && !bubble.hidden && textEl.dataset.text === text) return
-        textEl.dataset.text = text
-        textEl.innerHTML = wordsHTML(text)
-        bubble.classList.remove('is-leaving')
-        bubble.hidden = false
-        bubble.style.animation = 'none'
-        void bubble.offsetWidth
-        bubble.style.animation = ''
-    }
-
-    hideBubble(bubble) {
-        if (bubble.hidden) return
-        bubble.classList.add('is-leaving')
-        clearTimeout(bubble._t)
-        bubble._t = setTimeout(() => {
-            if (bubble.classList.contains('is-leaving')) {
-                bubble.hidden = true
-                bubble.classList.remove('is-leaving')
-                const t = bubble.querySelector('.bubble__text')
-                if (t) t.dataset.text = ''
-            }
-        }, 340)
-    }
-
-    clearText() {
-        this.hideBubble(this.el.narration)
-        this.hideBubble(this.el.dialogue)
-        this.hideInstruction()
-    }
-
-    // ------------------------------------------------------------ actividades
-    showActivity(title, stops = []) {
-        const a = this.el.activity
-        this.el.activityTitle.textContent = title
-        this.el.activityStops.innerHTML = stops.map((s, i) => `<li data-i="${i}">${i + 1}. ${escapeHTML(s)}</li>`).join('')
-        a.classList.remove('is-complete')
-        a.querySelector('.activity-chip__label').textContent = 'Actividad'
-        a.hidden = false
-    }
-
-    setStop(index) {
-        this.el.activityStops.querySelectorAll('li').forEach((li, i) => {
-            li.classList.toggle('is-done', i < index)
-            li.classList.toggle('is-current', i === index)
-        })
-    }
-
-    completeActivity() {
-        const a = this.el.activity
-        a.classList.add('is-complete')
-        a.querySelector('.activity-chip__label').textContent = '¡Actividad lograda!'
-        this.el.activityStops.querySelectorAll('li').forEach((li) => { li.classList.remove('is-current'); li.classList.add('is-done') })
-    }
-
-    shakeActivity() {
-        const a = this.el.activity
-        if (a.hidden) return
-        a.classList.remove('shake')
-        void a.offsetWidth
-        a.classList.add('shake')
-    }
-
-    hideActivity() {
-        this.el.activity.hidden = true
-    }
-
-    /** Botones grandes de la actividad 2. */
-    showSteps(steps, onPick) {
-        const tray = this.el.tray
-        tray.innerHTML = ''
-        tray.classList.add('glass')
-        steps.forEach((s, i) => {
-            const b = document.createElement('button')
-            b.type = 'button'
-            b.className = 'step-btn glass'
-            b.style.setProperty('--i', i)
-            b.innerHTML = `<span class="step-btn__num">${i + 1}</span>${stepIcons[s.icon] ?? ''}<span>${escapeHTML(s.label)}</span>`
-            b.addEventListener('click', () => onPick(i))
-            tray.append(b)
-        })
-        tray.hidden = false
-    }
-
-    markStep(i, state) {
-        const b = this.el.tray.children[i]
-        if (!b) return
-        if (state === 'wrong') {
-            b.classList.remove('is-wrong')
-            void b.offsetWidth
-            b.classList.add('is-wrong')
-            return
-        }
-        b.classList.toggle('is-done', state === 'done')
-    }
-
-    setNextStep(i) {
-        ;[...this.el.tray.children].forEach((b, k) => b.classList.toggle('is-next', k === i))
-    }
-
-    hideSteps() {
-        this.el.tray.hidden = true
-        this.el.tray.innerHTML = ''
+    clearAll() {
+        this.hideDialog()
+        this.hideMission()
+        this.el.drum.hidden = true
+        this.el.radar.hidden = true
     }
 }

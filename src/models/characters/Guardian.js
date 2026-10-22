@@ -11,7 +11,7 @@
  */
 import * as THREE from 'three'
 import gsap from 'gsap'
-import { geo, mat, add, glowSprite } from '../kit.js'
+import { geo, mat, add, glowSprite, starSprite } from '../kit.js'
 
 export class Guardian extends THREE.Group {
     /** PointLight global asignada por Experience. */
@@ -80,6 +80,43 @@ export class Guardian extends THREE.Group {
         this.halo = glowSprite('#c9f7a6', 0.7, 0.75)
         this.add(this.halo)
 
+    }
+
+    /** Juego 1: cada peligro encontrado se pega como sticker en el pecho del Guardián. */
+    addSticker(color) {
+        const n = this.stickers?.length ?? 0
+        this.stickers = this.stickers ?? []
+        const spots = [[-0.045, -0.045], [0.045, -0.05], [-0.02, -0.095], [0.035, -0.1]]
+        const [x, y] = spots[n % spots.length]
+        const st = add(this.inner, geo.circle(0.022, 16), mat.clay(color, 0.5), [x, y, 0.118], { cast: false })
+        st.lookAt(st.position.clone().multiplyScalar(2))
+        st.scale.setScalar(0.01)
+        gsap.to(st.scale, { x: 1, y: 1, z: 1, duration: 0.45, ease: 'back.out(2.5)' })
+        this.stickers.push(st)
+        return st
+    }
+
+    /** Estrellas ganadas en los juegos: giran alrededor del Guardián. */
+    setStars(n) {
+        this.starSprites = this.starSprites ?? []
+        while (this.starSprites.length < n) {
+            const s = starSprite('#FFC247', 0.075)
+            this.add(s)
+            this.starSprites.push(s)
+        }
+    }
+
+    /** Al final: las tres estrellas se juntan y el Guardián se ilumina. */
+    gatherStars() {
+        const tl = gsap.timeline()
+        ;(this.starSprites ?? []).forEach((s, i) => {
+            tl.to(s.position, { x: 0, y: 0.02, z: 0.06, duration: 0.8, ease: 'power2.inOut' }, i * 0.15)
+            tl.to(s.scale, { x: 0.16, y: 0.16, duration: 0.8, ease: 'power2.inOut' }, i * 0.15)
+        })
+        this.gathering = true
+        tl.add(this.pulse(3), 0.6)
+        tl.to(this, { glow: 2.6, duration: 0.8, ease: 'power2.out' }, 0.8)
+        return tl
     }
 
     /** Aparece desde el pecho de Nico con un giro en espiral. */
@@ -159,6 +196,15 @@ export class Guardian extends THREE.Group {
         const s = this.squash
         this.inner.scale.x = this.inner.scale.z = this.appearT < 1 ? this.inner.scale.x : 1 + s * 0.14
         if (this.appearT >= 1) this.inner.scale.y = 1 - s * 0.12
+
+        // estrellas en órbita
+        if (this.starSprites && !this.gathering) {
+            const n = this.starSprites.length
+            this.starSprites.forEach((s, i) => {
+                const a = t * 1.4 + (i / Math.max(1, n)) * Math.PI * 2
+                s.position.set(Math.cos(a) * 0.17, 0.05 + Math.sin(t * 2 + i) * 0.02, Math.sin(a) * 0.17)
+            })
+        }
 
         const g = this.glow
         this.bodyMat.emissiveIntensity = 0.3 + g * 0.35

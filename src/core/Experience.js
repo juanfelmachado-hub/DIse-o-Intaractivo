@@ -11,7 +11,8 @@ import { Environment } from '../world/Environment.js'
 import { Book } from '../book/Book.js'
 import { PageTurner } from '../book/PageTurner.js'
 import { setAnisotropy } from '../book/PageArt.js'
-import { prepareCover } from '../book/CoverArt.js'
+import { prepareCover, renderPortraits } from '../book/CoverArt.js'
+import { setSfxHandler } from '../animations/motions.js'
 import { Guardian } from '../models/characters/Guardian.js'
 import { UI } from '../ui/UI.js'
 import { Hotspots } from '../ui/Hotspots.js'
@@ -32,7 +33,9 @@ export class Experience {
         setAnisotropy(this.renderer.capabilities.getMaxAnisotropy())
 
         this.scene = new THREE.Scene()
-        this.camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 400)
+        // el lienzo ocupa solo la escena (Guía visual §4.2): encima de la barra de página y la banda
+        this.sceneEl = canvas.parentElement
+        this.camera = new THREE.PerspectiveCamera(35, 1, 0.1, 400)
         this.scene.add(this.camera)
 
         this.quake = new Quake()
@@ -45,10 +48,14 @@ export class Experience {
 
         // la portada se ilustra con los modelos del cuento antes de armar el libro
         prepareCover(this.renderer)
+        const portraits = renderPortraits(this.renderer)
         this.book = new Book()
         this.scene.add(this.book.root, this.book.shadow)
 
         this.ui = new UI()
+        this.ui.setAvatars(portraits)
+        // sonidos escritos: en HTML sobre la escena, junto a lo que suena
+        setSfxHandler((text, world) => this.ui.sfxAt(text, world, this.camera))
         this.hotspots = new Hotspots(this.ui.el.hotspots, this.camera)
         this.pointer = new Pointer(canvas, this.camera)
 
@@ -64,9 +71,12 @@ export class Experience {
         })
         // pasar páginas arrastrando (reemplaza cualquier botón de navegación)
         this.turner = new PageTurner({ canvas, camera: this.camera, book: this.book, pointer: this.pointer }, this.story)
+        this.story.ctx.turner = this.turner
 
         this.resize()
         window.addEventListener('resize', () => this.resize())
+        // el lienzo se reajusta cuando cambia el espacio de la escena (§4.3)
+        if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe(this.sceneEl)
 
         // GSAP se actualiza dentro de nuestro propio requestAnimationFrame
         gsap.ticker.remove(gsap.updateRoot)
@@ -76,12 +86,13 @@ export class Experience {
     }
 
     resize() {
-        const w = window.innerWidth
-        const h = window.innerHeight
+        const w = Math.max(1, this.sceneEl.clientWidth)
+        const h = Math.max(1, this.sceneEl.clientHeight)
         this.camera.aspect = w / h
         this.camera.updateProjectionMatrix()
-        this.renderer.setSize(w, h)
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+        this.renderer.setSize(w, h, false)
+        this.rig.setViewport(w, h)
     }
 
     /** Compila shaders y sube texturas antes de mostrar (evita tirones). */
@@ -110,7 +121,7 @@ export class Experience {
         this.story.update(dt, t, this.quake)
         this.rig.update(dt, t, this.quake)
         this.hotspots.update()
-        this.ui.update(this.camera, this.book)
+        this.ui.update(this.camera)
         this.renderer.render(this.scene, this.camera)
     }
 }

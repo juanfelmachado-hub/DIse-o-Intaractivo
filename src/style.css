@@ -1,605 +1,355 @@
 /* ==========================================================================
-   El susurro de la Tierra — estilos de interfaz
-   Paleta tomada del moodboard: rojo, naranja, amarillo, verde, azul y lila
-   sobre crema. Los textos del cuento siguen el "Instructivo de texto y
-   diálogos" (paneles sólidos y legibles); los controles secundarios conservan
-   el "Liquid Glass" (vidrio translúcido con blur).
+   Nico y su guardián personal — estilos de interfaz
+   Fuente de verdad: "Guía visual" (colores §5, tipografía §6, componentes §7).
+   Regla de oro: izquierda = quién habla · derecha = qué hacer ·
+   abajo = qué pasa en la historia · debajo del libro = cuándo pasar la página.
    ========================================================================== */
 
 :root {
-    --red: #ea5b4f;
-    --orange: #f08a45;
-    --yellow: #f9dc6b;
-    --green: #5db65a;
-    --blue: #5eaff2;
-    --lilac: #cf94f2;
-    --cream: #fff4e3;
-    --grid: #fbe3c8;
-    --ink: #2b2140;
-    --ink-soft: #5b4d6e;
-
-    --font-ui: 'Fredoka', 'Nunito', 'Trebuchet MS', system-ui, sans-serif;
-    --gutter: clamp(16px, 3.2vw, 48px);
-    --radius-l: 30px;
-    --radius-m: 22px;
-    --ease-out: cubic-bezier(.22, 1, .36, 1);
-    --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+    --tinta: #2B1B4D;        --crema: #FFF6E0;
+    --azul: #2F6FD0;         --azul-claro: #DCEBFF;
+    --morado: #6B3FC4;       --morado-claro: #EADFFB;
+    --dorado: #FFC247;
+    --naranja: #F28A2E;      --naranja-claro: #FFE7CC;  --naranja-osc: #B4510A;
+    --verde: #2E9E6B;        --verde-claro: #DDF5E8;
+    --noche: #1E1B3A;
+    --font: 'Fredoka', 'Baloo 2', 'Andika', system-ui, sans-serif;
+    --text-size: clamp(22px, 1.2vw + 16px, 30px);
+    /* menú inferior compacto (banda narrativa y barra de página) */
+    --bar-text: clamp(19px, 0.55vw + 14px, 23px);
+    --gutter: clamp(16px, 4vw, 64px);
+    --side: clamp(260px, 22vw, 360px);
+    --shadow: 0 6px 16px rgba(43, 27, 77, 0.25);
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-    height: 100%;
-    overflow: hidden;
-    background: #2a2550;
-    font-family: var(--font-ui);
-    color: var(--ink);
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body {
+    background: var(--noche);
+    font-family: var(--font);
+    color: var(--tinta);
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
 }
-
-.webgl {
-    cursor: default;
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    outline: none;
-    touch-action: none;
-    display: block;
-}
-
 [hidden] { display: none !important; }
-
-/* --------------------------------------------------------------------------
-   Liquid Glass
-   -------------------------------------------------------------------------- */
-.glass {
-    position: relative;
-    isolation: isolate;
-    background:
-        linear-gradient(150deg, rgba(255, 255, 255, .42) 0%, rgba(255, 255, 255, .16) 42%, rgba(255, 255, 255, .26) 100%);
-    -webkit-backdrop-filter: blur(18px) saturate(175%) brightness(1.06);
-    backdrop-filter: blur(18px) saturate(175%) brightness(1.06);
-    border: 1px solid rgba(255, 255, 255, .5);
-    box-shadow:
-        inset 0 1.5px 0 rgba(255, 255, 255, .9),
-        inset 0 -1px 0 rgba(255, 255, 255, .28),
-        inset 0 0 24px rgba(255, 255, 255, .22),
-        0 18px 40px -12px rgba(38, 24, 72, .35),
-        0 3px 10px rgba(38, 24, 72, .12);
-}
-/* Reflejo especular superior */
-.glass::before {
-    content: '';
-    position: absolute;
-    inset: 1px;
-    border-radius: inherit;
-    background:
-        radial-gradient(120% 70% at 18% -10%, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0) 55%),
-        radial-gradient(80% 50% at 100% 110%, rgba(255, 255, 255, .28), rgba(255, 255, 255, 0) 60%);
-    pointer-events: none;
-    z-index: -1;
-}
-/* Borde con refracción (anillo de luz) */
-.glass::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    padding: 1.5px;
-    background: linear-gradient(155deg,
-        rgba(255, 255, 255, .95) 0%,
-        rgba(255, 255, 255, .15) 35%,
-        rgba(255, 255, 255, .05) 60%,
-        rgba(255, 255, 255, .75) 100%);
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-    pointer-events: none;
+.sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
 /* --------------------------------------------------------------------------
-   Capa de interfaz
+   Distribución (§4.2): escena · barra de página · banda narrativa
    -------------------------------------------------------------------------- */
-.ui {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 2;
+.app { height: 100%; display: flex; flex-direction: column; }
+.scene { flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden; }
+.webgl {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; display: block;
+    outline: none; touch-action: none;
 }
-.ui > * { pointer-events: auto; }
-.ui > .story-text, .ui > .hotspots { pointer-events: none; }
+
+/* Zonas laterales sobre la escena (§7.2) */
+.zones {
+    position: absolute; inset: 16px var(--gutter) 16px;
+    display: grid;
+    grid-template-columns: var(--side) 1fr var(--side);
+    /* arriba, en las esquinas del paisaje: así no tapan el libro abierto */
+    align-items: start;
+    pointer-events: none;           /* no bloquea el toque a la escena */
+}
+.zone { display: grid; gap: 12px; }
+.zone--dialog  { grid-column: 1; }
+.zone--mission { grid-column: 3; justify-items: stretch; }
 
 /* --------------------------------------------------------------------------
-   Texto del cuento — "Instructivo de texto y diálogos"
-   · una sola tipografía (Fredoka); las voces se distinguen por el panel,
-     la forma del globo y el peso
-   · paneles casi sólidos (≥ 94 %), contraste ≥ 7:1, esquinas redondeadas,
-     relleno generoso, borde y sombra suave
-   · bloques de 2 a 4 líneas cortas, alineados a la izquierda
+   Base común de las tarjetas (§7.3)
    -------------------------------------------------------------------------- */
-.story-text { position: absolute; inset: 0; pointer-events: none; }
-
-.narrator, .speech, .instruction {
-    position: absolute;
-    max-width: min(30em, calc(100vw - 2 * var(--gutter)));
-    color: var(--ink);
-    text-align: left;
-    pointer-events: none;
-}
-
-.bubble__text, .g-bubble__text, .instruction__text {
-    font-size: clamp(20px, 1.55vw, 26px);
-    line-height: 1.45;
-    letter-spacing: .005em;
-    text-wrap: pretty;
-    hyphens: none;
-}
-.bubble__text .w, .g-bubble__text .w, .instruction__text .w {
-    display: inline-block;
-    white-space: pre;
-    animation: wordIn .5s var(--ease-out) both;
-    animation-delay: calc(var(--i) * 30ms + 140ms);
-}
-/* palabras clave: negrita y color acento, misma tipografía */
-.w.kw { font-weight: 700; color: var(--kw, #b8430d); }
-
-/* ---- narrador: recuadro crema sin colita, en la zona libre de la escena */
-.narrator {
-    width: max-content;
-    max-width: min(28em, 40vw);
-    padding: clamp(16px, 1.5vw, 22px) clamp(20px, 1.9vw, 30px) clamp(14px, 1.3vw, 20px);
+.card {
+    padding: 14px 18px;
+    background: var(--card-bg);
+    color: var(--tinta);
+    border: 3px solid var(--card-border);
     border-radius: 24px;
-    background: rgba(255, 246, 230, .97);
-    border: 2px solid rgba(233, 196, 150, .9);
-    box-shadow: 0 1px 0 rgba(255, 255, 255, .9) inset, 0 14px 34px -14px rgba(38, 24, 72, .45), 0 2px 6px rgba(38, 24, 72, .12);
-    animation: panelIn .6s var(--ease-out) both;
+    box-shadow: var(--shadow);
+    font-family: var(--font);
+    font-size: var(--text-size);
+    line-height: 1.4;
+    pointer-events: auto;
 }
-.narrator .bubble__text { font-weight: 500; }
-.narrator.is-leaving { animation: panelOut .35s ease-in both; }
+.card__text { margin: 0; font-weight: 500; text-wrap: pretty; }
+.card .kw { font-weight: 700; }
+.card.is-entering { animation: card-in .25s ease-out both; animation-delay: var(--delay, 0ms); }
+.card.is-leaving  { animation: card-out .15s ease-in both; }
+.zone--dialog  .card { --from: -16px; }
+.zone--mission .card { --from: 16px; }
+@keyframes card-in  { from { opacity: 0; transform: translateX(var(--from)); } to { opacity: 1; transform: none; } }
+@keyframes card-out { to { opacity: 0; } }
 
-/* zonas libres (data-zone la calcula la UI según la pantalla) */
-.narrator[data-zone="top-left"]  { top: calc(var(--gutter) + env(safe-area-inset-top)); left: calc(var(--gutter) + env(safe-area-inset-left)); }
-.narrator[data-zone="top-right"] { top: calc(var(--gutter) + env(safe-area-inset-top)); right: calc(var(--gutter) + env(safe-area-inset-right)); }
-.narrator[data-zone="top"]       { top: calc(var(--gutter) + env(safe-area-inset-top)); left: 50%; translate: -50% 0; }
-.narrator[data-zone="side-left"] { top: 38%; left: calc(var(--gutter) + env(safe-area-inset-left)); translate: 0 -50%; max-width: min(19em, 24vw); }
-.narrator[data-zone="side-right"]{ top: 38%; right: calc(var(--gutter) + env(safe-area-inset-right)); translate: 0 -50%; max-width: min(19em, 24vw); }
+/* Tarjeta de diálogo (izquierda, §7.5): avatar y nombre arriba, el texto
+   debajo con todo el ancho de la tarjeta (así no se parte palabra por palabra) */
+.card--dialog {
+    display: grid; grid-template-columns: 56px 1fr; column-gap: 12px; row-gap: 8px; align-items: center;
+    grid-template-areas: "avatar name" "text text";
+}
+.card--dialog .avatar { grid-area: avatar; }
+.card--dialog .card__name { grid-area: name; margin: 0; }
+.card--dialog .card__text { grid-area: text; }
+.card--dialog[data-speaker="nico"] { --card-bg: var(--azul-claro); --card-border: var(--azul); }
+.card--dialog[data-speaker="guardian"] {
+    --card-bg: var(--morado-claro); --card-border: var(--dorado);
+    box-shadow: var(--shadow), 0 0 18px rgba(255, 194, 71, .6);
+}
+.avatar {
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 2px solid var(--tinta); background-color: var(--azul);
+    background-size: cover; background-position: center;
+}
+.card--dialog[data-speaker="guardian"] .avatar { background-color: var(--morado); }
+.card__name { margin: 0 0 4px; font-size: calc(var(--text-size) * .8); font-weight: 600; line-height: 1.3; }
 
-/* escenas oscuras (el temblor, debajo de la mesa): panel oscuro, texto crema */
-.narrator[data-tone="dark"] {
-    color: #fff4e3;
-    --kw: #ffc46b;
-    background: rgba(43, 33, 71, .96);
-    border-color: rgba(255, 213, 150, .35);
-    box-shadow: 0 14px 34px -12px rgba(10, 6, 30, .6), 0 2px 6px rgba(10, 6, 30, .3);
+/* Tarjeta de misión (derecha, §7.6) */
+.card--mission {
+    --card-bg: var(--naranja-claro); --card-border: var(--naranja);
+    display: grid; grid-template-columns: 48px 1fr; gap: 12px; align-items: center;
+    cursor: pointer;
 }
-.narrator[data-tone="dark"] .bubble__dots i { background: rgba(255, 244, 227, .25); }
-
-.bubble__dots { display: flex; gap: 6px; margin-top: 10px; }
-.bubble__dots:empty { display: none; }
-.bubble__dots i {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: rgba(91, 77, 110, .22);
-    transition: background .4s ease, transform .4s var(--ease-spring);
-}
-.bubble__dots i.on { background: var(--orange); transform: scale(1.15); }
-
-/* ---- globos de diálogo: junto a quien habla, con colita */
-.speech, .g-bubble {
-    left: 0; top: 0;
-    width: max-content;
-    max-width: min(22em, 34vw);
-    padding: 12px clamp(18px, 1.6vw, 24px) clamp(14px, 1.3vw, 18px);
-    border-radius: 26px;
-    border: 3px solid var(--bubble-border);
-    background: var(--bubble-bg);
-    box-shadow: 0 14px 30px -14px rgba(38, 24, 72, .5), 0 2px 6px rgba(38, 24, 72, .14);
-    will-change: translate;
-    animation: speechIn .55s var(--ease-spring) both;
-}
-.speech .bubble__text, .g-bubble__text { font-weight: 600; }
-.speech.is-leaving { animation: panelOut .3s ease-in both; }
-/* Nico: blanco cálido, borde azul */
-.speech[data-who="nico"] { --bubble-bg: #fffdf8; --bubble-border: #3d8fd6; --name: #1f6fb5; }
-/* Guardián: morado muy claro, borde dorado y resplandor */
-.speech[data-who="guardian"], .g-bubble {
-    --bubble-bg: #f3ecff; --bubble-border: #e2a93b; --name: #6a3fb5; --kw: #a23a10;
-    box-shadow: 0 0 0 4px rgba(242, 196, 92, .28), 0 0 22px rgba(242, 196, 92, .45), 0 14px 30px -14px rgba(38, 24, 72, .5);
-}
-.speech.is-ok { --bubble-border: #3f9a3c; }
-.speech.is-oops { animation: speechIn .5s var(--ease-spring) both, nudge .5s .1s ease-in-out; }
-
-/* colita: un rombo con el mismo borde, centrado en --tail-x */
-.speech__tail {
-    position: absolute;
-    left: var(--tail-x, 30px);
-    bottom: -11px;
-    width: 20px; height: 20px;
-    margin-left: -10px;
-    background: var(--bubble-bg);
-    border-right: 3px solid var(--bubble-border);
-    border-bottom: 3px solid var(--bubble-border);
-    border-bottom-right-radius: 5px;
-    transform: rotate(45deg);
-}
-.speech[data-below="true"] .speech__tail { bottom: auto; top: -11px; transform: rotate(-135deg); }
-.speech[data-side="right"] { transform-origin: 0 100%; }
-.speech[data-side="left"]  { transform-origin: 100% 100%; }
-
-.speaker {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    margin: 0 0 2px -4px;
-    font-size: clamp(15px, 1.1vw, 17px);
-    font-weight: 700;
-    color: var(--name, var(--ink));
-}
-.speaker svg { width: 24px; height: 24px; display: block; }
-
-/* ---- instrucción de juego: recuadro corto con ícono, crema y borde naranja */
-.instruction {
-    top: calc(var(--gutter) + env(safe-area-inset-top));
-    left: 50%;
-    translate: -50% 0;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    width: max-content;
-    max-width: min(26em, calc(100vw - 2 * var(--gutter)));
-    padding: 12px 22px 12px 14px;
-    border-radius: 22px;
-    background: rgba(255, 246, 230, .97);
-    border: 3px solid var(--orange);
-    box-shadow: 0 14px 30px -14px rgba(38, 24, 72, .45);
-    animation: panelIn .5s var(--ease-out) both;
-}
-.instruction.is-leaving { animation: panelOut .3s ease-in both; }
-.instruction__icon {
-    flex: none;
+.card--mission .card__text { font-weight: 600; line-height: 1.35; }
+.mission__icon {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: var(--naranja); border: 2px solid var(--tinta);
     display: grid; place-items: center;
-    width: 46px; height: 46px; border-radius: 50%;
-    background: var(--orange);
 }
-.instruction__icon svg { width: 28px; height: 28px; fill: #fff; }
-.instruction__text { font-weight: 600; }
+.mission__icon svg { width: 70%; height: 70%; }
+.card--mission[data-state="compact"] { padding: 8px 14px; grid-template-columns: 40px 1fr; }
+.card--mission[data-state="compact"] .mission__icon { width: 40px; height: 40px; }
+.card--mission[data-state="success"] { --card-bg: var(--verde-claro); --card-border: var(--verde); }
+.card--mission[data-state="success"] .mission__icon { background: var(--dorado); }
+.card--mission.is-nudged { animation: shake .3s ease-in-out; }
 
-@keyframes panelIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to   { opacity: 1; transform: none; }
+/* Botón de la tortuga (juego 3): grande, redondo y fácil de tocar */
+.turtle-btn {
+    justify-self: center;
+    width: 112px; height: 112px; border-radius: 50%;
+    border: 3px solid var(--tinta); background: var(--verde-claro);
+    box-shadow: var(--shadow), 0 0 0 0 rgba(46, 158, 107, .6);
+    display: grid; place-items: center; cursor: pointer; pointer-events: auto;
+    animation: turtle-call 1s ease-out infinite;
+    transition: transform .12s ease;
 }
-@keyframes panelOut {
-    to { opacity: 0; transform: translateY(-6px); }
-}
-@keyframes speechIn {
-    0% { opacity: 0; transform: scale(.7); }
-    60% { opacity: 1; transform: scale(1.03); }
-    100% { opacity: 1; transform: scale(1); }
-}
-@keyframes wordIn {
-    from { opacity: 0; transform: translateY(.3em); }
-    to   { opacity: 1; transform: none; }
-}
-@keyframes nudge {
-    0%, 100% { transform: translateX(0); }
-    20% { transform: translateX(-7px); }
-    40% { transform: translateX(6px); }
-    60% { transform: translateX(-4px); }
-    80% { transform: translateX(2px); }
-}
-@keyframes bubbleIn {
-    from { opacity: 0; transform: translateY(-10px) scale(.96); }
-    to   { opacity: 1; transform: none; }
-}
-@keyframes bubbleOut {
-    to { opacity: 0; transform: translateY(-8px) scale(.97); }
-}
+.turtle-btn svg { width: 78%; height: auto; }
+.turtle-btn:active { transform: translateY(2px) scale(.96); }
+.turtle-btn:focus-visible { outline: 4px solid var(--tinta); outline-offset: 3px; }
+@keyframes turtle-call { to { box-shadow: var(--shadow), 0 0 0 18px rgba(46, 158, 107, 0); } }
 
-/* --------------------------------------------------------------------------
-   Pista de arrastre (no hay botón SIGUIENTE: la hoja se arrastra)
-   -------------------------------------------------------------------------- */
-.drag-hint {
-    position: absolute;
-    left: 0; top: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    margin: -34px 0 0 -110px;
-    width: 220px;
-    pointer-events: none;
-    will-change: transform;
-    animation: bubbleIn .6s var(--ease-out) both;
+/* Sonido escrito: sin contenedor, letras con contorno (§7.6) */
+.sfx-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.sfx {
+    position: absolute; transform: translate(-50%, -50%);
+    font: 700 clamp(36px, 5vw, 72px)/1 var(--font);
+    color: var(--crema);
+    -webkit-text-stroke: 6px var(--tinta); paint-order: stroke fill;
+    white-space: nowrap;
+    pointer-events: none; animation: sfx-pop 1.2s ease-out both;
 }
-.drag-hint.is-leaving { animation: bubbleOut .3s ease-in both; }
-.drag-hint__hand {
-    display: grid;
-    place-items: center;
-    width: 58px; height: 58px;
-    border-radius: 50%;
-    background: linear-gradient(160deg, rgba(255, 255, 255, .85), rgba(255, 255, 255, .55));
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    box-shadow: inset 0 1.5px 0 #fff, 0 10px 24px -8px rgba(38, 24, 72, .45);
-    animation: swipeLeft 2.2s var(--ease-out) infinite;
+@keyframes sfx-pop {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
+    20%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+    80%  { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -60%) scale(1); }
 }
-.drag-hint[data-dir="right"] .drag-hint__hand { animation-name: swipeRight; }
-.drag-hint__hand svg { width: 32px; height: 32px; fill: #fff; stroke: var(--red); stroke-width: 2.4; stroke-linejoin: round; }
-.drag-hint__label {
-    padding: 6px 14px;
-    border-radius: 999px;
-    font-size: 16px;
-    font-weight: 600;
-    text-align: center;
-    color: #fff;
-    background: rgba(47, 36, 66, .66);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-}
-@keyframes swipeLeft {
-    0% { transform: translateX(34px) scale(1); opacity: 0; }
-    15% { opacity: 1; transform: translateX(34px) scale(.92); }
-    65% { transform: translateX(-46px) scale(.92) rotate(-8deg); opacity: 1; }
-    85%, 100% { transform: translateX(-56px) scale(1); opacity: 0; }
-}
-@keyframes swipeRight {
-    0% { transform: translateX(-34px) scale(1); opacity: 0; }
-    15% { opacity: 1; transform: translateX(-34px) scale(.92); }
-    65% { transform: translateX(46px) scale(.92) rotate(8deg); opacity: 1; }
-    85%, 100% { transform: translateX(56px) scale(1); opacity: 0; }
-}
-
-.turn-toast {
-    position: absolute;
-    left: 50%;
-    bottom: calc(var(--gutter) + env(safe-area-inset-bottom) + 8px);
-    transform: translateX(-50%);
-    padding: 10px 18px;
-    border-radius: 16px;
-    font-size: 17px;
-    font-weight: 600;
-    color: #fff;
-    background: rgba(47, 36, 66, .74);
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    pointer-events: none;
-}
-.turn-toast.is-in { animation: toastIn .4s var(--ease-spring) both; }
-@keyframes toastIn { from { opacity: 0; transform: translate(-50%, 12px) scale(.94); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 /* --------------------------------------------------------------------------
-   El Guardián le habla al lector: velo de atención + globo junto al personaje
+   Barra de página (debajo del libro, §7.7)
    -------------------------------------------------------------------------- */
-.veil {
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse 75% 70% at 55% 50%, rgba(30, 20, 60, 0) 40%, rgba(30, 20, 60, .42) 100%);
+.page-strip {
+    flex: 0 0 auto;
+    display: grid; grid-template-columns: 1fr auto;
+    grid-template-areas: "label go" "steps go";
+    align-items: center; column-gap: 16px; row-gap: 6px;
+    width: min(560px, calc(100% - 2 * var(--gutter)));
+    min-height: 48px; margin: 6px auto 0; padding: 4px 6px 4px 18px; column-gap: 12px; row-gap: 4px;
+    background: var(--crema); color: var(--tinta);
+    border: 2px solid var(--tinta); border-radius: 32px;
+    box-shadow: var(--shadow); font-family: var(--font);
+    transition: background-color .25s ease, opacity .25s ease;
+    position: relative; z-index: 2;
+}
+.page-strip__label { grid-area: label; margin: 0; font-size: clamp(17px, 0.4vw + 13px, 20px); font-weight: 600; line-height: 1.2; }
+.page-strip__steps { grid-area: steps; display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.step { flex: 1 1 0; max-width: 56px; height: 9px; border: 2px solid var(--tinta); border-radius: 999px; background: transparent; transition: background-color .2s ease; }
+.step.is-done { background: var(--naranja); }
+.page-strip__go {
+    grid-area: go; width: 40px; height: 40px; border-radius: 50%;
+    border: 2px solid var(--tinta); background: var(--tinta); color: var(--crema);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+    transition: transform .12s ease;
+}
+.page-strip__go:active { transform: translateY(2px) scale(.96); }
+.page-strip__go svg, .story-bar__next svg { width: 22px; height: 22px; }
+.page-strip__go[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
+.page-strip__go:focus-visible { outline: 4px solid var(--tinta); outline-offset: 3px; }
+.page-strip[data-state="ready"] { background: var(--dorado); animation: strip-pulse 1.6s ease-out infinite; }
+.page-strip[data-state="ready"] .step.is-done { background: var(--tinta); }
+.page-strip[data-state="ready"] .page-strip__go svg { animation: nudge .9s ease-in-out infinite; }
+.page-strip.is-turning { opacity: 0; }
+.page-strip.is-denied { animation: shake .3s ease-in-out; }
+@keyframes strip-pulse {
+    0%   { box-shadow: var(--shadow), 0 0 0 0 rgba(255, 194, 71, .75); }
+    100% { box-shadow: var(--shadow), 0 0 0 16px rgba(255, 194, 71, 0); }
+}
+@keyframes nudge { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+
+/* --------------------------------------------------------------------------
+   Banda narrativa (abajo, §7.4) — altura constante
+   -------------------------------------------------------------------------- */
+.story-bar {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 16px;
+    width: min(1100px, calc(100% - 2 * var(--gutter)));
+    margin: 6px auto calc(8px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 10px 8px 18px;
+    gap: 12px;
+    min-height: calc(2 * var(--bar-text) * 1.38 + 16px);
+    background: rgba(255, 246, 224, 0.94);
+    color: var(--tinta);
+    border: 2px solid var(--tinta);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    font-family: var(--font);
+}
+.story-bar__text { flex: 1 1 auto; min-width: 0; margin: 0; font-size: var(--bar-text); font-weight: 500; line-height: 1.38; text-wrap: pretty; }
+.story-bar__text.is-entering { animation: bar-in .25s ease-out both; }
+.story-bar__text .kw, .story-bar__text strong { font-weight: 700; color: var(--naranja-osc); }
+@keyframes bar-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.story-bar__next {
+    flex: 0 0 auto; width: 48px; height: 48px; border-radius: 50%;
+    border: 2px solid var(--tinta); background: var(--dorado); color: var(--tinta);
+    display: grid; place-items: center; cursor: pointer; padding: 0;
+    transition: transform .12s ease;
+}
+.story-bar__next:active { transform: translateY(2px) scale(.96); }
+.story-bar__next[aria-disabled="true"] { opacity: .4; cursor: not-allowed; }
+.story-bar__next:focus-visible { outline: 4px solid var(--tinta); outline-offset: 3px; }
+
+/* --------------------------------------------------------------------------
+   Elementos de los juegos
+   -------------------------------------------------------------------------- */
+/* Radar del Guardián: anillos que laten más rápido cerca de un peligro */
+.radar {
+    position: absolute; left: 0; top: 0; width: 0; height: 0;
+    pointer-events: none; z-index: 1;
+}
+.radar span {
+    position: absolute; left: -36px; top: -36px; width: 72px; height: 72px;
+    border-radius: 50%; border: 4px solid var(--dorado);
+    box-shadow: 0 0 12px rgba(255, 194, 71, .8);
     opacity: 0;
-    transition: opacity 1s ease;
-    pointer-events: none;
 }
-.veil.is-on { opacity: 1; }
+.radar.is-ping span { animation: ping var(--ping, .6s) ease-out both; }
+@keyframes ping { 0% { opacity: .95; transform: scale(.35); } 100% { opacity: 0; transform: scale(1.35); } }
 
-.g-bubble {
-    position: absolute;
-    max-width: min(20em, 70vw);
-    cursor: pointer;
-    pointer-events: auto;
+/* Tambor: círculo dorado sobre el caparazón */
+.drum {
+    position: absolute; left: 0; top: 0;
+    width: 84px; height: 84px; margin: -42px 0 0 -42px;
+    border-radius: 50%; border: 3px solid var(--tinta);
+    /* anillo: el centro es translúcido para que Nico se vea a través */
+    background: radial-gradient(circle, rgba(255, 246, 224, .18) 0 46%, var(--shield, var(--dorado)) 48% 100%);
+    box-shadow: var(--shadow), 0 0 22px rgba(255, 194, 71, .7), inset 0 0 0 3px var(--tinta);
+    cursor: pointer; z-index: 1; padding: 0;
+    will-change: translate;
 }
-.g-bubble.is-leaving { animation: panelOut .3s ease-in both; }
-/* la colita sale del costado que mira al Guardián */
-.g-bubble .speech__tail { top: 50%; bottom: auto; margin-top: -10px; }
-.g-bubble[data-side="left"] .speech__tail { left: auto; right: -11px; margin-left: 0; transform: rotate(-45deg); }
-.g-bubble[data-side="right"] .speech__tail { left: -11px; margin-left: 0; transform: rotate(135deg); }
-.g-bubble[data-side="left"] { transform-origin: 100% 50%; }
-.g-bubble[data-side="right"] { transform-origin: 0 50%; }
-.g-bubble__text { color: var(--ink); }
-.g-bubble__text .w { animation-delay: calc(var(--i) * 40ms + 200ms); }
+.drum.is-beat { animation: drum-beat .32s ease-out; }
+.drum:active { scale: .95; }
+.drum:focus-visible { outline: 4px solid var(--tinta); outline-offset: 3px; }
+@keyframes drum-beat { 0% { transform: scale(1.18); } 100% { transform: scale(1); } }
 
-/* --------------------------------------------------------------------------
-   Actividades
-   -------------------------------------------------------------------------- */
-.activity-chip {
-    position: absolute;
-    top: calc(var(--gutter) + env(safe-area-inset-top));
-    right: calc(var(--gutter) + env(safe-area-inset-right));
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-    padding: 10px 18px 12px;
-    border-radius: var(--radius-m);
-    text-align: right;
-    background: rgba(255, 246, 230, .95);
-    border: 2px solid rgba(240, 138, 69, .55);
-    box-shadow: 0 12px 26px -14px rgba(38, 24, 72, .4);
-    animation: bubbleIn .6s var(--ease-out) both;
-    pointer-events: none;
-}
-.activity-chip__label {
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: .02em;
-    color: #b8430d;
-}
-.activity-chip__title { font-size: clamp(17px, 1.4vw, 22px); font-weight: 700; color: var(--ink); }
-.activity-chip__stops { display: flex; gap: 8px; list-style: none; margin-top: 6px; }
-.activity-chip__stops:empty { display: none; }
-.activity-chip__stops li {
-    display: grid; place-items: center;
-    min-width: 30px; height: 30px; padding: 0 10px;
-    border-radius: 999px;
-    font-size: 14px; font-weight: 700;
-    color: var(--ink-soft);
-    background: rgba(91, 77, 110, .1);
-    transition: background .4s ease, color .4s ease, transform .4s var(--ease-spring);
-}
-.activity-chip__stops li.is-current { background: var(--yellow); color: var(--ink); transform: scale(1.08); }
-.activity-chip__stops li.is-done { background: var(--green); color: #fff; }
-.activity-chip.shake { animation: nudge .5s ease-in-out; }
-.activity-chip.is-complete .activity-chip__label { color: #3f9a3c; }
-
-.activity-tray {
-    position: absolute;
-    left: 50%;
-    bottom: calc(var(--gutter) + env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    display: flex;
-    gap: clamp(10px, 1.6vw, 22px);
-    padding: 12px;
-    border-radius: 34px;
-}
-.step-btn {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    width: clamp(108px, 11vw, 150px);
-    padding: 14px 10px 12px;
-    border-radius: 26px;
-    font-family: var(--font-ui);
-    font-size: clamp(16px, 1.35vw, 20px);
-    font-weight: 700;
-    color: var(--ink);
-    cursor: pointer;
-    background: linear-gradient(160deg, rgba(255, 255, 255, .8), rgba(255, 255, 255, .5));
-    transition: transform .4s var(--ease-spring), background .3s ease, box-shadow .3s ease;
-    animation: btnIn .6s var(--ease-spring) both;
-    animation-delay: calc(var(--i) * 90ms);
-}
-.step-btn svg { width: 64%; height: auto; }
-.step-btn__num {
-    position: absolute; top: 8px; left: 10px;
-    width: 26px; height: 26px; border-radius: 50%;
-    display: grid; place-items: center;
-    font-size: 14px; color: #fff; background: var(--lilac);
-}
-@media (hover: hover) { .step-btn:hover { transform: translateY(-4px) scale(1.04); } }
-.step-btn:active { transform: scale(.95); }
-.step-btn.is-next { box-shadow: 0 0 0 3px rgba(249, 220, 107, .9), 0 14px 30px -10px rgba(38, 24, 72, .4); }
-.step-btn.is-done { background: linear-gradient(160deg, #a6e3a1, #6cc468); color: #fff; }
-.step-btn.is-done .step-btn__num { background: #3f9a3c; }
-.step-btn.is-wrong { animation: nudge .5s ease-in-out; }
-
-/* Marcadores tocables sobre objetos 3D */
-.hotspots { position: absolute; inset: 0; }
+/* Marcadores tocables (accesibles con teclado; sin texto visible) */
+.hotspots { position: absolute; inset: 0; pointer-events: none; }
 .hotspot {
-    position: absolute;
-    left: 0; top: 0;
-    width: 58px; height: 58px;
-    margin: -29px 0 0 -29px;
-    border-radius: 50%;
-    pointer-events: auto;
-    cursor: pointer;
-    display: grid;
-    place-items: center;
-    border: 0;
-    background: transparent;
-    font-family: var(--font-ui);
+    position: absolute; left: 0; top: 0;
+    width: 58px; height: 58px; margin: -29px 0 0 -29px;
+    border-radius: 50%; border: 0; padding: 0;
+    pointer-events: auto; cursor: pointer;
+    display: grid; place-items: center;
+    background: transparent; font-family: var(--font);
     will-change: transform;
 }
 .hotspot__ring {
     width: 30px; height: 30px; border-radius: 50%;
     background: radial-gradient(circle, #fff 0 30%, rgba(255, 255, 255, .55) 31% 60%, rgba(255, 255, 255, 0) 61%);
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, .85), 0 4px 14px rgba(38, 24, 72, .3);
-    animation: pulse 1.8s ease-in-out infinite;
-    animation-delay: calc(var(--i) * 160ms);
-    transition: transform .3s var(--ease-spring);
+    box-shadow: 0 0 0 2px var(--tinta);
 }
-.hotspot__label {
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translate(-50%, -4px) scale(.9);
-    padding: 4px 12px;
-    border-radius: 999px;
-    font-size: 15px;
-    font-weight: 700;
-    white-space: nowrap;
-    color: var(--ink);
-    background: rgba(255, 255, 255, .85);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    opacity: 0;
-    transition: opacity .25s ease, transform .3s var(--ease-spring);
-    pointer-events: none;
+.hotspot.is-ghost .hotspot__ring { opacity: 0; }
+.hotspot__label { display: none; }
+.hotspot:focus-visible { outline: 4px solid var(--tinta); outline-offset: 2px; }
+.hotspot:focus-visible .hotspot__ring { opacity: 1; }
+
+/* El Guardián le habla al lector: velo de atención */
+.veil {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 75% 70% at 55% 50%, rgba(30, 27, 58, 0) 40%, rgba(30, 27, 58, .42) 100%);
+    opacity: 0; transition: opacity 1s ease; pointer-events: none;
 }
-.hotspot:hover .hotspot__ring, .hotspot:focus-visible .hotspot__ring { transform: scale(1.25); }
-.hotspot:hover .hotspot__label, .hotspot:focus-visible .hotspot__label,
-.hotspot.show-label .hotspot__label { opacity: 1; transform: translate(-50%, 2px) scale(1); }
-.hotspot:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
-.hotspot.is-wrong .hotspot__ring { background: radial-gradient(circle, var(--red) 0 30%, rgba(234, 91, 79, .4) 31% 60%, transparent 61%); animation: none; }
-.hotspot.is-step .hotspot__ring { width: 24px; height: 24px; }
-.hotspot.is-dim { opacity: .35; }
-.hotspot.is-dim .hotspot__ring { animation: none; }
-@keyframes pulse {
-    0%, 100% { transform: scale(1); box-shadow: 0 0 0 2px rgba(255, 255, 255, .85), 0 0 0 0 rgba(255, 255, 255, .5); }
-    50% { transform: scale(1.12); box-shadow: 0 0 0 2px rgba(255, 255, 255, .85), 0 0 0 12px rgba(255, 255, 255, 0); }
-}
+.veil.is-on { opacity: 1; }
 
 /* --------------------------------------------------------------------------
    Pantalla de carga — cuadrícula crema del moodboard
    -------------------------------------------------------------------------- */
 .loader {
-    position: fixed;
-    inset: 0;
-    z-index: 10;
-    display: grid;
-    place-content: center;
-    justify-items: center;
-    gap: 22px;
-    background-color: var(--cream);
-    background-image:
-        linear-gradient(var(--grid) 2px, transparent 2px),
-        linear-gradient(90deg, var(--grid) 2px, transparent 2px);
+    position: fixed; inset: 0; z-index: 10;
+    display: grid; place-content: center; justify-items: center; gap: 24px;
+    background-color: var(--crema);
+    background-image: linear-gradient(#fbe3c8 2px, transparent 2px), linear-gradient(90deg, #fbe3c8 2px, transparent 2px);
     background-size: 64px 64px;
     transition: opacity 1s ease, visibility 1s;
 }
 .loader.is-done { opacity: 0; visibility: hidden; }
-.loader__dots { display: flex; gap: 14px; }
-.loader__dots span {
-    width: 26px; height: 26px; border-radius: 50%;
-    animation: hop 1.2s var(--ease-out) infinite;
-}
-.loader__dots span:nth-child(1) { background: var(--red); }
-.loader__dots span:nth-child(2) { background: var(--orange); animation-delay: .1s; }
-.loader__dots span:nth-child(3) { background: var(--yellow); animation-delay: .2s; }
-.loader__dots span:nth-child(4) { background: var(--green); animation-delay: .3s; }
-.loader__dots span:nth-child(5) { background: var(--blue); animation-delay: .4s; }
-.loader__dots span:nth-child(6) { background: var(--lilac); animation-delay: .5s; }
-.loader__text { font-size: 22px; font-weight: 600; color: var(--ink-soft); }
-@keyframes hop {
-    0%, 60%, 100% { transform: translateY(0); }
-    30% { transform: translateY(-16px); }
-}
+.loader__dots { display: flex; gap: 16px; }
+.loader__dots span { width: 24px; height: 24px; border-radius: 50%; animation: hop 1.2s ease-out infinite; border: 2px solid var(--tinta); }
+.loader__dots span:nth-child(1) { background: var(--naranja); }
+.loader__dots span:nth-child(2) { background: var(--dorado); animation-delay: .1s; }
+.loader__dots span:nth-child(3) { background: var(--verde); animation-delay: .2s; }
+.loader__dots span:nth-child(4) { background: var(--azul); animation-delay: .3s; }
+.loader__dots span:nth-child(5) { background: var(--morado); animation-delay: .4s; }
+.loader__dots span:nth-child(6) { background: var(--naranja-claro); animation-delay: .5s; }
+.loader__text { margin: 0; font-size: 22px; font-weight: 600; color: var(--tinta); }
+@keyframes hop { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-16px); } }
 
 /* --------------------------------------------------------------------------
-   Responsive: laptop y tablet
+   Responsive (§9)
    -------------------------------------------------------------------------- */
-@media (max-width: 1100px) {
-    .narrator { max-width: min(26em, 46vw); }
-    .speech, .g-bubble { max-width: min(20em, 42vw); }
+/* Tableta horizontal */
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) {
+    :root { --side: max(240px, 24vw); --text-size: clamp(22px, 1.2vw + 14px, 26px); }
 }
-@media (max-width: 860px) {
-    :root { --gutter: 16px; }
-    .narrator, .narrator[data-zone] { max-width: min(30em, calc(100vw - 2 * var(--gutter))); }
-    .speech, .g-bubble { max-width: min(20em, 62vw); }
-    .bubble__text, .g-bubble__text, .instruction__text { font-size: clamp(18px, 2.7vw, 22px); }
-    .activity-chip {
-        top: auto; right: auto;
-        left: calc(var(--gutter) + env(safe-area-inset-left));
-        bottom: calc(var(--gutter) + env(safe-area-inset-bottom));
-        align-items: flex-start; text-align: left;
-        max-width: calc(100vw - 2 * var(--gutter));
-    }
-    .activity-tray { bottom: calc(var(--gutter) + 92px); }
+/* Móvil y pantallas verticales: las tarjetas se apilan sobre la parte baja de la escena */
+@media (max-width: 767px), (max-width: 1023px) and (orientation: portrait) {
+    :root { --text-size: 22px; --bar-text: 19px; }
+    .zones { grid-template-columns: 1fr; align-items: end; align-content: end; gap: 12px; }
+    .zone--dialog, .zone--mission { grid-column: 1; }
+    .zone--mission { order: -1; }   /* misión arriba, diálogo abajo */
 }
-@media (max-height: 640px) and (min-width: 861px) {
-    .bubble__text, .g-bubble__text, .instruction__text { font-size: 19px; }
+/* Pantallas horizontales bajas: tarjetas más compactas para no tapar el libro */
+@media (max-height: 720px) and (orientation: landscape) {
+    :root { --text-size: 22px; --side: clamp(240px, 20vw, 300px); }
+    .card { padding: 10px 14px; }
+    .card--dialog .avatar { width: 44px; height: 44px; }
+    .card--dialog { grid-template-columns: 44px 1fr; row-gap: 4px; }
+}
+/* Móvil horizontal con poca altura: la banda baja su relleno, la letra no */
+@media (max-height: 520px) and (orientation: landscape) {
+    .story-bar { padding-top: 6px; padding-bottom: 6px; min-height: calc(2 * var(--bar-text) * 1.38 + 12px); }
 }
 
+/* Reducir movimiento (§10): sin pulso, sin sacudida ni deslizamientos */
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; }
+    .card.is-entering, .story-bar__text.is-entering { animation-name: fade-in; }
+    .page-strip[data-state="ready"] { animation: none; outline: 4px solid var(--tinta); }
+    .page-strip.is-denied, .card--mission.is-nudged { animation: none; }
+    .page-strip[data-state="ready"] .page-strip__go svg, .turtle-btn, .drum.is-beat { animation: none; }
+    .radar.is-ping span { animation-name: fade-out; }
 }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: .9; } to { opacity: 0; } }

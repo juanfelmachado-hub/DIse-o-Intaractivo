@@ -288,6 +288,39 @@ export class PageTurner {
         }
     }
 
+    /**
+     * Giro completo sin arrastrar (botón de la barra de página o teclado).
+     * Usa el mismo resorte que al soltar la hoja pasado el umbral.
+     */
+    auto(kind, dir) {
+        if (this.busy) return false
+        if (this.delegate.canTurn(kind, dir) !== 'ok') return false
+        this.resetTo(kind, dir)
+        this.locked = false
+        this.grab = null
+        this.startDrag()
+        if (kind === 'page' && !this.prepared) { this.reset(); return false }
+        this.committing = true
+        this.target = this.endAngle()
+        this.spring = SPRINGS.commit
+        this.state = 'settle'
+        this.delegate.commit(kind, dir)
+        return true
+    }
+
+    /** La hoja se levanta un poquito y rebota (la página todavía no está lista). */
+    nudge(dir = 1) {
+        if (this.state !== 'idle') return
+        this.resetTo('page', dir)
+        this.state = 'peek'
+        this.book.peek(dir)
+        const rest = this.restAngle()
+        this.target = rest + (rest === 0 ? 1 : -1) * LOCK_MAX
+        this.vel = (rest === 0 ? 1 : -1) * 2.2
+        clearTimeout(this.nudgeTimer)
+        this.nudgeTimer = setTimeout(() => { if (this.state === 'peek') { this.spring = SPRINGS.cancel; this.target = rest } }, 220)
+    }
+
     /** Fuerza el reposo inmediato (al saltar de página, reiniciar, etc.). */
     reset() {
         this.state = 'idle'

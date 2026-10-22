@@ -1,4 +1,7 @@
-# El susurro de la Tierra — cuento interactivo 3D
+# Nico y su guardián personal — cuento interactivo 3D
+
+Proyecto "El susurro de la Tierra" (Diseño interactivo). Guía de diseño: *Guía visual*;
+historia: *Cuento_Nico_y_su_guardian*; juegos: *Juegos_interactivos_Nico*.
 
 Cuento infantil interactivo hecho con Three.js: un libro pop-up flota en un claro
 del bosque y **se manipula con el mouse (o el dedo)**, como un libro real:
@@ -126,3 +129,22 @@ static/models/naturaleza.glb  pinos y rocas de arbolito.blend
   la zona libre de cada escena; Nico y el Guardián en globos con colita; instrucciones
   de juego con ícono; palabras clave resaltadas; folio con color por escena.
 - **Portada**: ilustración a sangre con los modelos del cuento y el título grande.
+
+## Revisión 5 (Guía visual, cuento final y juegos interactivos)
+
+- **Una página por escenario** (`data/story.js`): 1 la sala, 2 el pasillo, 3 el patio.
+  La página cambia solo cuando el niño la pasa y solo con la barra de página lista.
+  El botón "siguiente" de la banda avanza los momentos (Enter o → también).
+- **Sistema de textos** (`ui/UI.js`, `style.css`): narración en la banda inferior,
+  diálogo a la izquierda (avatar pintado con los modelos 3D), misión a la derecha
+  (compacta al jugar, verde con "¡Lo lograste!"), sonidos escritos en la escena y
+  barra de página debajo del libro. Solo los colores, la tipografía y las medidas de la guía.
+- **Aparición suave** (`animations/reveal.js`): reemplaza el efecto pop-up. Unidades de
+  atrás hacia adelante (máx. 7), 750 ms, 260 ms entre unidades; al pasar la página todo
+  sale junto en 300 ms. Respeta "reducir movimiento".
+- **Juegos** (`activities/`): `RadarActivity` (el radar del Guardián), `DrumActivity`
+  (el tambor de la tortuga), `HallwayActivity` y `PatioActivity` (congelados en el
+  pasillo y el patio). Cada juego da una estrella del Guardián; al final se juntan.
+- **Sonido** (`audio/sfx.js`): sin voces ni narración. `playSfx(nombre)` está conectado
+  a los eventos de la guía y no suena hasta que se llene la tabla `SFX`.
+- Atajo de desarrollo: `?pagina=sala`, `?pagina=pasillo` o `?pagina=patio`.

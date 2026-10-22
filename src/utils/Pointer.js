@@ -21,6 +21,8 @@ export class Pointer {
         this.down = null
         this.enabled = true
         this.fallback = null
+        // seguimiento libre del puntero (radar del juego 1): fn(ndc, event)
+        this.tracker = null
 
         canvas.addEventListener('pointerdown', (e) => this.onDown(e))
         canvas.addEventListener('pointermove', (e) => this.onMove(e))
@@ -39,6 +41,12 @@ export class Pointer {
      */
     addDraggable(object, opts) { this.draggables.set(object, opts) }
 
+    /** Suelta el objeto arrastrado sin llamar a onDrop (p. ej. Nico se tropieza). */
+    cancelDrag() {
+        this.drag = null
+        this.canvas.style.cursor = ''
+    }
+
     remove(object) {
         this.clickables.delete(object)
         this.draggables.delete(object)
@@ -48,6 +56,7 @@ export class Pointer {
         this.clickables.clear()
         this.draggables.clear()
         this.drag = null
+        this.tracker = null
         this.canvas.style.cursor = ''
     }
 
@@ -81,6 +90,7 @@ export class Pointer {
     onDown(e) {
         if (!this.enabled) return
         this.setNdc(e)
+        this.tracker?.(this.ndc, e)
         const d = this.pick(this.draggables)
         if (d) {
             const opts = this.draggables.get(d)
@@ -98,9 +108,10 @@ export class Pointer {
     onMove(e) {
         if (!this.enabled) return
         this.setNdc(e)
+        this.tracker?.(this.ndc, e)
         if (this.drag) {
             const p = this.planePoint(this.drag.opts.space)
-            if (p) this.drag.opts.onMove?.(p)
+            if (p) this.drag.opts.onMove?.(p, e)
             return
         }
         if (this.fallback?.active) return this.fallback.onMove(e)

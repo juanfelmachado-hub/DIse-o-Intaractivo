@@ -13,7 +13,7 @@ export class Hotspots {
         this.items = new Map()
     }
 
-    add(id, object, { label = '', onClick = null, className = '', index = 0, showLabel = false, passive = false } = {}) {
+    add(id, object, { label = '', onClick = null, className = '', index = 0, showLabel = false, passive = false, ghost = false } = {}) {
         this.remove(id)
         const el = document.createElement('button')
         el.type = 'button'
@@ -22,6 +22,8 @@ export class Hotspots {
         el.setAttribute('aria-label', label)
         el.innerHTML = `<span class="hotspot__ring"></span>${label ? `<span class="hotspot__label">${label}</span>` : ''}`
         if (showLabel) el.classList.add('show-label')
+        // fantasma: invisible pero accesible con teclado (juegos de descubrir)
+        if (ghost) el.classList.add('is-ghost')
         if (onClick) el.addEventListener('click', (e) => { e.stopPropagation(); onClick(id) })
         // passive: el puntero lo atraviesa (para arrastrar el objeto 3D debajo),
         // pero sigue siendo accesible con teclado
@@ -49,8 +51,9 @@ export class Hotspots {
 
     update() {
         if (!this.items.size) return
-        const w = window.innerWidth
-        const h = window.innerHeight
+        // el contenedor cubre la escena (no toda la ventana)
+        const w = this.container.clientWidth
+        const h = this.container.clientHeight
         for (const { el, object } of this.items.values()) {
             object.getWorldPosition(v)
             v.project(this.camera)

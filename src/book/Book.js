@@ -16,7 +16,8 @@
  */
 import * as THREE from 'three'
 import gsap from 'gsap'
-import { geo, mesh, glowTexture, popupClip } from '../models/kit.js'
+import { geo, mesh, glowTexture, glowSprite, popupClip } from '../models/kit.js'
+import { story } from '../data/story.js'
 import { makeCoverTexture, makeEdgeTexture } from './PageArt.js'
 
 export const BOOK = { PW: 3.05, PD: 4.0, M: 0.1, COVER_T: 0.07, BLOCK_T: 0.15 }
@@ -83,7 +84,7 @@ export class Book {
 
         this.coverArt = new THREE.Mesh(
             geo.plane(PW + M - 0.04, PD + 2 * M - 0.04),
-            new THREE.MeshStandardMaterial({ roughness: 0.55, map: makeCoverTexture('El susurro de la Tierra') }),
+            new THREE.MeshStandardMaterial({ roughness: 0.55, map: makeCoverTexture(story.title) }),
         )
         this.coverArt.rotation.x = -Math.PI / 2
         this.coverArt.position.set((PW + M) / 2, BLOCK_T + COVER_T + 0.002, 0)
@@ -108,6 +109,13 @@ export class Book {
         this.leftHinge.add(this.anchors.cover)
 
         this.buildFlipper()
+
+        // brillo en la esquina de la hoja: invita a pasarla cuando la página está lista (Guía visual §7.7)
+        this.cornerGlow = glowSprite('#FFC247', 0.9, 0)
+        this.cornerGlow.position.set(PW - 0.12, 0.06, PD / 2 - 0.12)
+        this.cornerGlow.visible = false
+        this.cornerOn = false
+        this.inner.add(this.cornerGlow)
 
         // ---- sombra suave en el pasto
         const shadowMat = new THREE.MeshBasicMaterial({
@@ -314,7 +322,7 @@ export class Book {
 
     setCoverLabel(label) {
         const old = this.coverArt.material.map
-        this.coverArt.material.map = makeCoverTexture('El susurro de la Tierra', label)
+        this.coverArt.material.map = makeCoverTexture(story.title, label)
         old?.dispose()
     }
 
@@ -370,8 +378,19 @@ export class Book {
         return tl
     }
 
+    setCornerGlow(on) {
+        this.cornerOn = on
+        if (on) this.cornerGlow.visible = true
+    }
+
     // ------------------------------------------------------------ loop
     update(dt, t, quake, parallax) {
+        // brillo suave de la esquina (sin parpadeo rápido)
+        const cg = this.cornerGlow
+        const target = this.cornerOn && !this.turn ? 0.55 + Math.sin(t * 2.6) * 0.25 : 0
+        cg.material.opacity += (target - cg.material.opacity) * Math.min(1, dt * 5)
+        cg.visible = cg.material.opacity > 0.01
+        cg.scale.setScalar(0.8 + cg.material.opacity * 0.5)
         const f = this.float
         const s = quake.shake
         // el libro responde suavemente al mouse (se inclina hacia el lector)

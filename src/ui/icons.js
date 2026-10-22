@@ -38,3 +38,32 @@ export const stepIcons = {
         <path d="M38 22v12M42 22v12M46 22v12" stroke="#e7b896" stroke-width="1.5"/>
     </svg>`,
 }
+
+/** Íconos de la tarjeta de misión (Guía visual §7.6): trazo tinta sobre el círculo naranja. */
+const T = '#2B1B4D'
+export const missionIcons = {
+    radar: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linecap="round">
+        <circle cx="24" cy="30" r="4" fill="${T}"/><path d="M16 22a11 11 0 0 1 16 0M10 16a19 19 0 0 1 28 0"/></svg>`,
+    tambor: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linejoin="round">
+        <ellipse cx="24" cy="18" rx="14" ry="6"/><path d="M10 18v13c0 3.3 6.3 6 14 6s14-2.7 14-6V18"/><path d="M14 9l8 8M34 9l-8 8" stroke-linecap="round"/></svg>`,
+    zapatos: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linejoin="round">
+        <path d="M8 34V16h10l3 8c5 1 13 2 17 6 2 2 1 4-1 4H8z"/><path d="M8 29h31" stroke-linecap="round"/></svg>`,
+    camino: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="${T}">
+        <ellipse cx="16" cy="32" rx="5" ry="7"/><ellipse cx="31" cy="16" rx="5" ry="7"/>
+        <circle cx="13" cy="22" r="2"/><circle cx="19" cy="22.5" r="2"/><circle cx="28" cy="6.5" r="2"/><circle cx="34" cy="7" r="2"/></svg>`,
+    patio: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linecap="round">
+        <ellipse cx="24" cy="32" rx="16" ry="6"/><circle cx="24" cy="18" r="5" fill="${T}"/><path d="M24 23v8"/></svg>`,
+    mesa: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linecap="round">
+        <path d="M6 16h36M11 16v22M37 16v22"/><circle cx="24" cy="31" r="5" fill="${T}"/></svg>`,
+    estrella: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6l5.6 11.4 12.4 1.8-9 8.8 2.1 12.4L24 34.5l-11.1 5.9L15 28l-9-8.8 12.4-1.8z" fill="${T}"/></svg>`,
+    turtle: `<svg viewBox="0 0 64 48" aria-hidden="true">
+        <ellipse cx="32" cy="30" rx="20" ry="13" fill="${T}"/>
+        <circle cx="55" cy="30" r="6" fill="${T}"/>
+        <ellipse cx="19" cy="42" rx="5" ry="3" fill="${T}"/><ellipse cx="45" cy="42" rx="5" ry="3" fill="${T}"/>
+        <path d="M22 30h20M32 20v20" stroke="#FFE7CC" stroke-width="2.5"/></svg>`,
+    cover: `<svg viewBox="0 0 64 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="5" stroke-linecap="round">
+        <circle cx="32" cy="30" r="10" fill="${T}" stroke="none"/><path d="M12 32C14 16 22 10 32 10s18 6 20 22"/></svg>`,
+    hold: `<svg viewBox="0 0 64 48" aria-hidden="true" fill="${T}">
+        <rect x="6" y="6" width="52" height="7" rx="3.5"/><rect x="40" y="11" width="7" height="33" rx="3"/>
+        <rect x="30" y="22" width="20" height="12" rx="6"/><path d="M12 36c6-6 12-8 20-8" stroke="${T}" stroke-width="7" fill="none" stroke-linecap="round"/></svg>`,
+}

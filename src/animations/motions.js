@@ -90,7 +90,21 @@ export function wordSprite(text, color = '#ea5b4f') {
     return s
 }
 
+/**
+ * Sonidos escritos (Guía visual §3: "en la escena, junto a lo que suena", sin
+ * contenedor, letras con contorno). Si la UI registró un manejador, la palabra
+ * se dibuja en HTML sobre la escena; si no, se usa el sprite 3D.
+ */
+let sfxHandler = null
+export function setSfxHandler(fn) { sfxHandler = fn }
+
+const _w = new THREE.Vector3()
 export function popWord(parent, text, position, { color, size = 0.62, rise = 0.45, hold = 0.9 } = {}) {
+    if (sfxHandler) {
+        parent.updateWorldMatrix(true, false)
+        sfxHandler(text, parent.localToWorld(_w.copy(position)))
+        return gsap.timeline().to({}, { duration: 1.2 })
+    }
     const s = wordSprite(text, color)
     s.position.copy(position)
     s.material.rotation = (Math.random() - 0.5) * 0.4

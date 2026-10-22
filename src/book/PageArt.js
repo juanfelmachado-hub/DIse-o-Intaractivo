@@ -12,6 +12,7 @@ import * as THREE from 'three'
 import { palette } from '../data/theme.js'
 import { seeded } from '../models/kit.js'
 import { getCoverIllustration } from './CoverArt.js'
+import { story } from '../data/story.js'
 
 const W = 768
 const H = 1024
@@ -429,14 +430,24 @@ export function makeCoverTexture(title, label = null) {
 
     // título
     const cx = CW / 2 + 20 // el lomo ocupa el borde izquierdo
-    const [l1, l2, l3] = splitTitle(title)
+    // "Nico y su" / "guardián" / "personal": la palabra central es la protagonista
+    const words = title.split(' ')
+    const [l1, l2, l3] = words.length >= 4
+        ? [words.slice(0, -2).join(' '), words[words.length - 2], words[words.length - 1]]
+        : splitTitle(title)
     g.textAlign = 'center'
     g.textBaseline = 'alphabetic'
     g.lineJoin = 'round'
-    const ink = '#2b2140'
-    const word = (text, size, y, fill, weight = 700) => {
+    const ink = '#2b1b4d'
+    const fit = (text, size, weight) => {
         g.font = `${weight} ${size}px ${FONT}`
-        g.fillStyle = 'rgba(43,33,64,.35)'
+        const maxW = CW - 150
+        return g.measureText(text).width > maxW ? size * maxW / g.measureText(text).width : size
+    }
+    const word = (text, size, y, fill, weight = 700) => {
+        size = fit(text, size, weight)
+        g.font = `${weight} ${size}px ${FONT}`
+        g.fillStyle = 'rgba(43,27,77,.35)'
         g.fillText(text, cx, y + size * 0.07)
         g.strokeStyle = ink
         g.lineWidth = size * 0.13
@@ -444,12 +455,35 @@ export function makeCoverTexture(title, label = null) {
         g.fillStyle = fill
         g.fillText(text, cx, y)
     }
-    word(l1, 104, 168, '#fff6e6')
-    word(l2, 62, 246, '#fff6e6', 600)
-    const tg = g.createLinearGradient(0, 270, 0, 430)
+    word(l1, 86, 138, '#fff6e0')
+    const tg = g.createLinearGradient(0, 160, 0, 300)
     tg.addColorStop(0, '#ffe58a')
-    tg.addColorStop(1, '#f9b24a')
-    word(l3, 190, 410, tg)
+    tg.addColorStop(1, '#ffc247')
+    word(l2, 168, 290, tg)
+    word(l3, 96, 384, '#fff6e0')
+
+    // subtítulo del cuento en una cinta crema
+    if (story.subtitle) {
+        g.font = `600 30px ${FONT}`
+        const lines = []
+        let line = ''
+        for (const w of story.subtitle.split(' ')) {
+            const test = line ? `${line} ${w}` : w
+            if (g.measureText(test).width > CW - 240 && line) { lines.push(line); line = w } else line = test
+        }
+        lines.push(line)
+        const bw = Math.max(...lines.map((l) => g.measureText(l).width)) + 56
+        const bh = lines.length * 40 + 26
+        g.fillStyle = 'rgba(255,246,224,.95)'
+        roundRect(g, cx - bw / 2, 418, bw, bh, 24)
+        g.fill()
+        g.strokeStyle = ink
+        g.lineWidth = 3
+        roundRect(g, cx - bw / 2, 418, bw, bh, 24)
+        g.stroke()
+        g.fillStyle = ink
+        lines.forEach((l, i) => g.fillText(l, cx, 418 + 44 + i * 40))
+    }
 
     // lomo: sombra y filo de luz
     const sp = g.createLinearGradient(0, 0, 56, 0)
@@ -462,7 +496,7 @@ export function makeCoverTexture(title, label = null) {
 
     if (label) {
         g.save()
-        g.translate(cx, 500)
+        g.translate(cx, 560)
         g.rotate(-0.05)
         g.fillStyle = palette.yellow
         roundRect(g, -120, -50, 240, 100, 50)

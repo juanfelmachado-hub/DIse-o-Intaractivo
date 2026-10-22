@@ -1,7 +1,9 @@
 /**
- * Escenario 1 — La sala de Nico (páginas 1 a 6 y actividad "¿Dónde me protejo?").
- * Contiene todos los objetos que pide el instructivo: mesa fuerte, ventana
- * grande, lámpara colgante, estante con libros, cuadro y sofá.
+ * Página 1 — La sala de Nico (Guía visual §11.2: de la torre de bloques hasta
+ * que la casa queda en silencio, incluidos los momentos debajo de la mesa).
+ * Juegos: "El radar del Guardián" y "El tambor de la tortuga".
+ * Objetos: mesa fuerte, ventana grande, lámpara colgante, estante con libros,
+ * cuadro, sofá, planta y la torre de bloques.
  */
 import * as THREE from 'three'
 import gsap from 'gsap'
@@ -12,7 +14,7 @@ import {
     createTable, createSofa, createShelf, createWindow, createFrame, createLamp,
     createCounter, createDoor, createBlock, towerColors,
 } from '../models/objects/furniture.js'
-import { sparkle, glint, bounce } from '../animations/motions.js'
+import { sparkle, glint, bounce, popWord } from '../animations/motions.js'
 
 const BLOCK = 0.17
 // posiciones de los bloques caídos (relativas a la torre)
@@ -74,6 +76,7 @@ export class RoomScene extends BaseScene {
         for (const [x, y, z] of [[0, 0.38, 0], [-0.08, 0.3, 0.04], [0.08, 0.32, -0.03]]) add(plant, geo.sphere(0.12, 12, 8), mat.clay(palette.green), [x, y, z])
         plant.position.set(1.05, 0, -1.35)
         this.piece(plant, 'grow', 0.5)
+        this.plant = plant
 
         // ---- torre de bloques
         this.towerPos = new THREE.Vector3(-1.95, 0, 0.75)
@@ -108,6 +111,8 @@ export class RoomScene extends BaseScene {
         this.anchors = {
             tableFront: new THREE.Vector3(0.3, 0, 0.35),
             under: new THREE.Vector3(0.3, 0, -0.42),
+            vasos: new THREE.Vector3(-1.45, 1.0, -1.4),
+            torre: this.towerPos.clone().setY(0.75),
             door: new THREE.Vector3(1.0, 0, 0.55),
         }
 
@@ -132,7 +137,21 @@ export class RoomScene extends BaseScene {
             'guardian.stop': () => this.guardianStop(),
             'table.glow': () => this.tableGlow(),
             'nico.hideUnderTable': () => this.hideUnderTable(),
+            'nico.underTable': () => this.ensureUnderTable(),
+            sounds: () => this.sounds(),
+            heartbeat: () => this.heartbeat(),
+            'guardian.hug': () => this.hug(),
+            silence: () => this.silence(),
         }
+
+        // aparición por unidades, de atrás hacia adelante (Guía visual §11.4)
+        this.revealOrder = [
+            [wall.L, wall.R],                               // paredes con ventana, cuadro, puerta y lámpara
+            [this.shelfHolder, this.counter, plant],        // estante con sus libros, mueble y planta
+            [this.tableHolder],                             // la mesa (el refugio)
+            [this.sofaHolder],                              // sofá con su cojín
+            [this.tower, nico],                             // Nico y la torre: al final
+        ]
     }
 
     // ------------------------------------------------------------ torre
@@ -255,6 +274,61 @@ export class RoomScene extends BaseScene {
         tl.add(n.walkTo(this.anchors.under.x, this.anchors.under.z, { speed: 0.35 }))
         tl.add(gsap.to(n.rotation, { y: 0, duration: 0.5 }))
         tl.add(n.pose('crouch', 0.6))
+        return tl
+    }
+
+    /** Si el juego ya llevó a Nico bajo la mesa, no hace nada; si no, lo lleva. */
+    ensureUnderTable() {
+        const n = this.nico
+        const u = this.anchors.under
+        if (Math.hypot(n.position.x - u.x, n.position.z - u.z) < 0.25) return gsap.timeline()
+        return this.hideUnderTable()
+    }
+
+    // ------------------------------------------------------------ debajo de la mesa
+    /** "Afuera, las cosas seguían sonando: clin, clan, crac." */
+    sounds() {
+        const tl = gsap.timeline()
+        const spots = [['clin', new THREE.Vector3(-1.45, 1.05, -1.3)], ['clan', new THREE.Vector3(-2.4, 1.7, -1.2)], ['crac', new THREE.Vector3(1.42, 1.55, -1.55)]]
+        spots.forEach(([w, p], i) => tl.add(popWord(this.group, w, p), i * 0.6))
+        tl.call(() => { this.lampAmp = 1 }, null, 0.6)
+        tl.add(this.wobble('cuadro'), 1.2)
+        tl.add(this.wobble('ventana'), 1.2)
+        return tl
+    }
+
+    /** "El corazón de Nico latía como un tambor: pum, pum, pum." */
+    heartbeat() {
+        const tl = gsap.timeline()
+        tl.add(this.nico.heartbeat(3), 0)
+        for (let i = 0; i < 3; i++) {
+            tl.call(() => {
+                const p = this.localPos(this.nico.heart)
+                p.x += -0.4 + i * 0.4
+                p.y += 0.6
+                popWord(this.group, 'pum', p)
+            }, null, i * 0.64)
+        }
+        return tl
+    }
+
+    hug() {
+        const g = this.guardian
+        const n = this.nico
+        const tl = gsap.timeline()
+        this.guardianPinned = true
+        tl.add(g.moveTo(new THREE.Vector3(n.position.x + 0.32, 0.5, n.position.z + 0.35), 0.8), 0)
+        tl.add(g.pulse(2), 0.5)
+        tl.to(n, { heartGlow: 0.6, duration: 0.6, yoyo: true, repeat: 1 }, 0.6)
+        tl.call(() => { this.guardianPinned = false }, null, 2.4)
+        return tl
+    }
+
+    silence() {
+        const tl = gsap.timeline()
+        tl.to(this, { lampAmp: 0, duration: 2.2, ease: 'power2.out' }, 0)
+        tl.add(this.nico.pose('kneel', 1.2, 'sine.inOut'), 0.6)
+        tl.add(this.guardian.pulse(1), 1.0)
         return tl
     }
 

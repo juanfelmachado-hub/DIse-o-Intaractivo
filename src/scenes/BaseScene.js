@@ -9,9 +9,9 @@
  *   └── right  → pop-ups de la página derecha
  *
  * Una escena:
- *  - construye sus piezas en build() registrándolas con piece(): cada pieza
- *    queda montada en una bisagra física (animations/popup.js) que sale del
- *    lomo y se despliega según la APERTURA de su página (`openness`, 0…1);
+ *  - construye sus piezas en build() registrándolas con piece() y las agrupa
+ *    en `revealOrder` (unidades de atrás hacia adelante, máximo 7): al abrirse
+ *    la página aparecen con suavidad (animations/reveal.js, Guía visual §11);
  *  - expone `actions` (nombre → función) que el guion invoca con `do: [...]`;
  *  - expone `hotspots` (objetos tocables) y `anchors` (puntos con nombre);
  *  - anima lo ambiental en tick() (temblor, lámpara, etc.).
@@ -23,9 +23,10 @@ import * as THREE from 'three'
 import gsap from 'gsap'
 import { Nico } from '../models/characters/Nico.js'
 import { Guardian } from '../models/characters/Guardian.js'
-import { disposeOwned } from '../models/kit.js'
+import { disposeOwned, starSprite } from '../models/kit.js'
 import { createWall } from '../models/objects/furniture.js'
 import { PopupPiece } from '../animations/popup.js'
+import { RevealUnit, revealUnits, fadeInUnits, hideUnits, REVEAL } from '../animations/reveal.js'
 import { wobble, sparkle, glint } from '../animations/motions.js'
 
 const tmp = new THREE.Vector3()
@@ -69,10 +70,48 @@ export class BaseScene {
     init() {
         this.build()
         for (const p of this.pieces) p.schedule()
-        for (const p of this.pieces) { p.settle(0); p.apply() }
-        if (this.guardian) this.guardian.presence = 0
+        // las piezas quedan en su lugar: la aparición la hacen las unidades
+        for (const p of this.pieces) { p.settle(1); p.apply() }
+        this.openness = 1
+        const order = this.revealOrder ?? [this.pieces.filter((p) => !p.parentPiece).map((p) => p.obj)]
+        const list = order.slice(0, REVEAL.maxUnits)
+        this.units = list.map((objs, i) => new RevealUnit(objs, { guardian: i === list.length - 1 ? this.guardian : null }))
+        if (this.guardian && !this.units.some((u) => u.guardian)) this.units.push(new RevealUnit([], { guardian: this.guardian }))
+        this.units.forEach((u) => u.hideNow())
         return this
     }
+
+    // ------------------------------------------------------------ aparición (Guía visual §11)
+    /** Primera vez: por unidades. Al volver: desvanecimiento de 300 ms. */
+    reveal(first = true, onText) {
+        this.revealTl?.kill()
+        this.revealTl = first ? revealUnits(this.units, { onLastStart: onText }) : fadeInUnits(this.units, { onStart: onText })
+        return this.revealTl
+    }
+
+    /** Al pasar la página: todo sale junto (300 ms). */
+    hide() {
+        if (this.hidden) return this.hideTl
+        this.revealTl?.progress(1)
+        this.hidden = true
+        this.hideTl = hideUnits(this.units)
+        return this.hideTl
+    }
+
+    /** Si se cancela el giro, la página vuelve a aparecer (300 ms). */
+    unhide() {
+        if (!this.hidden) return
+        this.hidden = false
+        this.hideTl?.kill()
+        this.reveal(false)
+    }
+
+    /** Termina la aparición al instante (el niño tocó la pantalla). */
+    skipReveal() {
+        if (this.revealTl?.isActive()) this.revealTl.progress(1)
+    }
+
+    get revealing() { return !!this.revealTl?.isActive() }
 
     build() {}
 
@@ -158,17 +197,37 @@ export class BaseScene {
             g.position.copy(g.home)
         }
         this.group.add(g)
+        g.setStars(this.ctx.story?.stars ?? 0)
         return g
     }
 
+    /** Recompensa de un juego: una estrella vuela de Nico al Guardián y se queda girando. */
+    awardStar() {
+        const g = this.guardian
+        if (!g) return gsap.timeline()
+        const s = starSprite('#FFC247', 0.01)
+        const from = this.nico ? this.nico.position.clone().setY(0.9) : g.position.clone()
+        s.position.copy(from)
+        this.group.add(s)
+        return gsap.timeline()
+            .to(s.scale, { x: 0.3, y: 0.3, duration: 0.35, ease: 'back.out(2)' })
+            .to(s.position, { x: () => g.position.x, y: () => g.position.y + 0.1, z: () => g.position.z, duration: 0.8, ease: 'power2.inOut' })
+            .to(s.scale, { x: 0.1, y: 0.1, duration: 0.8, ease: 'power2.in' }, '<')
+            .call(() => {
+                this.group.remove(s)
+                s.material.dispose()
+                g.setStars((g.starSprites?.length ?? 0) + 1)
+                g.pulse(1)
+            })
+    }
+
     // ------------------------------------------------------------ apertura
-    /** Apertura de la doble página (0 = cerrada, 1 = abierta). */
-    setOpenness(o) { this.openness = o }
+    /** (compatibilidad) Las piezas ya no dependen del giro de la hoja. */
+    setOpenness() {}
 
     openInstant() {
-        this.openness = 1
-        for (const p of this.pieces) { p.settle(1); p.apply() }
-        if (this.guardian) this.guardian.presence = 1
+        this.revealTl?.kill()
+        this.units.forEach((u) => u.showNow())
     }
 
     /**
@@ -176,27 +235,10 @@ export class BaseScene {
      * pegados (y se guardan / salen un poco antes que los de la página fija).
      * @param side 'R' o 'L'   @param face 'front' | 'back'
      */
-    beginCarry(side, face) {
-        const book = this.ctx.book
-        for (const p of this.pieces) {
-            if (p.parentPiece) continue
-            p.syncPivot()
-            // si un personaje caminó a la otra página, ahora pertenece a ella
-            const half = this.halfFor(p.pivot.x)
-            if (p.hinge.parent !== half) half.add(p.hinge)
-            const onSide = p.side === side
-            p.carried = onSide ? face : null
-            p.carryDelay = onSide ? 0.22 : 0
-            p.book = book
-        }
-        this.carry = { side, face }
-    }
+    // (Guía visual §11: los objetos salen antes de girar la hoja; ya no viajan pegados a ella)
+    beginCarry() {}
 
-    endCarry() {
-        for (const p of this.pieces) { p.carried = null; p.carryDelay = 0 }
-        this.carry = null
-        for (const p of this.pieces) p.apply()
-    }
+    endCarry() {}
 
     // ------------------------------------------------------------ guion
     /** Ejecuta una acción del guion. Arreglo = en paralelo. Devuelve un timeline. */
@@ -271,9 +313,8 @@ export class BaseScene {
 
     // ------------------------------------------------------------ loop
     update(dt, t, quake) {
-        const o = this.openness
         this.wind *= Math.pow(0.04, dt)
-        for (const p of this.pieces) p.update(dt, o, t, this.wind)
+        for (const p of this.pieces) p.update(dt, 1, t, 0)
 
         this.nico?.update(dt, t, quake)
         const g = this.guardian
@@ -294,8 +335,6 @@ export class BaseScene {
             } else {
                 g.viewerBlend = 0
             }
-            // el Guardián aparece cuando su página ya está casi abierta
-            if (!this.viewer) g.presenceTarget = o > 0.85 ? 1 : 0
             g.update(dt, t, this.ctx.camera)
         }
         this.tick(dt, t, quake)
@@ -304,6 +343,9 @@ export class BaseScene {
     tick() {}
 
     dispose() {
+        this.revealTl?.kill()
+        this.hideTl?.kill()
+        this.units?.forEach((u) => u.endFade())
         this.group.removeFromParent()
         disposeOwned(this.group)
         if (Guardian.light) Guardian.light.intensity = 0

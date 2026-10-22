@@ -1,5 +1,14 @@
 /**
- * Mecanismo pop-up físico: las piezas nacen en la encuadernación.
+ * Piezas del escenario del libro.
+ *
+ * Desde la revisión 5 (Guía visual, sección 11) las piezas ya NO se despliegan
+ * con efecto pop-up al pasar la hoja: quedan en su lugar (e = 1) y la aparición
+ * la hace animations/reveal.js por unidades (subir un poco y aparecer). Las
+ * piezas conservan su bisagra para los movimientos de la historia que sí la
+ * usan (el arcoíris que se levanta con `gate`, por ejemplo) y aceptan un
+ * desplazamiento de aparición (`rise`, `rscale`, `hidden`).
+ *
+ * Mecanismo original (se mantiene para `gate`): las piezas nacen en la encuadernación.
  *
  *   página cerrada → pieza guardada (plegada y hundida en la ranura del lomo)
  *   → sale de la ranura → se desliza sobre su página hasta su lugar
@@ -89,6 +98,10 @@ export class PopupPiece {
         this.carryDelay = 0
         this.start = 0
         this.span = 0.6
+        // aparición suave (reveal.js)
+        this.rise = 0
+        this.rscale = 1
+        this.hidden = false
     }
 
     /** Mitad del libro a la que pertenece ('L' | 'R'). */
@@ -135,8 +148,6 @@ export class PopupPiece {
         } else {
             let tgt = this.target(open)
             const closing = tgt < this.e
-            // el papel "respira" muy levemente cuando está abierto
-            if (tgt > 0.995) tgt += Math.sin(t * 0.9 + this.phase) * 0.004
             // al guardarse es firme (no se queda atrás); al salir, elástico
             const k = (closing ? 150 : 70) * this.stiffness
             const zeta = closing ? 0.95 : 0.46
@@ -159,7 +170,7 @@ export class PopupPiece {
     apply() {
         const e = this.e
         const f = this.fold
-        this.hinge.visible = e > 0.004
+        this.hinge.visible = e > 0.004 && !this.hidden
 
         // pliegue sobre su bisagra (con sobrepaso elástico cuando e > 1)
         const a = this.swing
@@ -175,6 +186,7 @@ export class PopupPiece {
             this.hinge.scale.setScalar(1)
             return
         }
+        const rs = this.rscale
 
         const rise = sm(0, 0.22, e)
         const slide = sm(0.05, 0.65, e)
@@ -190,7 +202,7 @@ export class PopupPiece {
 
         const flat = this.flatten ? 1 - clamp01(a) * 0.985 : 1
         const s = (0.82 + 0.18 * sm(0, 0.6, e)) * (e > 1 ? 1 + (e - 1) * 0.12 : 1)
-        this.hinge.scale.set((f.axis === 'z' ? flat : 1) * s, s * (e > 1 ? 1 - (e - 1) * 0.1 : 1), (f.axis === 'x' ? flat : 1) * s)
+        this.hinge.scale.set((f.axis === 'z' ? flat : 1) * s * rs, s * rs * (e > 1 ? 1 - (e - 1) * 0.1 : 1), (f.axis === 'x' ? flat : 1) * s * rs)
 
         const x = this.pivot.x * slide
         const sink = -SINK * (1 - rise)
@@ -209,7 +221,7 @@ export class PopupPiece {
             qSheet.setFromAxisAngle(AX.z, ang)
             this.hinge.quaternion.multiplyQuaternions(qSheet, qYaw).multiply(qFold)
         } else {
-            this.hinge.position.set(x, this.pivot.y + sink, this.pivot.z)
+            this.hinge.position.set(x, this.pivot.y + sink + this.rise, this.pivot.z)
             this.hinge.quaternion.multiplyQuaternions(qYaw, qFold)
         }
     }

@@ -1,13 +1,15 @@
 /**
- * Base de las actividades lúdicas.
+ * Base de los juegos ("Juegos_interactivos_Nico" + Guía visual §3.6).
  *
- * Al empezar, el Guardián sale del libro, se acerca al lector, hace una pausa
- * (saluda) y le explica en un globo qué hacer. Luego vuelve a la escena y la
- * actividad comienza. Mientras dure, la hoja no se deja pasar (instructivo:
- * "el niño no puede avanzar de página hasta completar la actividad").
- * No hay puntajes ni penalizaciones: solo ánimo y nuevos intentos.
+ * Al empezar, el Guardián sale del libro, se acerca al lector, saluda y dice
+ * su frase del juego en su tarjeta de diálogo (izquierda). Luego vuelve y el
+ * juego comienza. La misión (derecha) se compacta en cuanto el niño empieza a
+ * jugar; las pistas las dice el Guardián, nunca como error; el éxito se
+ * celebra en la misión (verde) y con una estrella del Guardián.
+ * Un solo gesto, sin puntajes ni tiempo límite: los errores nunca castigan.
  */
 import gsap from 'gsap'
+import { playSfx } from '../audio/sfx.js'
 
 const wait = (s) => new Promise((r) => gsap.delayedCall(s, r))
 
@@ -17,18 +19,17 @@ export class Activity {
         this.data = data
         this.scene = scene
         this.done = false
-        this.timers = []
         this.disposed = false
-        this.onBegin = null
+        this.calls = []
+        this.started = false
+        this.awardsStar = true
     }
 
-    /** Devuelve una promesa que se resuelve al completar la actividad. */
+    /** Devuelve una promesa que se resuelve al completar el juego. */
     async start() {
         this.promise = new Promise((resolve) => { this.resolve = resolve })
-        this.ctx.ui.showText({})
         await this.intro()
-        if (this.disposed) return this.promise
-        this.onBegin?.()
+        if (this.disposed || this.finished) return this.promise
         this.begin()
         return this.promise
     }
@@ -36,72 +37,81 @@ export class Activity {
     /** El Guardián le habla directamente a quien lee el cuento. */
     async intro() {
         const g = this.scene.guardian
-        const guide = this.data.guide
-        if (!g || !guide) return
         const { ui } = this.ctx
+        if (!g || !g.visible) {
+            if (this.data.guide) ui.say('guardian', this.data.guide)
+            return
+        }
         ui.showVeil(true)
         await this.scene.guardianToViewer(true)
         if (this.disposed) return
-        // pausa: llama la atención antes de hablar
         await g.greet()
-        await wait(0.25)
         if (this.disposed) return
-        const read = 2.6 + guide.split(/\s+/).length * 0.34
-        await new Promise((resolve) => {
-            const call = gsap.delayedCall(read, resolve)
-            ui.showGuardianBubble(guide, g, () => { call.kill(); resolve() })
-            this.skipIntro = () => { call.kill(); resolve() }
-        })
-        ui.hideGuardianBubble()
+        if (this.data.guide) {
+            ui.say('guardian', this.data.guide, { delay: 0 })
+            g.speak()
+            await wait(1.6 + this.data.guide.split(/\s+/).length * 0.3)
+        }
         ui.showVeil(false)
         if (this.disposed) return
-        g.speak()
         await this.scene.guardianToViewer(false)
     }
 
     begin() {}
+    update() {}
 
-    say(text, tone) {
-        this.ctx.ui.say('guardian', text, tone)
+    /** El niño empezó a jugar: la misión se compacta. */
+    played() {
+        if (this.started) return
+        this.started = true
+        this.ctx.ui.playing(true)
+    }
+
+    /** Pista del Guardián (izquierda). */
+    hint(text) {
+        this.ctx.ui.say('guardian', text, { hint: true })
         this.scene.onDialogue('guardian')
     }
 
-    /** Instrucción del juego (recuadro con ícono; se va cuando el niño empieza a jugar). */
-    instruct(text) {
-        this.ctx.ui.hideBubble(this.ctx.ui.el.dialogue)
-        this.ctx.ui.instruct(text)
+    /** Cambia la misión (otra etapa del mismo juego). */
+    mission(m) {
+        this.started = false
+        this.ctx.ui.setMission(m, { delay: 0 })
     }
 
-    later(fn, ms) {
-        this.timers.push(setTimeout(fn, ms))
+    after(seconds, fn) {
+        const c = gsap.delayedCall(seconds, () => { if (!this.disposed) fn() })
+        this.calls.push(c)
+        return c
     }
 
-    finish(message) {
-        if (this.finished) return
+    finish() {
+        if (this.finished || this.disposed) return
         this.finished = true
-        this.ctx.ui.hideInstruction()
-        if (message) this.say(message, 'ok')
-        this.ctx.ui.completeActivity()
         this.cleanup()
+        // cada juego da una estrella (el juego 3 la da al terminar su parte B, en el patio)
+        if (this.awardsStar) {
+            this.scene.awardStar()
+            playSfx('estrella')
+        }
         this.resolve?.()
     }
 
     cleanup() {
-        this.ctx.hotspots.clear()
-        this.ctx.pointer.clear()
+        const { hotspots, pointer, ui } = this.ctx
+        hotspots.clear()
+        pointer.clear()
+        ui.playing(false)
+        ui.showTurtle(false)
     }
 
     dispose() {
         this.disposed = true
-        this.skipIntro?.()
-        this.timers.forEach(clearTimeout)
+        this.calls.forEach((c) => c.kill())
         this.cleanup()
         const { ui } = this.ctx
-        ui.hideGuardianBubble()
-        ui.hideInstruction()
         ui.showVeil(false)
-        ui.hideSteps()
-        ui.hideActivity()
+        this.scene.guardianToViewer?.(false)
         this.resolve?.()
     }
 }

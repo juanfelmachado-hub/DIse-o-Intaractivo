@@ -1,13 +1,18 @@
 /**
  * Cámara cinematográfica: viaja entre encuadres (data/theme.js → cameraShots),
  * respira suavemente, sigue un poco al puntero (parallax) y tiembla con el sismo.
- * Se aleja automáticamente en pantallas angostas para que el libro quepa.
+ * Encuadre: el libro abierto es el protagonista y ocupa hasta el 80 % del ancho
+ * de la escena (o todo el alto disponible, lo que limite primero), centrado; en
+ * móvil y pantallas verticales se encuadra en la mitad superior, y la mitad
+ * inferior queda libre para las tarjetas.
  */
 import * as THREE from 'three'
 import gsap from 'gsap'
 import { cameraShots } from '../data/theme.js'
 
-const HALF_BOOK = 4.3
+const HALF_BOOK = 4.5   // medio ancho aparente del libro abierto (su borde cercano se ve más grande)
+const HALF_TALL = 2.1   // media altura aparente del libro abierto con sus paredes
+const COVER_HALF = 2.7  // media altura del libro cerrado (portada), con margen
 
 export class CameraRig {
     constructor(camera) {
@@ -20,12 +25,21 @@ export class CameraRig {
         this.tmp = new THREE.Vector3()
         this.look = new THREE.Vector3()
         this.current = null
+        this.vw = window.innerWidth
+        this.vh = window.innerHeight
 
         window.addEventListener('pointermove', (e) => {
             if (e.pointerType !== 'mouse') return
             this.pointer.set((e.clientX / window.innerWidth) * 2 - 1, (e.clientY / window.innerHeight) * 2 - 1)
         })
     }
+
+    setViewport(w, h) {
+        this.vw = w
+        this.vh = h
+    }
+
+    get portrait() { return this.vw < 768 || (this.vw < 1024 && this.vh > this.vw) }
 
     set(name) {
         const s = cameraShots[name]
@@ -46,11 +60,17 @@ export class CameraRig {
 
     update(dt, t, quake) {
         const aspect = this.camera.aspect
-        // Se aleja lo necesario para que el libro (≈6.9 de ancho) siempre quepa:
-        // en 16:9 no cambia nada; en tablet vertical se aleja.
         const dist = this.pos.distanceTo(this.target)
-        const halfW = dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) * aspect
-        const k = Math.max(1, HALF_BOOK / halfW)
+        const halfH = dist * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))
+        const halfW = halfH * aspect
+        const portrait = this.portrait
+        // el libro abierto es el protagonista: ocupa la mayor parte de la escena
+        const frac = portrait ? 0.96 : this.vw < 1024 ? 0.82 : 0.8
+        const cover = this.current === 'cover'
+        // lo que más limite: el ancho disponible o el alto de la escena (nunca se recorta)
+        const kW = (cover ? COVER_HALF * 0.75 : HALF_BOOK) / (frac * halfW)
+        const kV = (cover ? COVER_HALF : HALF_TALL) / ((portrait ? 0.5 : 0.94) * halfH)
+        const k = Math.max(0.6, kW, kV)
 
         const ease = Math.min(1, dt * 1.8)
         this.parallax.x += (this.pointer.x * this.parallaxAmount - this.parallax.x) * ease
@@ -62,8 +82,10 @@ export class CameraRig {
         this.tmp.addScaledVector(quake.shake, 0.05)
 
         this.look.copy(this.target)
-        // en pantallas angostas, bajar un poco el encuadre deja espacio al texto
-        if (k > 1 && aspect < 1) this.look.y += (k - 1) * 0.9
+        // móvil y vertical: el libro sube un poco y deja lugar abajo para las tarjetas
+        if (portrait) this.look.y -= 0.3 * halfH * k
+        // escritorio: el borde del libro queda cerca de la barra de página
+        else if (!cover) this.look.y += 0.02 * halfH * k
         this.look.addScaledVector(quake.shake, 0.025)
 
         this.camera.position.copy(this.tmp)

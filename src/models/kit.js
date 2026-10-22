@@ -130,6 +130,42 @@ export function glowSprite(color = '#ffffff', size = 0.5, opacity = 1) {
     return s
 }
 
+/** Textura de estrella (recompensas de los juegos). */
+let starTex = null
+export function starTexture() {
+    if (starTex) return starTex
+    const c = document.createElement('canvas')
+    c.width = c.height = 128
+    const g = c.getContext('2d')
+    g.translate(64, 66)
+    g.beginPath()
+    for (let i = 0; i < 10; i++) {
+        const r = i % 2 ? 24 : 56
+        const a = -Math.PI / 2 + (i * Math.PI) / 5
+        g.lineTo(Math.cos(a) * r, Math.sin(a) * r)
+    }
+    g.closePath()
+    g.lineJoin = 'round'
+    g.lineWidth = 8
+    g.strokeStyle = '#2B1B4D'
+    g.stroke()
+    g.fillStyle = '#ffffff'
+    g.fill()
+    starTex = new THREE.CanvasTexture(c)
+    starTex.colorSpace = THREE.SRGBColorSpace
+    return starTex
+}
+
+/** Estrella (sprite con su propio material). */
+export function starSprite(color = '#FFC247', size = 0.2) {
+    const material = new THREE.SpriteMaterial({ map: starTexture(), color, transparent: true, depthWrite: false })
+    clipMat(material)
+    const s = new THREE.Sprite(material)
+    s.scale.setScalar(size)
+    s.userData.ownMaterial = true
+    return s
+}
+
 /** Libera materiales propios (no compartidos) y texturas marcadas de un árbol de objetos. */
 export function disposeOwned(root) {
     root.traverse((o) => {

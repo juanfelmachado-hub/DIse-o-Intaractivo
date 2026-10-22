@@ -1,69 +1,55 @@
 /**
- * Textos de las actividades lúdicas (según el "Instructivo de los 3 mini juegos").
+ * Textos de los juegos (documento "Juegos_interactivos_Nico").
  * La lógica vive en /activities; aquí solo hay contenido editable.
  *
- * `guide` es lo que el Guardián le dice directamente al lector (rompiendo la
- * cuarta pared) antes de cada actividad: corto, claro y dentro del cuento.
+ * Reglas comunes: un solo gesto, sin puntajes ni tiempo límite, los errores
+ * nunca castigan (las pistas las dice el Guardián en su tarjeta). Cada juego
+ * completado le da al niño una estrella del Guardián.
  *
- * Reglas del instructivo:
- *  - el niño no puede avanzar hasta completar la actividad;
- *  - no hay penalización: si se equivoca, el Guardián lo anima y explica el porqué;
- *  - instrucciones de una sola frase.
+ * Límites de la Guía visual: misión ≤ 8 palabras (short: 2 o 3), diálogo ≤ 14.
  */
 export const activities = {
-    /** Juego 1 — después de la página 6 ("¡Allá! Vamos despacito.") */
-    safePlace: {
-        title: '¿Dónde me protejo?',
-        guide: '¡Psst! Sí, tú, que estás leyendo. Nico necesita tu ayuda: toca el lugar donde estará más seguro.',
-        intro: '¡Ayúdame a encontrar el lugar más seguro!',
-        targets: {
-            mesa: { label: 'Mesa', safe: true },
-            ventana: { label: 'Ventana' },
-            lampara: { label: 'Lámpara' },
-            estante: { label: 'Estante' },
-            cuadro: { label: 'Cuadro' },
-            sofa: { label: 'Sofá' },
-        },
-        wrong: 'Uy, esto se puede caer. ¡Busca otro!',
-        // El instructivo no da un mensaje para el sofá (no es algo que se caiga):
-        wrongBy: { sofa: 'Uy, aquí nada te cubre la cabeza. ¡Busca otro!' },
-        success: '¡Eso es! Lejos de ventanas y de cosas que se caen.',
+    /** Juego 1 — La sala. Entra después de "Primero, nos protegemos." */
+    'juego-radar': {
+        title: 'El radar del Guardián',
+        guide: '¡Más rápido el bip, más cerca el peligro!',
+        hazards: ['lampara', 'cuadro', 'estante', 'ventana'],
+        safe: { sofa: '¡Boing!', planta: '¡Ji, ji!' },
+        found: '¡UY!',
+        tada: '¡TA-DÁ!',
+        refuge: { icon: 'mesa', text: 'Lleva a Nico bajo la mesa', short: 'A la mesa' },
+        refugeHint: 'La mesa es fuerte y firme.',
+        win: 'pum',
     },
 
-    /** Juego 2 — después de la página 7 (agáchate y cúbrete) */
-    protectSteps: {
-        title: 'Agáchate, cúbrete y sujétate',
-        guide: '¡Ahora te toca a ti! Practica con Nico: toca los tres pasos mágicos, en orden.',
-        intro: 'Toca los tres pasos mágicos, uno detrás de otro.',
-        steps: [
-            { id: 'agachate', label: 'Agáchate', icon: 'turtle', pose: 'crouch' },
-            { id: 'cubrete', label: 'Cúbrete', icon: 'cover', pose: 'cover' },
-            { id: 'sujetate', label: 'Sujétate', icon: 'hold', pose: 'hold' },
+    /** Juego 2 — Debajo de la mesa. Entra cuando el temblor se pone fuerte. */
+    'juego-tambor': {
+        title: 'El tambor de la tortuga',
+        guide: '¡Toca al ritmo de mi corazón!',
+        taps: 12,
+        postures: [
+            { every: 3, text: '¡Agáchate!', icon: 'turtle', pose: 'crouch' },
+            { every: 6, text: '¡Cúbrete!', icon: 'cover', pose: 'cover' },
+            { every: 9, text: '¡Sujétate!', icon: 'hold', pose: 'hold' },
         ],
-        wrongOrder: 'Primero agáchate, luego cúbrete y después sujétate.',
-        success: '¡Lo lograste! Ya sabes cómo protegerte.',
+        calm: 'Ya pasó',
     },
 
-    /** Juego 3 — después de la página 12 (antes de salir al patio) */
-    safeRoute: {
-        title: 'Camino al lugar seguro',
-        guide: '¡Hola otra vez! Ayúdame a sacar a Nico: primero los zapatos, luego pasitos lentos y al final un lugar abierto.',
-        stops: [
-            { id: 'shoes', short: 'Zapatos', prompt: 'Arrastra los zapatos hasta los pies de Nico.' },
-            { id: 'walk', short: 'Sin correr', prompt: 'Toca los pasos de Nico, uno por uno.', tooFast: 'Despacito, sin correr.' },
-            {
-                id: 'open', short: 'Lugar abierto', prompt: 'Arrastra a Nico al lugar más seguro del patio.',
-                zones: {
-                    centro: { label: 'Centro del patio', safe: true },
-                    poste: { label: 'Poste con cables' },
-                    pared: { label: 'Pared alta' },
-                },
-                wrongBy: {
-                    poste: 'Uy, el poste y los cables se pueden caer. ¡Busca otro!',
-                    pared: 'Uy, la pared alta se puede caer. ¡Busca otro!',
-                },
-            },
-        ],
-        success: 'Aquí nada se puede caer sobre nosotros. Ahora esperamos a un adulto de confianza.',
+    /** Juego 3, parte A — El pasillo. Entra cuando el Guardián dice "Mira bien antes de moverte." */
+    'juego-pasillo': {
+        title: 'Congelados en el pasillo',
+        shoesDone: 'Zapatos puestos. ¡Despacito!',
+        clac: '¡Clac!',
+        walk: { icon: 'camino', text: 'Lleva a Nico despacito a la puerta', short: 'Despacito' },
+        tooFast: '¡Despacito!',
+        turtle: { icon: 'turtle', text: '¡Toca la tortuga!', short: '¡Tortuga!' },
+        turtleHint: '¡Tortuga, ahora!',
+    },
+
+    /** Juego 3, parte B — El patio. */
+    'juego-patio': {
+        title: 'Congelados en el patio',
+        notHere: '¡Aquí no!',
+        zones: { centro: { safe: true }, poste: {}, pared: {} },
     },
 }

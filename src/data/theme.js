@@ -62,6 +62,15 @@ export const moods = {
         ground: '#7fae72', hills: '#9cc28c', mountains: '#b6abd2',
         fireflies: 0, dust: 1, exposure: 0.96,
     },
+    /** Juego 1: la sala se pone un poco oscura (el radar busca los peligros). */
+    radar: {
+        dusk: 1, day: 0, skyBright: 0.55, tint: '#5a4f9a', tintAmount: 0.5,
+        fog: '#6d6394', fogNear: 14, fogFar: 50,
+        hemiSky: '#b9b0e0', hemiGround: '#5d6f66', hemiIntensity: 0.8,
+        sun: '#d9c4ff', sunIntensity: 0.95,
+        ground: '#6a8f66', hills: '#7f9e86', mountains: '#8e86b4',
+        fireflies: 0.4, dust: 0.4, exposure: 0.86,
+    },
     calming: {
         dusk: 1, day: 0.15, skyBright: 0.9, tint: '#c7b7e4', tintAmount: 0.32,
         fog: '#cfc2e0', fogNear: 18, fogFar: 62,

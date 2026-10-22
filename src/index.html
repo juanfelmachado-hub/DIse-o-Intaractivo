@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>El susurro de la Tierra</title>
-    <meta name="description" content="Cuento interactivo en 3D: Nico y su Guardián aprenden a protegerse durante un temblor.">
+    <title>Nico y su guardián personal</title>
+    <meta name="description" content="Cuento interactivo en 3D: Nico y su Guardián aprenden a protegerse cuando la tierra se mueve.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-    <canvas class="webgl" aria-label="Libro ilustrado en 3D"></canvas>
-
     <!-- Pantalla de carga (estilo cuadrícula del moodboard) -->
     <div class="loader" data-loader>
         <div class="loader__dots" aria-hidden="true">
@@ -21,58 +19,61 @@
         <p class="loader__text">Abriendo el cuento…</p>
     </div>
 
-    <main class="ui" data-ui>
-        <!-- Texto del cuento (Instructivo de texto y diálogos):
-             narrador en un recuadro sobre la zona libre de cada escena,
-             diálogos en globos con colita junto a quien habla -->
-        <section class="story-text" aria-live="polite">
-            <div class="narrator" data-narration hidden>
-                <p class="bubble__text"></p>
-                <span class="bubble__dots" data-dots aria-hidden="true"></span>
+    <!-- Guía visual §7.1: escena (con las zonas de diálogo y misión encima),
+         barra de página debajo del libro y banda narrativa abajo -->
+    <div class="app">
+        <main class="scene" data-scene>
+            <canvas class="webgl" aria-label="Libro ilustrado en 3D"></canvas>
+
+            <!-- Marcadores tocables (accesibles con teclado) sobre objetos 3D -->
+            <div class="hotspots" data-hotspots></div>
+            <!-- El Guardián le habla al lector: velo de atención -->
+            <div class="veil" data-veil aria-hidden="true"></div>
+            <!-- Juego 1: el radar sigue al dedo -->
+            <div class="radar" data-radar hidden aria-hidden="true"><span></span></div>
+            <!-- Juego 2: el círculo dorado que late sobre el caparazón -->
+            <button class="drum" data-drum type="button" hidden aria-label="Tocar el tambor al ritmo"></button>
+
+            <div class="zones">
+                <!-- IZQUIERDA: quién habla -->
+                <aside class="zone zone--dialog">
+                    <article class="card card--dialog" data-dialog data-speaker="guardian" hidden aria-live="polite">
+                        <div class="avatar" data-avatar aria-hidden="true"></div>
+                        <p class="card__name"><span data-dialog-name>Guardián</span><span class="sr-only"> dice:</span></p>
+                        <p class="card__text" data-dialog-text></p>
+                    </article>
+                </aside>
+                <!-- DERECHA: qué debe hacer -->
+                <aside class="zone zone--mission">
+                    <article class="card card--mission" data-mission data-state="idle" hidden role="status">
+                        <div class="mission__icon" data-mission-icon aria-hidden="true"></div>
+                        <p class="card__text"><span class="sr-only">Misión: </span><span data-mission-text></span></p>
+                    </article>
+                    <button class="turtle-btn" data-turtle type="button" hidden aria-label="Tortuga: agacharse y cubrirse"></button>
+                </aside>
             </div>
-            <div class="speech" data-dialogue hidden>
-                <span class="speaker" data-speaker></span>
-                <p class="bubble__text"></p>
-                <span class="speech__tail" aria-hidden="true"></span>
-            </div>
-            <div class="instruction" data-instruction hidden>
-                <span class="instruction__icon" aria-hidden="true">
-                    <svg viewBox="0 0 48 48"><path d="M19 22V9.5a3 3 0 0 1 6 0V20l.2-3.3a3 3 0 0 1 5.9.4l-.1 3.4.4-2.2a3 3 0 0 1 5.9.9l-.4 3.4.4-1.2a2.8 2.8 0 0 1 5.4 1.5l-2.2 9.8A11 11 0 0 1 29.8 41h-3.1a11 11 0 0 1-8.4-3.9l-7-8.4a3 3 0 0 1 4.4-4L19 28z"/></svg>
-                </span>
-                <p class="instruction__text"></p>
-            </div>
+
+            <!-- Sonidos escritos -->
+            <div class="sfx-layer" data-sfx aria-hidden="true"></div>
+        </main>
+
+        <!-- DEBAJO DEL LIBRO: cuándo se puede pasar la página -->
+        <nav class="page-strip" data-strip data-state="pending" aria-label="Avance de la página">
+            <p class="page-strip__label" data-strip-label aria-live="polite">Sigue explorando</p>
+            <ol class="page-strip__steps" data-strip-steps aria-hidden="true"></ol>
+            <button class="page-strip__go" data-strip-go type="button" aria-disabled="true" aria-label="Pasar la página">
+                <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+        </nav>
+
+        <!-- ABAJO: narración -->
+        <section class="story-bar" data-story-bar role="region" aria-label="Texto de la historia">
+            <p class="story-bar__text" data-story-text aria-live="polite"></p>
+            <button class="story-bar__next" data-story-next type="button" aria-label="Siguiente" aria-disabled="true">
+                <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
         </section>
-
-        <!-- Indicador de actividad -->
-        <aside class="activity-chip" data-activity hidden>
-            <span class="activity-chip__label">Actividad</span>
-            <strong class="activity-chip__title" data-activity-title></strong>
-            <ol class="activity-chip__stops" data-activity-stops></ol>
-        </aside>
-
-        <!-- Botones de la actividad 2 -->
-        <div class="activity-tray" data-tray hidden></div>
-
-        <!-- Marcadores tocables proyectados sobre el 3D -->
-        <div class="hotspots" data-hotspots></div>
-
-        <!-- Pista: la hoja se pasa arrastrándola (no hay botones de navegación) -->
-        <div class="drag-hint" data-hint hidden aria-live="polite">
-            <span class="drag-hint__hand" aria-hidden="true">
-                <svg viewBox="0 0 48 48"><path d="M19 22V9.5a3 3 0 0 1 6 0V20l.2-3.3a3 3 0 0 1 5.9.4l-.1 3.4.4-2.2a3 3 0 0 1 5.9.9l-.4 3.4.4-1.2a2.8 2.8 0 0 1 5.4 1.5l-2.2 9.8A11 11 0 0 1 29.8 41h-3.1a11 11 0 0 1-8.4-3.9l-7-8.4a3 3 0 0 1 4.4-4L19 28z"/></svg>
-            </span>
-            <span class="drag-hint__label" data-hint-label></span>
-        </div>
-        <p class="turn-toast" data-toast hidden role="status"></p>
-
-        <!-- El Guardián le habla directamente al lector -->
-        <div class="veil" data-veil aria-hidden="true"></div>
-        <div class="g-bubble" data-guardian-bubble hidden role="dialog" aria-live="assertive">
-            <span class="speaker speaker--guardian" data-g-speaker></span>
-            <p class="g-bubble__text"></p>
-            <span class="speech__tail" aria-hidden="true"></span>
-        </div>
-    </main>
+    </div>
 
     <script type="module" src="./main.js"></script>
 </body>
