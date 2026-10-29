@@ -3,10 +3,12 @@ import { RadarActivity } from './RadarActivity.js'
 import { DrumActivity } from './DrumActivity.js'
 import { HallwayActivity } from './HallwayActivity.js'
 import { PatioActivity } from './PatioActivity.js'
+import { SafeStepsActivity } from './SafeStepsActivity.js'
 import { activities } from '../data/activities.js'
 
 const registry = {
     'juego-radar': RadarActivity,
+    'pasos-seguros': SafeStepsActivity,
     'juego-tambor': DrumActivity,
     'juego-pasillo': HallwayActivity,
     'juego-patio': PatioActivity,

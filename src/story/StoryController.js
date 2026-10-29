@@ -328,7 +328,8 @@ export class StoryController {
     keyNext() {
         if (this.mode === 'cover') return this.startFromIntro()
         if (this.mode !== 'reading') return
-        if (this.blocked) return this.ctx.ui.nudgeMission()
+        // una actividad puede usar el teclado para avanzar («Ponerse a salvo»)
+        if (this.blocked) return this.activity?.onKey?.() || this.ctx.ui.nudgeMission()
         if (this.beat < this.page.beats.length - 1) return this.next()
         this.tryTurnPage()
     }

@@ -22,6 +22,37 @@ export const activities = {
         win: 'pum',
     },
 
+    /**
+     * «Ponerse a salvo» — debajo de la mesa, antes del temblor fuerte. El niño
+     * descubre los tres pasos uno a uno (texto y orden del cuento: agáchate,
+     * cúbrete, sujétate); Nico y el Guardián hacen cada postura en el libro.
+     * narrator = texto literal del cuento para la banda de abajo.
+     */
+    'pasos-seguros': {
+        title: 'Ponerse a salvo',
+        guide: '¡Te enseño tres pasos mágicos!',
+        intro: { name: 'Tres pasos mágicos', text: 'Descúbrelos uno a uno.', go: '¡Descubrir!' },
+        steps: [
+            {
+                name: 'Uno: ¡agáchate!', text: 'Bien pequeñito, como una tortuga.',
+                icon: 'turtle', pose: 'crouch', quake: [0.4, 1],
+                narrator: 'Nico se agachó debajo de la mesa, bien pequeñito, como una tortuga.',
+            },
+            {
+                name: 'Dos: ¡cúbrete!', text: 'Tápate la cabeza y el cuello con los brazos.',
+                icon: 'cover', pose: 'cover',
+                narrator: 'Se tapó la cabeza y el cuello con los brazos.',
+            },
+            {
+                name: 'Tres: ¡sujétate!', text: 'Agarra fuerte una pata de la mesa.',
+                icon: 'hold', pose: 'hold',
+                narrator: 'Agarró fuerte una pata de la mesa.',
+            },
+        ],
+        next: 'Siguiente',
+        end: { name: '¡Ya sabes ponerte a salvo!', text: 'Agáchate, cúbrete y sujétate.', go: '¡Listo!' },
+    },
+
     /** Juego 2 — Debajo de la mesa. Entra cuando el temblor se pone fuerte. */
     'juego-tambor': {
         title: 'El tambor de la tortuga',

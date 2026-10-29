@@ -51,7 +51,7 @@ export const story = {
             id: 'sala', number: 1, title: 'La sala',
             scene: 'room', setup: { tower: 'empty', nico: 'tower' },
             mood: 'afternoon', camera: 'wide', quake: 0,
-            tasks: ['leer', 'juego-radar', 'juego-tambor'],
+            tasks: ['leer', 'juego-radar', 'pasos-seguros', 'juego-tambor'],
             beats: [
                 {
                     narrator: 'Nico tenía siete años y un gran sueño: construir la torre de bloques más alta del mundo.',
@@ -129,25 +129,12 @@ export const story = {
                     dialog: { speaker: 'guardian', text: '¡Allá! Vamos despacito.' },
                     do: ['nico.underTable'],
                 },
+                // ---- «Ponerse a salvo»: los tres pasos mágicos (agáchate, cúbrete,
+                // sujétate) se descubren uno a uno; sus textos están en data/activities.js
                 {
                     narrator: 'Nico llegó hasta la mesa y el Guardián le enseñó tres pasos mágicos.',
                     do: ['guardian.glow'],
-                },
-                {
-                    narrator: 'Nico se agachó debajo de la mesa, bien pequeñito, como una tortuga.',
-                    dialog: { speaker: 'guardian', text: 'Uno: ¡agáchate!' },
-                    do: ['nico.pose:crouch'],
-                    quake: [0.4, 1],
-                },
-                {
-                    narrator: 'Se tapó la cabeza y el cuello con los brazos.',
-                    dialog: { speaker: 'guardian', text: 'Dos: ¡cúbrete!' },
-                    do: ['nico.pose:cover'],
-                },
-                {
-                    narrator: 'Agarró fuerte una pata de la mesa.',
-                    dialog: { speaker: 'guardian', text: 'Tres: ¡sujétate!' },
-                    do: ['nico.pose:hold'],
+                    instruction: { icon: 'escudo', text: 'Descubre los tres pasos', short: 'Ponerse a salvo', taskId: 'pasos-seguros' },
                 },
                 {
                     narrator: 'Afuera, las cosas seguían sonando: clin, clan, crac.',

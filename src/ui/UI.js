@@ -14,13 +14,14 @@
  */
 import * as THREE from 'three'
 import { story } from '../data/story.js'
-import { avatars, missionIcons } from './icons.js'
+import { avatars, missionIcons, stepIcons } from './icons.js'
 import { playSfx } from '../audio/sfx.js'
 
 const $ = (sel) => document.querySelector(sel)
 const v = new THREE.Vector3()
 
 const KEYWORDS = new Set(['agáchate', 'cúbrete', 'sujétate', 'despacito', 'temblar', 'réplica'])
+const CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 const bare = (w) => w.toLowerCase().replace(/[^a-záéíóúüñ]/g, '')
 
 function escapeHTML(s) {
@@ -114,6 +115,10 @@ export class UI {
         // portada: «Abre el libro» inicia la transición (una sola vez a la vez)
         this.el.introGo.addEventListener('click', () => this.onIntroGo?.())
         this.el.introLogo.addEventListener('load', () => { this.space = null })
+        // «Ponerse a salvo»: el botón de la tarjeta avanza los pasos
+        this.el.dialogText.addEventListener('click', (e) => {
+            if (e.target.closest('[data-steps-go]')) this.onStepsGo?.()
+        })
         // tocar la actividad recuerda qué hay que hacer
         this.el.mission.addEventListener('click', () => this.expandMission())
         // Teclado (§12): Enter o flecha derecha avanzan el texto
@@ -219,6 +224,62 @@ export class UI {
         this.renderStack(0)
     }
 
+    /**
+     * «Ponerse a salvo»: tarjeta del Guardián con un paso a la vez. La
+     * ilustración manda; debajo, la frase corta y la explicación; a la derecha,
+     * los tres pasos (descubiertos en verde, el actual en naranja) y el botón.
+     * view = { phase: 'intro' | 'step' | 'end', index, steps, intro, end, next }
+     */
+    safeSteps(view) {
+        clearTimeout(this.talkTimer)
+        const { phase, index, steps } = view
+        const n = steps.length
+        const dots = steps.map((s, i) => {
+            const state = phase === 'end' || i < index ? 'done' : i === index ? 'current' : 'todo'
+            const mark = state === 'done' ? CHECK : String(i + 1)
+            return `<li class="steps__dot" data-i="${i}" data-state="${state}">${mark}</li>`
+        }).join('')
+        let art, name, text, go, label
+        if (phase === 'intro') {
+            art = `<span class="steps__art steps__art--intro">${steps.map((_, i) => `<i style="--i:${i}">${i + 1}</i>`).join('')}</span>`
+            ;({ name, text, go } = view.intro)
+            label = ''
+        } else if (phase === 'end') {
+            art = `<span class="steps__art steps__art--all">${steps.map((s, i) => `<i style="--i:${i}">${stepIcons[s.icon]}</i>`).join('')}<b class="steps__spark" aria-hidden="true">${'<i></i>'.repeat(6)}</b></span>`
+            ;({ name, text, go } = view.end)
+            label = ''
+        } else {
+            const s = steps[index]
+            art = `<span class="steps__art steps__art--${s.icon}">${stepIcons[s.icon]}</span>`
+            name = s.name
+            text = s.text
+            go = view.next
+            label = `<span class="sr-only">Paso ${index + 1} de ${n}: </span>`
+        }
+        const html = `<span class="steps" data-phase="${phase}">
+            ${art}
+            <span class="steps__copy">${label}<b class="steps__name">${richText(name)}</b><span class="steps__text">${richText(text)}</span></span>
+            <span class="steps__side">
+                <ol class="steps__track" aria-hidden="true">${dots}</ol>
+                <button class="steps__go" type="button" data-steps-go>${escapeHTML(go)}${phase === 'end' ? '' : ' <span aria-hidden="true">›</span>'}</button>
+            </span>
+        </span>`
+        // el foco sigue en el botón si el niño avanza con el teclado
+        const keepFocus = document.activeElement?.matches?.('[data-steps-go]')
+        this.talk = { speaker: 'guardian', text: `steps|${phase}|${index}`, html, kind: 'steps' }
+        this.renderStack(0)
+        if (keepFocus) setTimeout(() => this.el.dialogText.querySelector('[data-steps-go]')?.focus({ preventScroll: true }), 260)
+    }
+
+    /** El paso actual queda descubierto: su punto pasa a verde y la ilustración se confirma. */
+    safeStepDone(i) {
+        const box = this.el.dialogText
+        const dot = box.querySelector(`.steps__dot[data-i="${i}"]`)
+        if (dot) { dot.dataset.state = 'done'; dot.innerHTML = CHECK }
+        box.querySelector('.steps__art')?.classList.add('is-confirmed')
+        box.querySelector('[data-steps-go]')?.setAttribute('disabled', '')
+    }
+
     /** Retira el instructivo: vuelve la indicación de la actividad. */
     hideHowTo() {
         if (!this.talk?.html) return
@@ -308,7 +369,8 @@ export class UI {
                 d.dataset.speaker = talk.speaker
                 this.el.dialogName.textContent = story.characters[talk.speaker]?.name ?? talk.speaker
                 this.el.dialogText.innerHTML = talk.html ?? richText(talk.text)
-                d.classList.toggle('has-howto', !!talk.html)
+                d.classList.toggle('has-howto', !!talk.html && talk.kind !== 'steps')
+                d.classList.toggle('has-steps', talk.kind === 'steps')
                 const img = this.avatarImages[talk.speaker]
                 this.el.avatar.style.backgroundImage = img ? `url(${img})` : `url("data:image/svg+xml,${encodeURIComponent(avatars[talk.speaker] ?? '')}")`
             }
