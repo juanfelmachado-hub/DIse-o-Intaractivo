@@ -71,7 +71,6 @@ export class ExitScene extends BaseScene {
         // Nico sigue agachado debajo de la mesa (o ya salió: setup.nico = 'out')
         if (this.setup.nico === 'out') this.addNico(-0.75, 0.45, { face: 0, pose: 'idle' })
         else this.addNico(-0.9, -0.55, { face: 0, pose: 'kneel' })
-        this.underSpot = new THREE.Vector3(-0.9, 0, -0.55) // de rodillas bajo la mesa
         this.guardianOffset.set(0.45, 0.75, 0.25)
         this.addGuardian(true)
 

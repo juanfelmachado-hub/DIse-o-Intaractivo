@@ -228,13 +228,6 @@ const _axis = new THREE.Vector3()
 const _qs = new THREE.Quaternion()
 const _q2 = new THREE.Quaternion()
 const _qt = new THREE.Quaternion()
-const _qw = new THREE.Quaternion()
-const _fwd = new THREE.Vector3()
-const _to = new THREE.Vector3()
-const _hp = new THREE.Vector3()
-const ID = new THREE.Quaternion()
-/** Giro máximo de la cabeza hacia la cámara (rad): mira al lector sin torcerse. */
-const LOOK_MAX = 1.35
 
 export class Nico extends THREE.Group {
     constructor() {
@@ -253,10 +246,6 @@ export class Nico extends THREE.Group {
         this.heartGlow = 0
         this.prevCrouch = 0
         this.balance = 0
-        // bajo la mesa la cara busca la cámara (lookCamera + camLookTarget los pone la escena)
-        this.lookCamera = null
-        this.camLookTarget = 0
-        this.camLook = 0
         this.build()
     }
 
@@ -393,36 +382,6 @@ export class Nico extends THREE.Group {
         if (!b) return
         const r = this.rest[name]
         b.quaternion.copy(r.parentInv).multiply(q).multiply(r.q)
-    }
-
-    /**
-     * Gira cuello y cabeza (mitad y mitad) para que la cara apunte a la cámara,
-     * sobre la pose que ya traen (agachado, cubierto, sujeto). w = 0…1.
-     */
-    lookAtCamera(w) {
-        const head = this.bones.head
-        const neck = head?.parent
-        if (!head || !neck?.isBone) return
-        // adelante de la cara en los ejes del hueso (en reposo mira a +z del personaje)
-        this.faceLocal ??= new THREE.Vector3(0, 0, 1).applyQuaternion(this.rest.head.q.clone().invert())
-        head.updateWorldMatrix(true, false)
-        head.getWorldQuaternion(_qw)
-        _fwd.copy(this.faceLocal).applyQuaternion(_qw).normalize()
-        head.getWorldPosition(_hp)
-        this.lookCamera.getWorldPosition(_to).sub(_hp).normalize()
-        _q.setFromUnitVectors(_fwd, _to)
-        const angle = 2 * Math.acos(Math.min(1, Math.abs(_q.w)))
-        const k = angle > LOOK_MAX ? LOOK_MAX / angle : 1
-        _q.copy(_q2.slerpQuaternions(ID, _q, k * w)) // giro total (mundo)
-        _q2.slerpQuaternions(ID, _q, 0.5)  // la mitad la hace el cuello
-        // cuello: nuevo giro en el mundo → local
-        neck.getWorldQuaternion(_qs)
-        neck.parent.getWorldQuaternion(_qt)
-        const neckW = _q2.multiply(_qs) // _q2 ahora = giro/2 · cuello
-        neck.quaternion.copy(_qt.invert()).multiply(neckW)
-        // cabeza: su giro total en el mundo, relativo al cuello ya girado
-        _qw.premultiply(_q)
-        head.quaternion.copy(neckW.invert()).multiply(_qw)
     }
 
     // ------------------------------------------------------------ API
@@ -657,10 +616,6 @@ export class Nico extends THREE.Group {
                 b.position.lerp(this.clipP[i], w)
             })
         }
-
-        // ---- 3. la cara mira a la cámara (bajo la mesa)
-        this.camLook += (this.camLookTarget - this.camLook) * Math.min(1, dt * 3)
-        if (this.camLook > 0.001 && this.lookCamera) this.lookAtCamera(this.camLook)
 
         // ---- corazón
         const hg = this.heartGlow
