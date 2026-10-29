@@ -478,7 +478,7 @@ export class UI {
         }
         const stack = this.el.stack
         const fs = parseFloat(getComputedStyle(this.el.dialogText).fontSize) || 22
-        const tab = 44 - 14
+        const tab = 60 - 18 // pestaña de actividad montada sobre el cuadro
         const reserved = stack.offsetTop + tab + Math.max(63, 2 * fs * 1.4 + 22 + 14 + 4)
         const actual = stack.offsetTop + stack.offsetHeight
         const story = this.el.storyBox.offsetTop
