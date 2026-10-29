@@ -171,10 +171,12 @@ strong, .kw { font-weight: 700; }
    §6.2 Cuadro de la historia (nivel 3), debajo del libro
    -------------------------------------------------------------------------- */
 .story-box {
-    --h: clamp(140px, 17vh, 168px);
+    /* el libro es el protagonista: el cuadro es un poco más ancho y más bajo
+       para que el texto quepa en menos líneas y deje más alto al libro */
+    --h: clamp(112px, 16vh, 160px);
     position: absolute; left: 50%; bottom: calc(var(--gap) + env(safe-area-inset-bottom, 0px)); z-index: 6;
     transform: translateX(-50%);
-    width: min(max(47%, 640px), calc(100% - 2 * var(--gap)));
+    width: min(max(54%, 640px), calc(100% - 2 * var(--gap)));
     min-height: var(--h);
     display: flex; align-items: center; gap: 16px;
     padding: calc(var(--h) * .15) calc(var(--h) * .22) calc(var(--h) * .15) calc(var(--h) * .28);

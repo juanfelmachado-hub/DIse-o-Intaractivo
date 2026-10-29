@@ -2,12 +2,16 @@
  * Cámara cinematográfica: viaja entre encuadres (data/theme.js → cameraShots),
  * respira suavemente, sigue un poco al puntero (parallax) y tiembla con el sismo.
  *
- * Encuadre (Guía visual v2 §4.2): "más cerca, no más ancho". Se conserva el
- * ángulo de cada encuadre y el FOV; solo cambia la distancia hasta que el libro
- * (con sus elementos 3D) llena el rectángulo libre entre la pila de arriba y el
- * cuadro de la historia, con 16 px de aire. Manda la medida que primero se agote.
- * El libro se centra en ese rectángulo con un desplazamiento de lente
- * (setViewOffset), así la perspectiva se ve igual.
+ * Encuadre: el libro es el protagonista. "Más cerca, no más ancho": se conserva
+ * el ángulo de cada encuadre y el FOV; solo cambia la distancia hasta que el
+ * libro llena casi toda la pantalla. Reglas:
+ *  - el suelo del libro (las hojas con los objetos) queda siempre entero entre
+ *    la pila de arriba y el cuadro de la historia;
+ *  - las paredes del pop-up pueden subir por detrás de la pila de arriba, hasta
+ *    casi el borde superior de la pantalla;
+ *  - nada se recorta: ancho y alto completos, con margen.
+ * El libro se coloca con un desplazamiento de lente (setViewOffset), así la
+ * perspectiva se ve igual.
  */
 import * as THREE from 'three'
 import gsap from 'gsap'
@@ -15,7 +19,10 @@ import { cameraShots } from '../data/theme.js'
 
 const GAP = 16
 // Cajas del libro en el mundo (medidas con el libro y sus escenarios pop-up)
-const OPEN_BOX = new THREE.Box3(new THREE.Vector3(-3.2, 0.35, -2.15), new THREE.Vector3(3.2, 2.55, 2.15))
+const OPEN_BOX = new THREE.Box3(new THREE.Vector3(-3.2, 0.35, -2.15), new THREE.Vector3(3.2, 2.75, 2.15))
+// solo las hojas abiertas (el suelo de cada escenario), sin las paredes
+const PAGES_BOX = new THREE.Box3(new THREE.Vector3(-3.2, 0.35, -2.15), new THREE.Vector3(3.2, 0.62, 2.15))
+const TOP_MARGIN = 8 // px libres sobre las paredes del pop-up
 const COVER_BOX = new THREE.Box3(new THREE.Vector3(-1.75, 0.05, -0.5), new THREE.Vector3(1.75, 4.55, 0.5))
 
 function corners(box) {
@@ -45,6 +52,7 @@ export class CameraRig {
         this.layout = null
         this.openCorners = corners(OPEN_BOX)
         this.coverCorners = corners(COVER_BOX)
+        this.pagesCorners = corners(PAGES_BOX)
         this.pts = this.openCorners.map(() => new THREE.Vector3())
         this.blend = 0      // 0 = libro cerrado (portada), 1 = abierto
         this.k = 1          // factor de distancia (suavizado)
@@ -98,23 +106,34 @@ export class CameraRig {
         return { top: r.top, bottom: r.bottom, h: Math.max(40, r.bottom - r.top), cx: W / 2, cy: (r.top + r.bottom) / 2, maxW }
     }
 
-    /** Proyecta la caja del libro con la cámara en `dist` (sin desplazamiento de lente). */
+    /** Rectángulos en pantalla (px) del libro completo y de su suelo, con la cámara actual. */
+    measure() {
+        const cam = this.camera
+        const full = { l: Infinity, r: -Infinity, t: Infinity, b: -Infinity }
+        const floor = { l: Infinity, r: -Infinity, t: Infinity, b: -Infinity }
+        const add = (rect, a, b) => {
+            const p = this.p.lerpVectors(a, b, this.blend).project(cam)
+            const x = (p.x * 0.5 + 0.5) * this.vw
+            const y = (-p.y * 0.5 + 0.5) * this.vh
+            if (x < rect.l) rect.l = x
+            if (x > rect.r) rect.r = x
+            if (y < rect.t) rect.t = y
+            if (y > rect.b) rect.b = y
+        }
+        for (let i = 0; i < 8; i++) {
+            add(full, this.coverCorners[i], this.openCorners[i])
+            add(floor, this.coverCorners[i], this.pagesCorners[i])
+        }
+        return { full, floor }
+    }
+
+    /** Mide con la cámara en `dist` (sin desplazamiento de lente). */
     project(dist) {
         const cam = this.camera
         cam.position.copy(this.target).addScaledVector(this.dir, dist)
         cam.lookAt(this.target)
         cam.updateMatrixWorld()
-        let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity
-        for (let i = 0; i < this.pts.length; i++) {
-            const p = this.p.lerpVectors(this.coverCorners[i], this.openCorners[i], this.blend).project(cam)
-            const x = (p.x * 0.5 + 0.5) * this.vw
-            const y = (-p.y * 0.5 + 0.5) * this.vh
-            if (x < l) l = x
-            if (x > r) r = x
-            if (y < t) t = y
-            if (y > b) b = y
-        }
-        return { l, r, t, b }
+        return this.measure()
     }
 
     update(dt, t, quake) {
@@ -124,22 +143,37 @@ export class CameraRig {
         const base = this.dir.length()
         this.dir.normalize()
 
-        // la distancia exacta que deja el libro dentro del rectángulo libre
+        // límites verticales (px): T = borde superior para las paredes,
+        // S = debajo de la pila (el suelo empieza aquí), B = encima de la historia.
+        // En la portada no hay paredes ni pila: el libro cerrado usa todo el alto.
+        const T = TOP_MARGIN + 4
+        const B = R.bottom
+        const S = THREE.MathUtils.lerp(T, R.top, this.blend)
+
+        // la distancia exacta: manda la medida que primero se agote
         if (cam.view?.enabled) cam.clearViewOffset()
         let dist = base * this.k
-        let box
+        let m
         for (let i = 0; i < 6; i++) {
-            box = this.project(dist)
-            const s = Math.max((box.r - box.l) / R.maxW, (box.b - box.t) / R.h)
+            m = this.project(dist)
+            const s = Math.max(
+                (m.full.r - m.full.l) / R.maxW,
+                (m.floor.b - m.floor.t) / Math.max(40, B - S),
+                (m.full.b - m.full.t) / Math.max(40, B - T),
+            )
             if (!isFinite(s) || s <= 0) break
-            dist = THREE.MathUtils.clamp(dist * s, base * 0.25, base * 4)
+            dist = THREE.MathUtils.clamp(dist * s, base * 0.2, base * 4)
             if (Math.abs(s - 1) < 0.002) break
         }
-        box = this.project(dist)
+        m = this.project(dist)
         const k = dist / base
-        // centrado en el rectángulo libre (px)
-        const sx = (box.l + box.r) / 2 - R.cx
-        const sy = (box.t + box.b) / 2 - R.cy
+        // posición: sin pasar ninguno de los tres límites
+        const sx = (m.full.l + m.full.r) / 2 - R.cx
+        // si sobra alto (pantallas verticales), el suelo queda centrado entre la pila y la historia
+        const centered = (m.floor.t + m.floor.b) / 2 - (S + B) / 2
+        const lo = m.full.b - B
+        const hi = Math.min(m.full.t - T, m.floor.t - S)
+        const sy = THREE.MathUtils.clamp(centered, lo, Math.max(lo, hi))
 
         const ease = this.fresh ? 1 : Math.min(1, dt * 5)
         this.fresh = false
@@ -163,17 +197,12 @@ export class CameraRig {
         cam.setViewOffset(this.vw, this.vh, this.shift.x, this.shift.y, this.vw, this.vh)
     }
 
-    /** Rectángulo del libro en pantalla (px), para comprobar que nada lo tape. */
+    /**
+     * Rectángulo del suelo del libro en pantalla (px), para comprobar que ningún
+     * cuadro lo tape (las paredes sí pueden quedar detrás de la pila de arriba).
+     */
     bookRect() {
-        const cam = this.camera
-        cam.updateMatrixWorld()
-        let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity
-        for (let i = 0; i < this.pts.length; i++) {
-            const p = this.p.lerpVectors(this.coverCorners[i], this.openCorners[i], this.blend).project(cam)
-            const x = (p.x * 0.5 + 0.5) * this.vw
-            const y = (-p.y * 0.5 + 0.5) * this.vh
-            l = Math.min(l, x); r = Math.max(r, x); t = Math.min(t, y); b = Math.max(b, y)
-        }
-        return { l, r, t, b }
+        this.camera.updateMatrixWorld()
+        return this.measure().floor
     }
 }
