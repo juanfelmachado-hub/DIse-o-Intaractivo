@@ -44,12 +44,15 @@ const ONE_SHOTS = {
     acierto: { file: 'acierto', volume: 0.42, duck: 0.75, gap: 0.25 },
     radar: { file: 'radar', volume: 0.32, gap: 0.08 },
 }
-const MUSIC_VOLUME = 0.75 // el archivo es suave (−34 dB de media): fondo moderado
+// Jerarquía: la música es fondo (bajo a moderado); el tambor de «Al ritmo» manda
+const MUSIC_VOLUME = 0.45 // ≈ −41 dB de media: acompaña sin tapar instrucciones ni efectos
+const DRUM_GUIDE = 0.45 // latido guía ("pum-pum")
+const DRUM_TAP = 0.62 // golpe del niño
 const QUAKE_BED = 0.36 // máximo del colchón del temblor
 const STRONG = 0.5 // máximo del temblor fuerte
 
 let ctx = null
-let master, musicBus, sfxBus
+let master, musicBus, sfxBus, drumBus, noiseBuf
 const buffers = {}
 const lastPlay = {}
 const ducks = new Map() // id → factor (0…1) sobre la música
@@ -111,6 +114,14 @@ function unlock() {
     musicBus.connect(master)
     sfxBus = ctx.createGain()
     sfxBus.connect(master)
+    // canal propio del tambor: nunca baja con la música ni con los demás efectos
+    drumBus = ctx.createGain()
+    drumBus.gain.value = 1
+    drumBus.connect(master)
+    // ruido corto para el golpecito de ataque del tambor
+    noiseBuf = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.05), ctx.sampleRate)
+    const nd = noiseBuf.getChannelData(0)
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1
     Object.keys(FILES).forEach(load)
     if (wantMusic) startMusic()
 }
@@ -251,8 +262,8 @@ export function strongQuake() {
  */
 export function playSfx(name, { level = 1 } = {}) {
     if (!ctx) return
-    if (name === 'latido') return drum(0.22, 72, true)
-    if (name === 'tambor') return drum(0.34, 96, false)
+    if (name === 'latido') return drum(DRUM_GUIDE, 92, true)
+    if (name === 'tambor') return drum(DRUM_TAP, 118, false)
     const s = ONE_SHOTS[name]
     if (!s) return // ganchos sin archivo: no suenan
     const t = now()
@@ -283,27 +294,54 @@ export function playSfx(name, { level = 1 } = {}) {
     })
 }
 
-/** Tambor infantil sintetizado: golpe grave y redondo (latido = "pum-pum"). */
+/**
+ * Tambor infantil sintetizado: golpe redondo y cálido (latido = "pum-pum").
+ * Tres capas para que se oiga claro también en altavoces pequeños (portátil,
+ * tableta, móvil), que casi no reproducen los graves:
+ *  - cuerpo: tono grave que cae (el "pum");
+ *  - armónico: el mismo golpe una octava y media arriba (lo que se oye en un móvil);
+ *  - ataque: un golpecito de ruido muy corto que marca el inicio del golpe.
+ */
 let lastDrum = 0
 function drum(volume, pitch, double) {
     const t0 = now()
     if (t0 - lastDrum < 0.07) return // toques muy seguidos no se apilan
     lastDrum = t0
-    const hit = (t, v, f) => {
+    ctx.resume?.()
+    const tone = (t, v, f0, f1, type, decay) => {
         const osc = ctx.createOscillator()
         const g = ctx.createGain()
-        osc.type = 'sine'
-        osc.frequency.setValueAtTime(f * 1.9, t)
-        osc.frequency.exponentialRampToValueAtTime(f, t + 0.09)
+        osc.type = type
+        osc.frequency.setValueAtTime(f0, t)
+        osc.frequency.exponentialRampToValueAtTime(f1, t + 0.09)
         g.gain.setValueAtTime(0.0001, t)
-        g.gain.exponentialRampToValueAtTime(v, t + 0.012)
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32)
-        osc.connect(g).connect(sfxBus)
+        g.gain.exponentialRampToValueAtTime(v, t + 0.008)
+        g.gain.exponentialRampToValueAtTime(0.0001, t + decay)
+        osc.connect(g).connect(drumBus)
         osc.start(t)
-        osc.stop(t + 0.36)
+        osc.stop(t + decay + 0.03)
+    }
+    const click = (t, v) => {
+        const src = ctx.createBufferSource()
+        const bp = ctx.createBiquadFilter()
+        const g = ctx.createGain()
+        src.buffer = noiseBuf
+        bp.type = 'bandpass'
+        bp.frequency.value = 1600
+        bp.Q.value = 0.9
+        g.gain.setValueAtTime(v, t)
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035)
+        src.connect(bp).connect(g).connect(drumBus)
+        src.start(t)
+        src.stop(t + 0.05)
+    }
+    const hit = (t, v, f) => {
+        tone(t, v, f * 1.9, f, 'sine', 0.34) // cuerpo
+        tone(t, v * 0.42, f * 3.2, f * 2.5, 'triangle', 0.16) // armónico audible
+        click(t, v * 0.22) // ataque
     }
     hit(t0, volume, pitch)
-    if (double) hit(t0 + 0.16, volume * 0.7, pitch * 0.92) // "pum-pum" de corazón
+    if (double) hit(t0 + 0.16, volume * 0.72, pitch * 0.92) // "pum-pum" de corazón
 }
 
 // ------------------------------------------------------------ escenas
