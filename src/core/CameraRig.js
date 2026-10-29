@@ -8,7 +8,8 @@
  *  - el suelo del libro (las hojas con los objetos) queda siempre entero entre
  *    la pila de arriba y el cuadro de la historia;
  *  - las paredes del pop-up pueden subir por detrás de la pila de arriba, hasta
- *    casi el borde superior de la pantalla;
+ *    casi el borde superior de la pantalla, pero los objetos que se tocan en
+ *    los juegos (los marcadores del escenario, `focus`) nunca quedan tapados;
  *  - nada se recorta: ancho y alto completos, con margen.
  * El libro se coloca con un desplazamiento de lente (setViewOffset), así la
  * perspectiva se ve igual.
@@ -23,6 +24,8 @@ const OPEN_BOX = new THREE.Box3(new THREE.Vector3(-3.2, 0.35, -2.15), new THREE.
 // solo las hojas abiertas (el suelo de cada escenario), sin las paredes
 const PAGES_BOX = new THREE.Box3(new THREE.Vector3(-3.2, 0.35, -2.15), new THREE.Vector3(3.2, 0.62, 2.15))
 const TOP_MARGIN = 8 // px libres sobre las paredes del pop-up
+// px sobre cada marcador tocable: así se ve el objeto entero, no solo su centro
+const FOCUS_PAD = 48
 const COVER_BOX = new THREE.Box3(new THREE.Vector3(-1.75, 0.05, -0.5), new THREE.Vector3(1.75, 4.55, 0.5))
 
 function corners(box) {
@@ -50,6 +53,8 @@ export class CameraRig {
         this.vh = window.innerHeight
         /** Devuelve el rectángulo libre { top, bottom } en px de la escena. */
         this.layout = null
+        /** Objetos tocables del escenario: siempre a la vista, debajo de la pila. */
+        this.focus = []
         this.openCorners = corners(OPEN_BOX)
         this.coverCorners = corners(COVER_BOX)
         this.pagesCorners = corners(PAGES_BOX)
@@ -124,7 +129,13 @@ export class CameraRig {
             add(full, this.coverCorners[i], this.openCorners[i])
             add(floor, this.coverCorners[i], this.pagesCorners[i])
         }
-        return { full, floor }
+        // lo que debe quedar a la vista: el suelo y los objetos tocables
+        const seen = { ...floor }
+        for (const o of this.focus) {
+            o.getWorldPosition(this.p).project(cam)
+            seen.t = Math.min(seen.t, (-this.p.y * 0.5 + 0.5) * this.vh - FOCUS_PAD)
+        }
+        return { full, floor, seen }
     }
 
     /** Mide con la cámara en `dist` (sin desplazamiento de lente). */
@@ -158,7 +169,7 @@ export class CameraRig {
             m = this.project(dist)
             const s = Math.max(
                 (m.full.r - m.full.l) / R.maxW,
-                (m.floor.b - m.floor.t) / Math.max(40, B - S),
+                (m.seen.b - m.seen.t) / Math.max(40, B - S),
                 (m.full.b - m.full.t) / Math.max(40, B - T),
             )
             if (!isFinite(s) || s <= 0) break
@@ -170,9 +181,9 @@ export class CameraRig {
         // posición: sin pasar ninguno de los tres límites
         const sx = (m.full.l + m.full.r) / 2 - R.cx
         // si sobra alto (pantallas verticales), el suelo queda centrado entre la pila y la historia
-        const centered = (m.floor.t + m.floor.b) / 2 - (S + B) / 2
+        const centered = (m.seen.t + m.seen.b) / 2 - (S + B) / 2
         const lo = m.full.b - B
-        const hi = Math.min(m.full.t - T, m.floor.t - S)
+        const hi = Math.min(m.full.t - T, m.seen.t - S)
         const sy = THREE.MathUtils.clamp(centered, lo, Math.max(lo, hi))
 
         const ease = this.fresh ? 1 : Math.min(1, dt * 5)
@@ -198,11 +209,12 @@ export class CameraRig {
     }
 
     /**
-     * Rectángulo del suelo del libro en pantalla (px), para comprobar que ningún
-     * cuadro lo tape (las paredes sí pueden quedar detrás de la pila de arriba).
+     * Rectángulo del suelo del libro y de los objetos tocables en pantalla (px),
+     * para comprobar que ningún cuadro los tape (el resto de las paredes sí puede
+     * quedar detrás de la pila de arriba).
      */
     bookRect() {
         this.camera.updateMatrixWorld()
-        return this.measure().floor
+        return this.measure().seen
     }
 }

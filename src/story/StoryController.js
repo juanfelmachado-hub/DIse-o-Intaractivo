@@ -72,6 +72,7 @@ export class StoryController {
         book.setPages(l, r)
         env.setMoodInstant(story.cover.mood)
         rig.set(story.cover.camera)
+        rig.focus = []
         ui.clearAll()
         ui.setNarration(`${story.title}. ${story.subtitle}.`)
         ui.setNext(false)
@@ -102,6 +103,7 @@ export class StoryController {
         this.mode = 'closing'
         ui.clearAll()
         ui.setTurning(true)
+        this.ctx.rig.focus = []
         quake.to(0, 1)
         const tl = gsap.timeline()
         tl.add(book.finishClose(), 0)
@@ -218,6 +220,8 @@ export class StoryController {
         const first = !this.visited.has(page.id)
         this.visited.add(page.id)
         ui.setTurning(false)
+        // los objetos que se tocan en esta página nunca quedan detrás de los cuadros
+        this.ctx.rig.focus = Object.values(this.scene.markers)
         ui.startPage(page.tasks, [...this.tasksDone(page)], this.isLast ? 'last' : 'page')
         if (ui.ready) book.setCornerGlow(true)
         this.beat = -1
