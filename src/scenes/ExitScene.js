@@ -45,7 +45,8 @@ export class ExitScene extends BaseScene {
         shelf.position.set(-2.45, 0, -1.4)
         this.piece(shelf, 'grow', 0.2)
 
-        this.table = createTable()
+        // la misma mesa de la sala (un poco más alta): Nico cabe debajo agachado
+        this.table = createTable({ h: 0.92 })
         this.table.position.set(-0.9, 0, -0.6)
         this.piece(this.table, 'grow', 0.3)
 
@@ -152,8 +153,8 @@ export class ExitScene extends BaseScene {
     /** "¿Ya puedo salir?": Nico se asoma desde debajo de la mesa. */
     peek() {
         const tl = gsap.timeline()
+        // sin saltito: está debajo de la mesa (la cabeza tocaría el tablero)
         tl.add(this.nico.pose('peek', 0.9, 'power2.out'))
-        tl.add(this.nico.hop(), 0.2)
         return tl
     }
 

@@ -41,13 +41,15 @@ const BONES = {
     thighL: 'mixamorigLeftUpLeg', shinL: 'mixamorigLeftLeg', footL: 'mixamorigLeftFoot',
 }
 /** Poses que usan las animaciones de Blender (nombre del clip en nico.glb). */
-const CLIP_POSES = { crouch: 'Agacharse', kneel: 'Agacharse', cover: 'Cubrirse', hold: 'Cubrirse', reach: 'Empinarse' }
+const CLIP_POSES = { crouch: 'Agacharse', kneel: 'Agacharse', peek: 'Agacharse', cover: 'Cubrirse', hold: 'Cubrirse', reach: 'Empinarse' }
 /** En "¡Sujétate!" el brazo derecho deja la cabeza y agarra la pata de la mesa (pose procedural). */
 const ARMS = ['Shoulder', 'Arm', 'ForeArm', 'Hand'].flatMap((n) => [`mixamorigRight${n}`, `mixamorigLeft${n}`])
 const CLIP_MASK = {
     hold: ['mixamorigRightShoulder', 'mixamorigRightArm', 'mixamorigRightForeArm', 'mixamorigRightHand'],
     // de rodillas bajo la mesa: cuerpo agachado (Blender) y manos en las rodillas (procedural)
     kneel: ARMS,
+    // asomarse bajo la mesa: cuerpo agachado (Blender); cabeza y brazos miran hacia afuera
+    peek: [...ARMS, 'mixamorigNeck', 'mixamorigHead'],
 }
 const SHOE_PARTS = ['zapato', 'lengueta', 'cordones', 'punta', 'suela']
 
