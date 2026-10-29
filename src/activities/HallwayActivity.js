@@ -117,41 +117,64 @@ export class HallwayActivity extends Activity {
                     const dt = Math.max(1 / 120, now - last.t)
                     const speed = Math.hypot(p.x - last.x, p.z - last.z) / dt
                     // dedo muy rápido: Nico se tropieza
-                    if (speed > TOO_FAST && Math.hypot(p.x - nico.position.x, p.z - nico.position.z) > 0.25) return this.trip()
+                    const ahead = this.goal ? Math.hypot(p.x - this.goal.x, p.z - this.goal.y) : 0
+                    if (speed > TOO_FAST && ahead > 0.25) return this.trip()
                 }
                 last = { x: p.x, z: p.z, t: now }
                 const u = scene.nearestOnPath(p)
                 this.stepTo(clamp(u, this.u - 0.08, this.u + 0.06), null)
             },
-            onDrop: () => { nico.walking = 0 },
+            onDrop: () => {},
         })
     }
 
-    /** Mueve a Nico por el camino hasta la fracción u. */
+    /**
+     * Fija la meta de Nico en el camino (fracción u). El movimiento real lo hace
+     * update(): sigue la meta con suavidad, sin saltos aunque el dedo dé tirones.
+     */
     stepTo(u, duration) {
         const scene = this.scene
-        const nico = scene.nico
-        const L = scene.pathLength
         const p = scene.pointOnPath(u)
-        const dist = Math.abs(u - this.u) * L
-        if (dist < 0.002) return
-        const ahead = scene.pointOnPath(Math.min(1, u + 0.03))
-        nico.rotation.y = Math.atan2(ahead.x - p.x, ahead.z - p.z) || nico.rotation.y
-        nico.walkSpeed = 0.6
-        nico.walking = 1
+        this.goal = this.goal ?? new THREE.Vector2()
+        this.goal.set(p.x, p.z)
         this.lastMove = performance.now() / 1000
-        if (duration) gsap.to(nico.position, { x: p.x, z: p.z, duration, ease: 'sine.inOut' })
-        else nico.position.set(p.x, 0, p.z)
+        // con toque/teclado (duration) el paso puede ser un poco más largo
+        this.maxSpeed = duration ? 0.75 : 0.95
         this.u = u
         this.report(0.2 + 0.75 * u)
         if (!this.replicaDone && this.u >= 0.5) this.replica()
         else if (this.u >= 0.985) this.arrive()
     }
 
-    update() {
+    /** Nico se detiene donde está (con suavidad). */
+    stop() {
+        const n = this.scene.nico
+        this.goal = new THREE.Vector2(n.position.x, n.position.z)
+    }
+
+    update(dt) {
         const nico = this.scene.nico
-        // sin movimiento del dedo, Nico se detiene
-        if (nico.walking && performance.now() / 1000 - this.lastMove > 0.18) nico.walking = 0
+        if (!this.goal || !dt) return
+        // avanza hacia la meta con velocidad limitada y frenado suave
+        const dx = this.goal.x - nico.position.x
+        const dz = this.goal.y - nico.position.z
+        const dist = Math.hypot(dx, dz)
+        const step = Math.min(dist, (this.maxSpeed ?? 0.9) * dt, dist * Math.min(1, dt * 6))
+        if (dist > 1e-4) {
+            nico.position.x += (dx / dist) * step
+            nico.position.z += (dz / dist) * step
+            // mira hacia donde camina (giro suave por el lado más corto)
+            if (dist > 0.01) {
+                const yaw = Math.atan2(dx, dz)
+                const d = Math.atan2(Math.sin(yaw - nico.rotation.y), Math.cos(yaw - nico.rotation.y))
+                nico.rotation.y += d * Math.min(1, dt * 7)
+            }
+        }
+        // camina mientras se desplaza, al ritmo real (se detiene con suavidad)
+        const speed = step / dt
+        this.speed = (this.speed ?? 0) + (speed - (this.speed ?? 0)) * Math.min(1, dt * 8)
+        nico.walkSpeed = Math.max(0.3, this.speed)
+        nico.walking = this.speed > 0.06 ? 1 : 0
     }
 
     /** Nico se tropieza de forma graciosa; el Guardián: "¡Despacito!". */
@@ -161,7 +184,7 @@ export class HallwayActivity extends Activity {
         if (this.tripping) return
         this.tripping = true
         pointer.cancelDrag()
-        nico.walking = 0
+        this.stop()
         nico.face('o')
         const tl = gsap.timeline()
         tl.to(nico.p, { lean: 0.55, armRx: -1.4, armLx: -1.4, duration: 0.18, ease: 'power2.out' })
@@ -180,7 +203,7 @@ export class HallwayActivity extends Activity {
         pointer.cancelDrag()
         pointer.clear()
         hotspots.clear()
-        scene.nico.walking = 0
+        this.stop()
         quake.to(0.28, 0.4)
         playSfx('temblor')
         // las antenas del Guardián parpadean
@@ -216,15 +239,23 @@ export class HallwayActivity extends Activity {
         pointer.cancelDrag()
         pointer.clear()
         hotspots.clear()
-        scene.nico.walking = 0
         scene.pathGlints.visible = false
         glint(scene.group, scene.pointOnPath(1).setY(0.1), { color: '#fff4c9', size: 1.2 })
-        gsap.to(scene.nico.rotation, { y: Math.PI * 0.75, duration: 0.5 })
-        this.after(0.6, () => this.finish())
+        // termina de caminar hasta la puerta (update lo lleva) y luego se gira
+        const end = scene.pointOnPath(1)
+        this.goal = new THREE.Vector2(end.x, end.z)
+        this.maxSpeed = 0.7
+        const wait = Math.hypot(end.x - scene.nico.position.x, end.z - scene.nico.position.z) / 0.6 + 0.2
+        this.after(wait, () => {
+            this.stop()
+            gsap.to(scene.nico.rotation, { y: Math.PI * 0.75, duration: 0.5 })
+        })
+        this.after(wait + 0.6, () => this.finish())
     }
 
     cleanup() {
         super.cleanup()
         if (this.scene.pathGlints) this.scene.pathGlints.visible = false
+        if (this.scene.nico) this.scene.nico.walking = 0
     }
 }

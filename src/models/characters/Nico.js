@@ -41,9 +41,14 @@ const BONES = {
     thighL: 'mixamorigLeftUpLeg', shinL: 'mixamorigLeftLeg', footL: 'mixamorigLeftFoot',
 }
 /** Poses que usan las animaciones de Blender (nombre del clip en nico.glb). */
-const CLIP_POSES = { crouch: 'Agacharse', cover: 'Cubrirse', hold: 'Cubrirse', reach: 'Empinarse' }
+const CLIP_POSES = { crouch: 'Agacharse', kneel: 'Agacharse', cover: 'Cubrirse', hold: 'Cubrirse', reach: 'Empinarse' }
 /** En "¡Sujétate!" el brazo derecho deja la cabeza y agarra la pata de la mesa (pose procedural). */
-const CLIP_MASK = { hold: ['mixamorigRightShoulder', 'mixamorigRightArm', 'mixamorigRightForeArm', 'mixamorigRightHand'] }
+const ARMS = ['Shoulder', 'Arm', 'ForeArm', 'Hand'].flatMap((n) => [`mixamorigRight${n}`, `mixamorigLeft${n}`])
+const CLIP_MASK = {
+    hold: ['mixamorigRightShoulder', 'mixamorigRightArm', 'mixamorigRightForeArm', 'mixamorigRightHand'],
+    // de rodillas bajo la mesa: cuerpo agachado (Blender) y manos en las rodillas (procedural)
+    kneel: ARMS,
+}
 const SHOE_PARTS = ['zapato', 'lengueta', 'cordones', 'punta', 'suela']
 
 /**
@@ -74,7 +79,7 @@ export const POSES = {
     cover: P({ crouch: 1, hipZ: -0.045, lean: 0.55, armRx: -1.95, armRz: 0.42, elbowR: 1.85, armLx: -1.95, armLz: -0.42, elbowL: 1.85, headX: 0.32 }),
     // "¡Sujétate!": un brazo cubre la cabeza, el otro agarra la pata de la mesa
     hold: P({ crouch: 1, hipZ: -0.045, lean: 0.5, armRx: -1.2, armRz: -0.6, elbowR: 0.3, armLx: -1.95, armLz: -0.42, elbowL: 1.85, headX: 0.3, headY: -0.15 }),
-    peek: P({ crouch: 0.75, hipZ: -0.035, lean: 0.22, armRx: -1.05, armRz: -0.35, elbowR: 0.45, armLx: -0.7, armLz: -0.05, elbowL: 0.6, headX: -0.18, headY: 0.38, headZ: 0.1 }),
+    peek: P({ crouch: 0.95, hipZ: -0.035, lean: 0.22, armRx: -1.05, armRz: -0.35, elbowR: 0.45, armLx: -0.7, armLz: -0.05, elbowL: 0.6, headX: -0.18, headY: 0.38, headZ: 0.1 }),
     // sentado en el suelo, con las manos sobre las rodillas
     sit: P({ crouch: 1.17, hipZ: -0.08, fRz: 0.05, fLz: 0.05, lean: 0.14, armRx: -0.85, armRz: 0.05, elbowR: 0.25, armLx: -0.85, armLz: -0.05, elbowL: 0.25, headX: -0.04 }),
     cheer: P({ armRx: -2.75, armRz: -0.4, elbowR: 0.2, armLx: -2.75, armLz: 0.4, elbowL: 0.2, lean: -0.05, headX: -0.2 }),
@@ -340,6 +345,9 @@ export class Nico extends THREE.Group {
             next.reset().setLoop(THREE.LoopOnce, 1)
             next.clampWhenFinished = true
             next.play()
+            // si ya está agachado (de rodillas, bajo la mesa), la animación entra
+            // en su pose final: no se levanta para volver a agacharse
+            if (clipName === 'Agacharse' && (this.s.crouch > 0.4 || this.poseClip)) next.time = next.getClip().duration
             this.prevClip = this.poseClip
             this.poseClip = next
             this.clipMix = 0 // de la animación anterior a la nueva
@@ -457,7 +465,10 @@ export class Nico extends THREE.Group {
         // ---- 1. animaciones de Blender: se evalúan y se guardan
         const walkOn = this.walking > 0
         this.walkAmt += ((walkOn ? 1 : 0) - this.walkAmt) * Math.min(1, dt * 8)
-        const wW = this.clips?.Caminar ? this.walkAmt * (1 - this.clipW) : 0
+        // la animación de caminar es de pie: agachado o de rodillas (bajo la mesa)
+        // camina con el paso procedural, sin levantarse
+        const standing = 1 - Math.min(1, Math.max(this.s.crouch, this.p.crouch) * 1.8)
+        const wW = this.clips?.Caminar ? this.walkAmt * (1 - this.clipW) * standing : 0
         const W = Math.min(1, this.clipW + wW)
         if (W > 0.001) {
             const walk = this.clips.Caminar

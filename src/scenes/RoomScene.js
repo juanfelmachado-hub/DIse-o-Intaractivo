@@ -59,7 +59,8 @@ export class RoomScene extends BaseScene {
         this.counter.position.set(-1.45, 0, -1.42)
         this.piece(this.counter, 'grow', 0.3)
 
-        const table = createTable()
+        // un poco más alta que la mesa estándar: Nico cabe debajo agachado
+        const table = createTable({ h: 0.92 })
         this.tableHolder = this.holder(table, 0.3, 0, -0.5)
         this.piece(this.tableHolder, 'grow', 0.4)
         this.hotspot('mesa', table, new THREE.Vector3(0.25, 0.45, 0.5))
@@ -363,7 +364,7 @@ export class RoomScene extends BaseScene {
         this.shelfHolder.rotation.z = quake.shake.x * 0.03
         this.frameHolder.rotation.z = quake.shake.z * 0.08
         this.windowHolder.position.x = this.windowBaseX + quake.shake.x * 0.01
-        this.tableHolder.position.x = 0.3 + quake.shake.z * 0.012
+        this.tableHolder.position.x = 0.3 + quake.shake.z * 0.004
 
         if (q > 0.05) {
             this.counter.userData.glasses.forEach((g, i) => {
