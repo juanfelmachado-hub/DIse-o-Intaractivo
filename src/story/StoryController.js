@@ -21,7 +21,7 @@ import { story } from '../data/story.js'
 import { createScene } from '../scenes/index.js'
 import { createActivity } from '../activities/index.js'
 import { makePageTexture } from '../book/PageArt.js'
-import { playSfx } from '../audio/sfx.js'
+import { playSfx, startAmbience, stopAmbience, resetOnce } from '../audio/sfx.js'
 
 export class StoryController {
     constructor(ctx) {
@@ -96,6 +96,8 @@ export class StoryController {
         ui.progressAllowed = false
         ui.showProgress(false)
         ui.setProgress(0, 1)
+        // al inicio: pajaritos de fondo (empiezan con el primer toque del lector)
+        startAmbience('pajaros')
         ui.setNarration(`${story.title}. ${story.subtitle}.`)
         ui.setNext(false)
         ui.coverStrip()
@@ -140,6 +142,9 @@ export class StoryController {
             this.visited.clear()
             this.maxBeat.clear()
             this.gameProgress.clear()
+            // nueva lectura: vuelven los pajaritos y el primer temblor vuelve a sonar
+            resetOnce()
+            startAmbience('pajaros')
             ui.setProgress(0, 1)
             this.stars = 0
             this.closing = false
@@ -196,7 +201,7 @@ export class StoryController {
     commit(kind, dir) {
         const { ui, env, rig, quake } = this.ctx
         if (kind === 'cover') { this.mode = 'opening'; playSfx('pasar-pagina'); return }
-        if (kind === 'close') { this.mode = 'closing'; return }
+        if (kind === 'close') { this.mode = 'closing'; playSfx('pasar-pagina'); return }
         playSfx('pasar-pagina')
         this.beatTl?.progress(1)
         ui.clearAll()
@@ -283,7 +288,10 @@ export class StoryController {
         if (b.quake !== undefined) {
             const [value, duration] = Array.isArray(b.quake) ? b.quake : [b.quake, 1.2]
             quake.to(value, duration)
-            if (value > 0.2) playSfx('temblor')
+            // los pajaritos se callan con el primer gruñido del piso
+            if (value > 0.1) stopAmbience(1.5)
+            // "¡La casa empezó a temblar!": el terremoto suena solo la primera vez en cada lectura
+            if (value >= 0.5) playSfx('temblor')
         }
         if (b.mood) env.setMood(b.mood, 2.5)
         this.beatTl = this.scene ? this.scene.runSequence(b.do ?? []) : null
