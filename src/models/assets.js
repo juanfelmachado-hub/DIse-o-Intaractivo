@@ -6,8 +6,8 @@
  *                           "animacion niño.blend"
  *  - models/guardian.glb    el Guardián (girasol), con el mismo esqueleto y las
  *                           mismas animaciones adaptadas — de "guardian animado.blend"
- *  - models/naturaleza.glb  pinos y rocas de arbolito.blend (sin materiales:
- *                           los colores se asignan en el código)
+ *  - models/naturaleza.glb  pinos y rocas de arbolito_texturizado.blend, con sus
+ *                           materiales pintados a mano (gouache, crayón y lápiz)
  *  - textures/portada.jpg   la ilustración de la portada ("El susurro de la
  *                           Tierra"), recortada a 3:4 como la tapa del libro
  *
@@ -24,6 +24,8 @@ export const assets = {
     cover: null,
     /** nombre del nodo → geometría (pino_1_copa, pino_1_tronco, roca_1…) */
     nature: {},
+    /** nombre del nodo → material pintado del mismo archivo */
+    natureMats: {},
 }
 
 export async function loadAssets(base = './') {
@@ -42,6 +44,8 @@ export async function loadAssets(base = './') {
     assets.guardian = guardian.scene
     assets.guardianClips = guardian.animations
     nature.scene.traverse((o) => {
-        if (o.isMesh) assets.nature[o.name] = o.geometry
+        if (!o.isMesh) return
+        assets.nature[o.name] = o.geometry
+        assets.natureMats[o.name] = o.material
     })
 }

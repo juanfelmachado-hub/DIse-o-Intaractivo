@@ -92,10 +92,11 @@ export function createFacade({ w = 2.3, h = 1.5 } = {}) {
 }
 
 /**
- * Pino (modelo de arbolito.blend). `h` = altura en el escenario; dos variantes.
- * El archivo no trae materiales: copa verde y tronco café.
+ * Pino (modelo de arbolito_texturizado.blend). `h` = altura en el escenario; dos
+ * variantes. Usa los materiales pintados a mano del archivo (con el recorte del
+ * libro, como todas las piezas pop-up).
  */
-export function createTree({ color = '#4f9a57', trunk = '#8a5a3c', h = 1.55, variant = 1 } = {}) {
+export function createTree({ h = 1.55, variant = 1 } = {}) {
     const N = assets.nature
     const kind = variant === 2
         ? { copa: N.pino_2_copa, tronco: N.pino_2_tronco, h: 2.113 }
@@ -103,8 +104,9 @@ export function createTree({ color = '#4f9a57', trunk = '#8a5a3c', h = 1.55, var
     const g = new THREE.Group()
     g.name = 'arbol'
     const k = h / kind.h
-    const copa = add(g, kind.copa, mat.flat(color), [0, 0, 0])
-    const tronco = add(g, kind.tronco, mat.flat(trunk), [0, 0, 0])
+    const M = assets.natureMats
+    const copa = add(g, kind.copa, mat.custom('pino_copa_pintada', () => M.pino_1_copa.clone()), [0, 0, 0])
+    const tronco = add(g, kind.tronco, mat.custom('pino_tronco_pintado', () => M.pino_1_tronco.clone()), [0, 0, 0])
     copa.scale.setScalar(k)
     tronco.scale.setScalar(k)
     return g

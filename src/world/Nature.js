@@ -33,17 +33,16 @@ export class Nature {
         this.groundMat = new THREE.MeshStandardMaterial({ color: '#93cc78', roughness: 1 })
         this.hillMat = new THREE.MeshStandardMaterial({ color: '#b9e09a', roughness: 1 })
         this.mountainMat = new THREE.MeshStandardMaterial({ color: '#dcd3ee', roughness: 1, flatShading: true })
-        this.leafMats = [
-            new THREE.MeshStandardMaterial({ color: '#72b266', roughness: 0.9, flatShading: true }),
-            new THREE.MeshStandardMaterial({ color: '#64a762', roughness: 0.9, flatShading: true }),
-            new THREE.MeshStandardMaterial({ color: '#80bd70', roughness: 0.9, flatShading: true }),
-        ]
-        this.trunkMat = new THREE.MeshStandardMaterial({ color: '#8a5a3c', roughness: 0.9, flatShading: true })
-        this.rockMats = [
-            new THREE.MeshStandardMaterial({ color: '#a59b90', roughness: 0.95, flatShading: true }),
-            new THREE.MeshStandardMaterial({ color: '#968c84', roughness: 0.95, flatShading: true }),
-            new THREE.MeshStandardMaterial({ color: '#b3a796', roughness: 0.95, flatShading: true }),
-        ]
+        // materiales pintados de arbolito_texturizado.blend; el follaje en tres
+        // matices (un poco más claro u oscuro) para que el bosque no se vea repetido
+        const M = assets.natureMats
+        this.leafMats = [1, 0.9, 1.08].map((k) => {
+            const m = M.pino_1_copa.clone()
+            m.color.setScalar(k)
+            return m
+        })
+        this.trunkMat = M.pino_1_tronco
+        this.rockMats = [M.roca_1, M.roca_2, M.roca_3]
         this.cloudMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 1, transparent: true, opacity: 0.9, depthWrite: false })
 
         this.buildGround()
@@ -88,8 +87,8 @@ export class Nature {
     }
 
     /**
-     * Pinos y rocas de arbolito.blend (models/naturaleza.glb). El archivo no
-     * trae materiales: copa verde, tronco café y rocas gris tierra.
+     * Pinos y rocas de arbolito_texturizado.blend (models/naturaleza.glb), con
+     * sus texturas pintadas a mano.
      */
     buildTrees() {
         const rnd = seeded(42)

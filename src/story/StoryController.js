@@ -454,6 +454,10 @@ export class StoryController {
         rig.set(page.camera ?? 'wide')
         quake.set(page.quake ?? 0)
         ui.clearAll()
+        // atajo de desarrollo: sin portada, directo a la experiencia activa
+        this.intro = 'active'
+        ui.setIntro(false)
+        ui.showStory(true)
         this.scene = createScene(page.scene, this.ctx, page.setup ?? {})
         book.stage.add(this.scene.group)
         this.enterPage()

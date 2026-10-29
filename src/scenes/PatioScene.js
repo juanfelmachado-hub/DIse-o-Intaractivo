@@ -44,7 +44,7 @@ export class PatioScene extends BaseScene {
         const t1 = createTree({ h: 1.7, variant: 2 })
         t1.position.set(-2.7, 0, 1.05)
         this.piece(t1, 'front', 0.3)
-        const t2 = createTree({ h: 1.35, color: '#5ca865' })
+        const t2 = createTree({ h: 1.35 })
         t2.position.set(0.75, 0, -1.55)
         this.piece(t2, 'front', 0.32)
 
