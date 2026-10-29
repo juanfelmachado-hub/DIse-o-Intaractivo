@@ -122,14 +122,14 @@ strong, .kw { font-weight: 700; }
 /* Nivel 1: actividad (ícono + nombre en una línea) */
 .box--activity-tab {
     position: relative; z-index: 2;
-    width: 57%; min-width: max-content; min-height: 60px; margin-bottom: -18px;
+    width: 57%; min-width: max-content; min-height: 54px; margin-bottom: -16px;
     display: flex; align-items: center; justify-content: center; gap: 12px;
     padding: 4px 16px 4px 6px;
     cursor: pointer;
 }
-.box--activity-tab .box__text { font-size: 33px; white-space: nowrap; text-align: center; }
+.box--activity-tab .box__text { font-size: 28px; white-space: nowrap; text-align: center; }
 .mission__icon {
-    flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%;
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
     background: var(--naranja); display: grid; place-items: center;
 }
 .mission__icon svg { width: 62%; height: 62%; }
@@ -143,13 +143,13 @@ strong, .kw { font-weight: 700; }
     width: 100%; min-height: 63px; padding: 14px 20px;
     display: flex; align-items: center; gap: 12px;
 }
-.box--activity-tab:not([hidden]) + .box--dialog-main { padding-top: 26px; }
+.box--activity-tab:not([hidden]) + .box--dialog-main { padding-top: 24px; }
 .box--dialog-main[data-speaker="guardian"] { --bg: var(--morado-claro); --line-color: var(--tinta); }
 .box--dialog-main[data-speaker="nico"]     { --bg: var(--azul-claro);   --line-color: var(--azul); }
-.box--dialog-main .box__text { flex: 1 1 auto; min-width: 0; font-size: 33px; line-height: 1.3; transition: opacity .2s ease; }
+.box--dialog-main .box__text { flex: 1 1 auto; min-width: 0; font-size: 28px; line-height: 1.3; transition: opacity .2s ease; }
 .box--dialog-main.is-swapping .box__text { opacity: 0; }
 .avatar {
-    flex: 0 0 auto; width: 62px; height: 62px; border-radius: 50%;
+    flex: 0 0 auto; width: 54px; height: 54px; border-radius: 50%;
     border: var(--line) solid var(--tinta); background-color: var(--crema);
     background-size: cover; background-position: center;
 }
@@ -158,11 +158,11 @@ strong, .kw { font-weight: 700; }
 .stack-top:has(.has-howto) { width: min(1180px, calc(100% - 2 * var(--gap))); }
 .howto {
     display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 0; list-style: none;
-    font-size: 33px; font-weight: 500; line-height: 1.2;
+    font-size: 28px; font-weight: 500; line-height: 1.2;
 }
 .howto li { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .howto__icon {
-    flex: 0 0 auto; width: 46px; height: 46px; border-radius: 50%;
+    flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%;
     background: var(--naranja); display: grid; place-items: center;
 }
 .howto__icon svg { width: 62%; height: 62%; }
@@ -187,7 +187,7 @@ strong, .kw { font-weight: 700; }
 .story-box {
     /* el libro es el protagonista: el cuadro es un poco más ancho y más bajo
        para que el texto quepa en menos líneas y deje más alto al libro */
-    --h: clamp(132px, 19vh, 196px); /* proporcionado al texto de 36 px */
+    --h: clamp(116px, 17vh, 172px); /* proporcionado al texto de 30 px */
     position: absolute; left: 50%; bottom: calc(var(--gap) + env(safe-area-inset-bottom, 0px)); z-index: 6;
     transform: translateX(-50%);
     width: min(max(54%, 640px), calc(100% - 2 * var(--gap)));
@@ -198,7 +198,7 @@ strong, .kw { font-weight: 700; }
     border: var(--line) solid var(--dorado); border-radius: var(--radius);
     font-family: var(--font);
 }
-.story-box__text { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 36px; line-height: 1.35; text-align: left; text-wrap: pretty; }
+.story-box__text { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 30px; line-height: 1.35; text-align: left; text-wrap: pretty; }
 .story-box__next {
     flex: 0 0 auto; width: calc(var(--h) * .57); height: calc(var(--h) * .57);
     border-radius: 50%; border: 0; padding: 0;
@@ -417,7 +417,7 @@ strong, .kw { font-weight: 700; }
     .story-box { --h: 104px; width: 92%; padding: 14px 14px 14px 20px; gap: 12px; }
 }
 /* Teléfonos: tope de tamaño para que los textos quepan (en tableta y escritorio
-   la historia va a 36 px y los cuadros de arriba a 33 px) */
+   la historia va a 30 px y los cuadros de arriba a 28 px) */
 @media (max-width: 767px) {
     .story-box__text { font-size: 26px; }
     .box--dialog-main .box__text, .box--activity-tab .box__text, .howto { font-size: 24px; }
