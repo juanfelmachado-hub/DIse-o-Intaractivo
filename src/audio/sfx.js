@@ -8,6 +8,8 @@
  *   temblor       el primer terremoto de cada lectura
  *   pasar-pagina  cada vez que pasa una hoja (también al abrir y cerrar el libro)
  *   radar         el bip del Guardián en el juego de buscar peligros
+ *   guardian-llama "¡Hey, escucha!": el Guardián sale del libro hacia el lector
+ *   acierto       al completar una actividad o elegir bien una opción
  *
  * Los demás ganchos (pagina-lista, acierto, pista, tambor, boing…) siguen
  * conectados y no suenan hasta que tengan archivo: basta con sumarlo a SFX.
@@ -18,6 +20,8 @@ export const SFX = {
     temblor: { file: 'temblor.mp3', volume: 0.85, once: true },
     'pasar-pagina': { file: 'pasar-pagina.mp3', volume: 0.7 },
     radar: { file: 'beep.mp3', volume: 0.45 },
+    'guardian-llama': { file: 'guardian-llama.mp3', volume: 0.7 },
+    acierto: { file: 'acierto.mp3', volume: 0.6 },
 }
 
 let ctx = null

@@ -54,6 +54,7 @@ export class HallwayActivity extends Activity {
                 scene.group.localToWorld(w.copy(nico.position).setY(0.25))
                 ui.sfxAt(this.data.clac, w, camera)
                 playSfx('clac')
+                playSfx('acierto') // zapatos puestos
                 sparkle(scene.group, nico.position.clone().setY(0.1), { color: '#ffd0c8', count: 8, radius: 0.3 })
             })
             tl.add(nico.hop())
@@ -221,6 +222,7 @@ export class HallwayActivity extends Activity {
         this.played()
         this.turtleHint?.kill()
         ui.showTurtle(false)
+        playSfx('acierto') // la tortuga a tiempo
         nico.pose('cover', 0.7)
         quake.to(0, 1.6)
         this.after(2, () => {

@@ -43,6 +43,8 @@ export class Activity {
             return
         }
         ui.showVeil(true)
+        // el Guardián sale del libro hacia el lector: "¡Hey, escucha!" (una vez)
+        playSfx('guardian-llama')
         await this.scene.guardianToViewer(true)
         if (this.disposed) return
         await g.greet()

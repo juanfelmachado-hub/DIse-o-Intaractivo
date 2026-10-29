@@ -97,6 +97,7 @@ export class RadarActivity extends Activity {
         m.getWorldPosition(w)
         ui.sfxAt(this.data.found, w, camera)
         playSfx('toque-objeto')
+        playSfx('acierto') // encontró un peligro
         // estrella roja
         const local = scene.localPos(m)
         const star = starSprite('#ea5b4f', 0.01)

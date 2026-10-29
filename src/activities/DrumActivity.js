@@ -125,6 +125,7 @@ export class DrumActivity extends Activity {
         // cada tres toques, una postura
         const posture = this.data.postures.find((p) => p.every === this.taps)
         if (posture) {
+            playSfx('acierto') // logró la postura
             scene.nico.pose(posture.pose, 0.8)
             scene.guardian?.mimic(posture.pose) // el Guardián hace la misma postura
             ui.setMission({ icon: posture.icon, text: posture.text, short: posture.text }, { delay: 0 })
