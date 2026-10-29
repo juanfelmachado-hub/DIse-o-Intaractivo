@@ -117,7 +117,7 @@ function template() {
     const src = assets.nico
     if (!src) throw new Error('[cuento] El modelo de Nico no está cargado')
     src.updateMatrixWorld(true)
-    const sock = mat.clay('#fbf6ee', 0.85)
+    const sock = mat.clay('#f3ede2', 0.92) // medias lisas de algodón (mate)
     src.traverse((o) => {
         if (!o.isMesh) return
         const m = o.material
@@ -162,6 +162,62 @@ function template() {
     STRIDE = HIP_Y * 0.2
     TEMPLATE = { src, rest, sock }
     return TEMPLATE
+}
+
+/**
+ * Medias lisas (antes de ponerse los zapatos): por cada pie, una pieza
+ * redondeada y lisa con el tamaño del pie, y un puño en el tobillo que cubre el
+ * final de la pierna. Las medidas salen del modelo en reposo (espacio del
+ * personaje): el zapato da el largo y el ancho del pie; la piel de la pierna,
+ * el grosor del tobillo.
+ */
+function sockShapes(model) {
+    const v = new THREE.Vector3()
+    const shoe = {}
+    const skin = []
+    // vértices con el esqueleto en reposo, en el espacio del personaje
+    model.updateMatrixWorld(true)
+    const inv = model.matrixWorld.clone().invert()
+    const at = (o, i) => o.getVertexPosition(i, v).applyMatrix4(o.matrixWorld).applyMatrix4(inv)
+    model.traverse((o) => {
+        if (o.isSkinnedMesh) o.skeleton.update()
+    })
+    model.traverse((o) => {
+        if (!o.isSkinnedMesh) return
+        const name = o.userData.matName
+        if (name === 'piel') skin.push(o)
+        if (!['zapato', 'punta', 'suela', 'lengueta'].includes(name)) return
+        const pos = o.geometry.attributes.position
+        for (let i = 0; i < pos.count; i++) {
+            at(o, i)
+            const k = v.x < 0 ? 'R' : 'L'
+            const b = (shoe[k] = shoe[k] ?? new THREE.Box3())
+            b.expandByPoint(v)
+        }
+    })
+    const out = {}
+    for (const [k, box] of Object.entries(shoe)) {
+        const c = box.getCenter(new THREE.Vector3())
+        const size = box.getSize(new THREE.Vector3())
+        // tobillo: la piel de esa pierna justo por encima del zapato
+        const y0 = box.max.y - 0.03
+        const y1 = box.max.y + 0.03
+        let sx = 0, sz = 0, n = 0
+        const ring = []
+        for (const o of skin) {
+            const pos = o.geometry.attributes.position
+            for (let i = 0; i < pos.count; i += 2) {
+                at(o, i)
+                if (v.y < y0 || v.y > y1 || Math.sign(v.x) !== (k === 'L' ? 1 : -1) || Math.abs(v.x - c.x) > size.x) continue
+                ring.push(v.clone()); sx += v.x; sz += v.z; n++
+            }
+        }
+        const leg = new THREE.Vector3(n ? sx / n : c.x, 0, n ? sz / n : c.z)
+        // radio medio de la pierna en el tobillo (el máximo se lo llevan vértices sueltos)
+        const r = n ? ring.reduce((m, p) => m + Math.hypot(p.x - leg.x, p.z - leg.z), 0) / n : size.x * 0.25
+        out[k] = { center: c, size, floor: box.min.y, top: box.max.y, leg, r }
+    }
+    return out
 }
 
 const noRaycast = () => {}
@@ -214,16 +270,25 @@ export class Nico extends THREE.Group {
         const meshes = []
         this.model.traverse((o) => { if (o.isSkinnedMesh) meshes.push(o) })
         this.shoes = meshes.filter((m) => SHOE_PARTS.includes(m.userData.matName))
-        this.socks = this.shoes.filter((m) => m.userData.matName === 'zapato').map((body) => {
-            const s = new THREE.SkinnedMesh(body.geometry, T.sock)
-            s.bind(body.skeleton, body.bindMatrix)
-            s.castShadow = true
-            s.frustumCulled = false
-            s.visible = false
-            s.raycast = noRaycast
-            body.parent.add(s)
-            return s
-        })
+        this.socks = []
+        T.socks = T.socks ?? sockShapes(this.model) // se mide una vez, en el primer Nico
+        for (const [k, m] of Object.entries(T.socks)) {
+            const bone = `foot${k}`
+            // pie: pieza redondeada, un poco más chica que el zapato
+            const foot = new THREE.Mesh(geo.sphere(1, 24, 16), T.sock)
+            foot.scale.set(m.size.x * 0.44, Math.min(0.05, m.size.y * 0.42), m.size.z * 0.47)
+            this.attach(bone, foot, [m.center.x, m.floor + foot.scale.y * 0.92, m.center.z + m.size.z * 0.02])
+            // puño de la media: cubre el final de la pierna
+            const h = (m.top - m.floor) * 0.8
+            const cuff = new THREE.Mesh(geo.cyl(m.r * 1.04, m.r * 1.12, h, 20), T.sock)
+            this.attach(bone, cuff, [m.leg.x, m.floor + h / 2 + 0.012, m.leg.z])
+            for (const s of [foot, cuff]) {
+                s.castShadow = true
+                s.raycast = noRaycast
+                s.visible = false
+                this.socks.push(s)
+            }
+        }
 
         // el modelo no tiene huesos de párpados: sin parpadeo
         this.eyes = []
