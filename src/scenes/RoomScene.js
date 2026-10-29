@@ -139,6 +139,7 @@ export class RoomScene extends BaseScene {
             'table.glow': () => this.tableGlow(),
             'nico.hideUnderTable': () => this.hideUnderTable(),
             'nico.underTable': () => this.ensureUnderTable(),
+            'nico.settleUnderTable': () => this.settleUnderTable(),
             sounds: () => this.sounds(),
             heartbeat: () => this.heartbeat(),
             'guardian.hug': () => this.hug(),
@@ -275,6 +276,24 @@ export class RoomScene extends BaseScene {
         tl.add(n.walkTo(this.anchors.under.x, this.anchors.under.z, { speed: 0.35 }))
         tl.add(gsap.to(n.rotation, { y: 0, duration: 0.5 }))
         tl.add(n.pose('crouch', 0.6))
+        return tl
+    }
+
+    /**
+     * El niño soltó a Nico junto a la mesa: se agacha ahí mismo y se acomoda
+     * directo bajo la mesa (sin salir al frente para volver a entrar).
+     */
+    settleUnderTable() {
+        const n = this.nico
+        const u = this.anchors.under
+        const dist = Math.hypot(n.position.x - u.x, n.position.z - u.z)
+        // lejos y delante de la mesa (p. ej. con teclado): camina hasta ella como siempre
+        if (dist > 1.1 && n.position.z > this.anchors.tableFront.z - 0.05) return this.hideUnderTable()
+        const tl = gsap.timeline()
+        tl.to(this.guardianOffset, { x: 0.62, y: 0.42, z: 0.55, duration: 1.2 }, 0)
+        tl.add(n.pose('crouch', 0.5), 0)
+        tl.to(n.position, { x: u.x, z: u.z, duration: Math.max(0.35, dist / 0.6), ease: 'power2.out' }, 0.1)
+        tl.to(n.rotation, { y: 0, duration: 0.5, ease: 'power2.out' }, 0.1)
         return tl
     }
 

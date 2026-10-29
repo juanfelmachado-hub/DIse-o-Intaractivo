@@ -167,7 +167,7 @@ export class RadarActivity extends Activity {
             hotspots.clear()
             gsap.to(nico.p, { lift: 0, duration: 0.3, ease: 'power2.out' })
             nico.pose('idle', 0.3)
-            scene.run('nico.hideUnderTable').then(() => {
+            scene.run('nico.settleUnderTable').then(() => {
                 const p = scene.localPos(nico.heart)
                 p.y += 0.5
                 scene.group.localToWorld(w.copy(p))
