@@ -7,8 +7,8 @@
     <meta name="description" content="Cuento interactivo en 3D: Nico y su Guardián aprenden a protegerse cuando la tierra se mueve.">
     <!-- Fredoka variable (pesos 300–700, ancho 75–125), alojada en la propia web (Guía visual §3.1) -->
     <link rel="preload" href="./assets/Fredoka-Variable-tvVNXCOf.woff2" as="font" type="font/woff2" crossorigin>
-  <script type="module" crossorigin src="./assets/index-EhkWI1wj.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-C0Z_nbkt.css">
+  <script type="module" crossorigin src="./assets/index-DjrTRuJH.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-AG4ZXySH.css">
 </head>
 <body>
     <!-- Pantalla de carga (estilo cuadrícula del moodboard) -->
@@ -33,6 +33,18 @@
         <div class="radar" data-radar hidden aria-hidden="true"><span></span></div>
         <!-- Juego 2: el círculo dorado que late sobre el caparazón -->
         <button class="drum" data-drum type="button" hidden aria-label="Tocar el tambor al ritmo"></button>
+
+        <!-- PORTADA: pantalla de inicio sobre la misma escena 3D (el libro de la
+             derecha es el libro real del cuento: al abrirlo se desliza al centro) -->
+        <section class="intro" data-intro aria-labelledby="intro-title">
+            <h1 class="intro__title" id="intro-title">
+                <img class="intro__logo" data-intro-logo src="./textures/logo-susurro.png" alt="El susurro de la Tierra">
+            </h1>
+            <div class="intro__bottom" data-intro-bottom>
+                <p class="intro__text">Una aventura mágica para aprender a escuchar, cuidar y reconectar con nuestro planeta.</p>
+                <button class="intro__go t-button" data-intro-go type="button">Abre el libro</button>
+            </div>
+        </section>
 
         <!-- ARRIBA: nivel 1 actividad (pestaña) y nivel 2 indicaciones o diálogo -->
         <div class="stack-top" data-stack>
@@ -63,7 +75,7 @@
         <div class="sfx-layer" data-sfx aria-hidden="true"></div>
 
         <!-- ABAJO: nivel 3, la historia y el botón siguiente (también pasa la página) -->
-        <section class="story-box" data-story-bar role="region" aria-label="Texto de la historia">
+        <section class="story-box is-hidden" data-story-bar role="region" aria-label="Texto de la historia" inert>
             <p class="story-box__text t-body" data-story-text aria-live="polite"></p>
             <button class="story-box__next" data-story-next type="button" aria-label="Siguiente" aria-disabled="true">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>

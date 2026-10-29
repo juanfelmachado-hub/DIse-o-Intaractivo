@@ -59,6 +59,10 @@ export class UI {
             missionText: $('[data-mission-text]'),
             turtle: $('[data-turtle]'),
             stack: $('[data-stack]'),
+            intro: $('[data-intro]'),
+            introLogo: $('[data-intro-logo]'),
+            introBottom: $('[data-intro-bottom]'),
+            introGo: $('[data-intro-go]'),
             progress: $('[data-progress]'),
             progressFill: $('[data-progress-fill]'),
             progressSeps: [...document.querySelectorAll('[data-progress-sep]')],
@@ -71,6 +75,8 @@ export class UI {
             drum: $('[data-drum]'),
         }
         this.avatarImages = {}
+        this.introOn = true
+        this.onIntroGo = null
         // barra de avance: valor real (0…1) y valor mostrado (se acerca con suavidad)
         this.progress = { target: 0, shown: 0, phases: 3, on: false, ends: null }
         this.mission = null // { icon, text, short }
@@ -91,6 +97,9 @@ export class UI {
             ro.observe(this.el.stack)
             ro.observe(this.el.storyBox)
             ro.observe(this.el.scene)
+            ro.observe(this.el.intro)
+            ro.observe(this.el.introLogo)
+            ro.observe(this.el.introBottom)
         }
         window.addEventListener('resize', () => { this.space = null })
 
@@ -102,6 +111,9 @@ export class UI {
             if (this.mission) this.nudgeMission()
             else this.onGo?.()
         })
+        // portada: «Abre el libro» inicia la transición (una sola vez a la vez)
+        this.el.introGo.addEventListener('click', () => this.onIntroGo?.())
+        this.el.introLogo.addEventListener('load', () => { this.space = null })
         // tocar la actividad recuerda qué hay que hacer
         this.el.mission.addEventListener('click', () => this.expandMission())
         // Teclado (§12): Enter o flecha derecha avanzan el texto
@@ -398,6 +410,24 @@ export class UI {
         this.showProgress(!on && !!this.progressAllowed)
     }
 
+    // ------------------------------------------------------------ portada
+    /** Muestra u oculta la pantalla de inicio (con fundido). */
+    setIntro(on) {
+        this.introOn = on
+        const el = this.el.intro
+        el.classList.toggle('is-off', !on)
+        el.inert = !on
+        this.el.introGo.disabled = !on
+        if (on) this.showStory(false)
+        this.space = null
+    }
+
+    /** El cuadro de la historia se oculta en la portada y vuelve al abrir el libro. */
+    showStory(on) {
+        this.el.storyBox.classList.toggle('is-hidden', !on)
+        this.el.storyBox.inert = !on
+    }
+
     /**
      * Rectángulo libre para el libro (px de la escena, Guía visual v2 §4.2):
      * de la pila de arriba al cuadro de la historia, con 16 px de aire.
@@ -407,6 +437,26 @@ export class UI {
     bookSpace() {
         if (this.space) return this.space
         const GAP = 16
+        // portada: el libro ocupa el lado derecho (o el centro, en vertical)
+        if (this.introOn) {
+            const scene = this.el.scene
+            const W = scene.clientWidth
+            const H = scene.clientHeight
+            const intro = this.el.intro.getBoundingClientRect()
+            const sr = scene.getBoundingClientRect()
+            const vertical = W / H <= 1 || W < 768
+            if (!vertical) {
+                this.space = { top: GAP * 1.5, bottom: H - GAP * 1.5, left: intro.right - sr.left + GAP * 2, right: W - GAP * 2 }
+            } else {
+                const logo = this.el.introLogo.getBoundingClientRect()
+                const bottom = this.el.introBottom.getBoundingClientRect()
+                this.space = { top: logo.bottom - sr.top + GAP, bottom: bottom.top - sr.top - GAP, left: GAP, right: W - GAP }
+            }
+            // mientras el logotipo no ha cargado su alto aún no es real: no se guarda
+            const space = this.space
+            if (!this.el.introLogo.complete || !this.el.introLogo.naturalHeight) this.space = null
+            return space
+        }
         const stack = this.el.stack
         const fs = parseFloat(getComputedStyle(this.el.dialogText).fontSize) || 22
         const tab = 44 - 14

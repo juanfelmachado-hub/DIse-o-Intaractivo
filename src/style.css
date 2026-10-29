@@ -216,6 +216,53 @@ strong, .kw { font-weight: 700; }
 @keyframes fade-out { to { opacity: 0; } }
 
 /* --------------------------------------------------------------------------
+   Portada: pantalla de inicio (logotipo, texto y «Abre el libro") a la
+   izquierda; el libro 3D real a la derecha. Al abrirlo, la capa se retira
+   hacia la izquierda mientras el libro se desliza al centro.
+   -------------------------------------------------------------------------- */
+.intro {
+    position: absolute; z-index: 7;
+    left: clamp(16px, 6vw, 120px); top: 50%;
+    width: min(40vw, 560px);
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: clamp(12px, 2.4vh, 28px);
+    text-align: center;
+    transition: opacity .6s ease, translate .8s cubic-bezier(.3, .7, .2, 1), visibility .8s;
+}
+.intro.is-off { opacity: 0; translate: -32px 0; visibility: hidden; pointer-events: none; }
+.intro__title { margin: 0; width: 100%; }
+.intro__logo { display: block; width: 100%; height: auto; max-height: 46vh; object-fit: contain; }
+.intro__bottom { display: flex; flex-direction: column; align-items: center; gap: clamp(14px, 2.6vh, 28px); }
+.intro__text {
+    margin: 0; max-width: 26ch;
+    color: var(--crema); font-weight: 500; font-stretch: 100%;
+    font-size: clamp(22px, 0.6vw + 16px, 28px); line-height: 1.4;
+}
+.intro__go {
+    min-height: 56px; min-width: 220px; padding: 0 32px;
+    background: var(--crema); color: var(--tinta);
+    border: var(--line) solid var(--naranja); border-radius: var(--radius);
+    cursor: pointer; font-family: var(--font);
+    transition: transform .15s ease, background-color .2s ease;
+}
+.intro__go:hover { background: #fff7e6; transform: translateY(-2px); }
+.intro__go:active { transform: translateY(1px) scale(.98); }
+.intro__go:focus-visible { outline: 4px solid var(--dorado); outline-offset: 3px; }
+/* en la portada el cuadro de la historia espera a que se abra el libro */
+.story-box { transition: opacity .5s ease, visibility .5s; }
+.story-box.is-hidden { opacity: 0; visibility: hidden; }
+
+/* Pantallas verticales: logotipo arriba, libro en medio, texto y botón abajo */
+@media (max-aspect-ratio: 1/1), (max-width: 767px) {
+    .intro {
+        inset: 16px; width: auto; transform: none;
+        justify-content: space-between; gap: 0;
+    }
+    .intro.is-off { translate: 0 -24px; }
+    .intro__logo { width: min(86vw, 460px); max-height: 24vh; margin: 0 auto; }
+}
+
+/* --------------------------------------------------------------------------
    Avance del cuento (sobre el pie de las hojas): 3 tramos, 2 separadores y la
    cabeza de Nico como marcador. Elemento secundario: fino y sin sombras.
    Posición, ancho y giro los pone la UI siguiendo al libro (ui.update).

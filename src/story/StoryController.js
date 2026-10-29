@@ -46,6 +46,7 @@ export class StoryController {
         ui.onNext = () => this.next()
         ui.onGo = () => this.tryTurnPage()
         ui.onKeyNext = () => this.keyNext()
+        ui.onIntroGo = () => this.startFromIntro()
         // si el niño toca la pantalla mientras aparecen los objetos, todo termina de aparecer
         ctx.pointer.canvas.addEventListener('pointerdown', () => this.scene?.skipReveal())
     }
@@ -96,6 +97,8 @@ export class StoryController {
         ui.progressAllowed = false
         ui.showProgress(false)
         ui.setProgress(0, 1)
+        this.intro = 'cover' // PORTADA
+        ui.setIntro(true)
         ui.setNarration(`${story.title}. ${story.subtitle}.`)
         ui.setNext(false)
         ui.coverStrip()
@@ -115,6 +118,8 @@ export class StoryController {
         tl.add(env.setMood(page.mood ?? 'afternoon', 3.4) ?? gsap.timeline(), 0)
         // los objetos aparecen cuando el libro termina de abrirse (nunca durante el giro)
         tl.call(() => {
+            this.intro = 'active' // EXPERIENCIA ACTIVA
+            ui.showStory(true)
             this.mode = 'reading'
             this.enterPage()
         }, null, 2.2)
@@ -142,6 +147,8 @@ export class StoryController {
             this.gameProgress.clear()
             // nueva lectura: el temblor fuerte vuelve a estar disponible
             resetOnce()
+            this.intro = 'cover' // PORTADA
+            ui.setIntro(true)
             ui.setProgress(0, 1)
             this.stars = 0
             this.closing = false
@@ -199,7 +206,13 @@ export class StoryController {
     commit(kind, dir) {
         const { ui, env, rig, quake } = this.ctx
         // la música entra con la apertura del libro y se va al cerrarlo
-        if (kind === 'cover') { this.mode = 'opening'; playSfx('pasar-pagina'); startMusic(); return }
+        if (kind === 'cover') {
+            this.mode = 'opening'
+            if (this.ctx.ui.introOn) this.ctx.ui.setIntro(false)
+            playSfx('pasar-pagina')
+            startMusic()
+            return
+        }
         if (kind === 'close') { this.mode = 'closing'; playSfx('pasar-pagina'); stopEffects(); stopMusic(4); return }
         playSfx('pasar-pagina')
         this.beatTl?.progress(1)
@@ -313,17 +326,46 @@ export class StoryController {
 
     /** Teclado: Enter o → avanzan el texto; al final, intentan pasar la página. */
     keyNext() {
-        if (this.mode === 'cover') return this.tryTurnPage()
+        if (this.mode === 'cover') return this.startFromIntro()
         if (this.mode !== 'reading') return
         if (this.blocked) return this.ctx.ui.nudgeMission()
         if (this.beat < this.page.beats.length - 1) return this.next()
         this.tryTurnPage()
     }
 
+    /**
+     * «Abre el libro»: transición PORTADA → TRANSICIÓN → EXPERIENCIA ACTIVA.
+     *  1. la pantalla de inicio se retira (fundido) y el espacio del libro pasa
+     *     a ser el del cuento: el mismo libro 3D se desliza al centro y cambia de
+     *     tamaño con la cámara (CameraRig sigue su meta con suavidad);
+     *  2. ya cerca del centro, la tapa se abre con el sistema de siempre
+     *     (PageTurner) y la cámara viaja al encuadre del cuento (afterOpen).
+     * Un segundo toque no inicia otra transición; si la apertura no puede
+     * empezar, vuelve la portada (nunca queda en un estado intermedio).
+     */
+    startFromIntro() {
+        const { ui, rig, turner } = this.ctx
+        if (this.mode !== 'cover' || this.intro === 'transition' || turner.busy) return
+        this.intro = 'transition' // TRANSICIÓN
+        ui.setIntro(false)
+        rig.ease = 1.7 // desplazamiento pausado y continuo
+        this.introTl?.kill()
+        this.introTl = gsap.timeline()
+            .call(() => {
+                if (this.mode === 'cover' && !turner.auto('cover', 1)) {
+                    // no se pudo abrir: de vuelta a la portada, sin bloquear nada
+                    this.intro = 'cover'
+                    rig.ease = 5
+                    ui.setIntro(true)
+                }
+            }, null, 0.95)
+            .call(() => { rig.ease = 5 }, null, 2.4)
+    }
+
     /** Botón de la barra de página (o teclado). Antes de estar lista: la hoja rebota y la barra se sacude. */
     tryTurnPage() {
         const { ui, turner } = this.ctx
-        if (this.mode === 'cover') return turner.auto('cover', 1)
+        if (this.mode === 'cover') return this.startFromIntro()
         if (this.mode !== 'reading' || turner.busy) return
         if (!ui.ready) {
             ui.denyTurn()

@@ -63,6 +63,8 @@ export class CameraRig {
         this.k = 1          // factor de distancia (suavizado)
         this.shift = new THREE.Vector2()
         this.fresh = true
+        /** Rapidez con que el encuadre sigue a su meta (más bajo = desplazamiento más pausado). */
+        this.ease = 5
 
         window.addEventListener('pointermove', (e) => {
             if (e.pointerType !== 'mouse') return
@@ -105,10 +107,11 @@ export class CameraRig {
         const raw = this.layout?.() ?? { top: GAP, bottom: H - GAP }
         // 4 px más por lado: la respiración y el parallax mueven un poco la cámara
         const r = { top: raw.top + 4, bottom: raw.bottom - 4 }
-        const left = GAP
-        const right = W - GAP
+        // la portada reserva su propio lado (raw.left / raw.right)
+        const left = raw.left ?? GAP
+        const right = raw.right ?? W - GAP
         const maxW = Math.min(right - left, W * (this.portrait ? 0.94 : 1))
-        return { top: r.top, bottom: r.bottom, h: Math.max(40, r.bottom - r.top), cx: W / 2, cy: (r.top + r.bottom) / 2, maxW }
+        return { top: r.top, bottom: r.bottom, h: Math.max(40, r.bottom - r.top), cx: (left + right) / 2, cy: (r.top + r.bottom) / 2, maxW }
     }
 
     /** Rectángulos en pantalla (px) del libro completo y de su suelo, con la cámara actual. */
@@ -157,7 +160,8 @@ export class CameraRig {
         // límites verticales (px): T = borde superior para las paredes,
         // S = debajo de la pila (el suelo empieza aquí), B = encima de la historia.
         // En la portada no hay paredes ni pila: el libro cerrado usa todo el alto.
-        const T = TOP_MARGIN + 4
+        // con el libro cerrado (portada) se respeta el borde de arriba del espacio
+        const T = THREE.MathUtils.lerp(R.top, TOP_MARGIN + 4, this.blend)
         const B = R.bottom
         const S = THREE.MathUtils.lerp(T, R.top, this.blend)
 
@@ -186,7 +190,7 @@ export class CameraRig {
         const hi = Math.min(m.full.t - T, m.seen.t - S)
         const sy = THREE.MathUtils.clamp(centered, lo, Math.max(lo, hi))
 
-        const ease = this.fresh ? 1 : Math.min(1, dt * 5)
+        const ease = this.fresh ? 1 : Math.min(1, dt * this.ease)
         this.fresh = false
         this.k += (k - this.k) * ease
         this.shift.x += (sx - this.shift.x) * ease
