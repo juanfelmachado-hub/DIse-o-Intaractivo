@@ -116,6 +116,7 @@ export class RoomScene extends BaseScene {
             torre: this.towerPos.clone().setY(0.75),
             door: new THREE.Vector3(1.0, 0, 0.55),
         }
+        this.underSpot = this.anchors.under
 
         this.hazards = ['ventana', 'lampara', 'estante', 'cuadro']
         this.wobbleCfg = {

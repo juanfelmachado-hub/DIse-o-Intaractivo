@@ -312,11 +312,24 @@ export class BaseScene {
     }
 
     // ------------------------------------------------------------ loop
+    /** ¿Nico está agachado debajo de la mesa? (las escenas con mesa definen underSpot) */
+    nicoUnderTable() {
+        const n = this.nico
+        const u = this.underSpot
+        if (!u || n.currentPose === 'peek' || n.walking > 0) return false
+        return n.s.crouch > 0.5 && Math.hypot(n.position.x - u.x, n.position.z - u.z) < 0.35
+    }
+
     update(dt, t, quake) {
         this.wind *= Math.pow(0.04, dt)
         for (const p of this.pieces) p.update(dt, 1, t, 0)
 
-        this.nico?.update(dt, t, quake)
+        if (this.nico) {
+            // bajo la mesa, Nico le da la cara a quien lee (no al piso)
+            this.nico.lookCamera = this.ctx.camera
+            this.nico.camLookTarget = this.nicoUnderTable() ? 1 : 0
+            this.nico.update(dt, t, quake)
+        }
         const g = this.guardian
         if (g) {
             if (this.followNico && this.nico && !this.guardianPinned) {
