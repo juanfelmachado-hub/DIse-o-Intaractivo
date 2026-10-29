@@ -46,6 +46,13 @@ export class RadarActivity extends Activity {
         }
         ui.el.radar.hidden = false
         duck('actividad', 0.75) // la música se aparta un poco para que se oiga el bip
+        // instructivo corto: se retira al encontrar el primer peligro o a los 9 s
+        ui.howTo([
+            { icon: 'dedo', text: 'Mueve el dedo' },
+            { icon: 'radar', text: 'Más bip, más cerca' },
+            { icon: 'tocar', text: 'Toca el peligro' },
+        ])
+        this.howToCall = this.after(9, () => ui.hideHowTo())
     }
 
     /** El radar sigue al dedo. */
@@ -94,6 +101,8 @@ export class RadarActivity extends Activity {
         const { ui, camera } = this.ctx
         const scene = this.scene
         this.found.add(id)
+        this.howToCall?.kill()
+        ui.hideHowTo()
         scene.wobble(id)
         const m = scene.markers[id]
         m.getWorldPosition(w)
@@ -203,6 +212,8 @@ export class RadarActivity extends Activity {
     cleanup() {
         super.cleanup()
         unduck('actividad')
+        this.howToCall?.kill()
+        this.ctx.ui.hideHowTo()
         this.ctx.ui.el.radar.hidden = true
     }
 

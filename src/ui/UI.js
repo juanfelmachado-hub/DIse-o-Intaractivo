@@ -208,6 +208,24 @@ export class UI {
         if (hint) playSfx('pista')
     }
 
+    /**
+     * Instructivo corto de un juego dentro del cuadro de indicaciones (no suma
+     * cuadros): pasos con ícono. steps = [{ icon, text }].
+     */
+    howTo(steps, title = 'Cómo se juega') {
+        clearTimeout(this.talkTimer)
+        const items = steps.map((s) => `<li><i class="howto__icon" aria-hidden="true">${missionIcons[s.icon] ?? ''}</i><span>${escapeHTML(s.text)}</span></li>`).join('')
+        this.talk = { speaker: 'guardian', text: `howto|${title}|${steps.map((s) => s.text).join('|')}`, html: `<span class="sr-only">${escapeHTML(title)}: </span><ol class="howto">${items}</ol>` }
+        this.renderStack(0)
+    }
+
+    /** Retira el instructivo: vuelve la indicación de la actividad. */
+    hideHowTo() {
+        if (!this.talk?.html) return
+        this.talk = null
+        this.renderStack(0)
+    }
+
     hideDialog() {
         clearTimeout(this.talkTimer)
         this.talk = null
@@ -289,7 +307,8 @@ export class UI {
                 d.dataset.key = key
                 d.dataset.speaker = talk.speaker
                 this.el.dialogName.textContent = story.characters[talk.speaker]?.name ?? talk.speaker
-                this.el.dialogText.innerHTML = richText(talk.text)
+                this.el.dialogText.innerHTML = talk.html ?? richText(talk.text)
+                d.classList.toggle('has-howto', !!talk.html)
                 const img = this.avatarImages[talk.speaker]
                 this.el.avatar.style.backgroundImage = img ? `url(${img})` : `url("data:image/svg+xml,${encodeURIComponent(avatars[talk.speaker] ?? '')}")`
             }

@@ -154,6 +154,19 @@ strong, .kw { font-weight: 700; }
     background-size: cover; background-position: center;
 }
 
+/* Instructivo corto de un juego (dentro del cuadro de indicaciones) */
+.stack-top:has(.has-howto) { width: min(700px, calc(100% - 2 * var(--gap))); }
+.howto {
+    display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 0; list-style: none;
+    font-size: 22px; font-weight: 500; line-height: 1.25;
+}
+.howto li { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.howto__icon {
+    flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--naranja); display: grid; place-items: center;
+}
+.howto__icon svg { width: 62%; height: 62%; }
+
 /* Botón de la tortuga (juego 3): dentro de las indicaciones, grande y claro */
 .turtle-btn {
     flex: 0 0 auto;

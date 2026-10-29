@@ -62,6 +62,12 @@ export const missionIcons = {
     patio: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="4" stroke-linecap="round">
         <path d="M24 34s-10-9-10-17a10 10 0 0 1 20 0c0 8-10 17-10 17z" fill="${T}" stroke="none"/>
         <ellipse cx="24" cy="38" rx="11" ry="4"/></svg>`,
+    // Instructivo del radar: un dedo que se mueve por la escena
+    dedo: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 26V10a3.5 3.5 0 0 1 7 0v12l7 1.6a4 4 0 0 1 3 4.6L35.5 38H20l-6-8a3 3 0 0 1 4.5-4z"/><path d="M8 10h5M8 18h4" stroke-width="3.5"/></svg>`,
+    // Instructivo del radar: tocar el peligro (una lámpara que se balancea)
+    tocar: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M24 5v9"/><path d="M12 28c0-7 5-13 12-13s12 6 12 13z" fill="${T}"/><path d="M19 34a5 5 0 0 0 10 0"/><path d="M6 20l-2-3M42 20l2-3M8 30H4M40 30h4" stroke-width="3.5"/></svg>`,
     // Actividad terminada: estrella tinta llena (sobre el círculo dorado)
     estrella: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 5l5.8 11.8 13 1.9-9.4 9.2 2.2 12.9L24 34.7l-11.6 6.1 2.2-12.9-9.4-9.2 13-1.9z" fill="${T}" stroke="${T}" stroke-width="2" stroke-linejoin="round"/></svg>`,
     tambor: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linejoin="round">
