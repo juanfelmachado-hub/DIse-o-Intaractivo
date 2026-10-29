@@ -15,7 +15,7 @@ import gsap from 'gsap'
 import { Activity } from './Activity.js'
 import { sparkle, glint } from '../animations/motions.js'
 import { starSprite } from '../models/kit.js'
-import { playSfx } from '../audio/sfx.js'
+import { playSfx, duck, unduck } from '../audio/sfx.js'
 
 const STICKERS = ['#ea5b4f', '#f08a45', '#5eaff2', '#cf94f2']
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
@@ -45,6 +45,7 @@ export class RadarActivity extends Activity {
             if (obj) pointer.addClickable(obj, () => this.safeTap(id, obj))
         }
         ui.el.radar.hidden = false
+        duck('actividad', 0.75) // la música se aparta un poco para que se oiga el bip
     }
 
     /** El radar sigue al dedo. */
@@ -82,7 +83,8 @@ export class RadarActivity extends Activity {
             el.classList.remove('is-ping')
             void el.offsetWidth
             el.classList.add('is-ping')
-            playSfx('radar')
+            // el bip suena más presente cuanto más cerca está el peligro
+            playSfx('radar', { level: 0.2 + 0.8 * this.prox })
         }
     }
 
@@ -137,6 +139,7 @@ export class RadarActivity extends Activity {
         const { ui, env, camera, pointer, hotspots } = this.ctx
         const scene = this.scene
         this.allFound = true
+        unduck('actividad')
         pointer.tracker = null
         ui.el.radar.hidden = true
         env.setMood('rumble', 1.2)
@@ -199,6 +202,7 @@ export class RadarActivity extends Activity {
 
     cleanup() {
         super.cleanup()
+        unduck('actividad')
         this.ctx.ui.el.radar.hidden = true
     }
 

@@ -17,6 +17,7 @@ import gsap from 'gsap'
 import { clone as cloneRig } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { geo, mat, add, glowSprite, starSprite } from '../kit.js'
 import { assets } from '../assets.js'
+import { playSfx } from '../../audio/sfx.js'
 
 const BODY_WIDTH = 0.3 // ancho con los bracitos (el mismo tamaño del Guardián anterior)
 let TEMPLATE = null
@@ -168,6 +169,7 @@ export class Guardian extends THREE.Group {
 
     /** Aparece desde el pecho de Nico con un giro en espiral. */
     appear(from, to) {
+        playSfx('guardian-llama') // se acerca a Nico: sonido suave de llegada
         this.position.copy(from)
         this.home.copy(to)
         this.appearT = 0

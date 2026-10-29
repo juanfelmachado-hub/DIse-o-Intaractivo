@@ -21,7 +21,7 @@ import { story } from '../data/story.js'
 import { createScene } from '../scenes/index.js'
 import { createActivity } from '../activities/index.js'
 import { makePageTexture } from '../book/PageArt.js'
-import { playSfx, startAmbience, stopAmbience, resetOnce } from '../audio/sfx.js'
+import { playSfx, startMusic, stopMusic, strongQuake, stopEffects, resetOnce } from '../audio/sfx.js'
 
 export class StoryController {
     constructor(ctx) {
@@ -96,8 +96,6 @@ export class StoryController {
         ui.progressAllowed = false
         ui.showProgress(false)
         ui.setProgress(0, 1)
-        // al inicio: pajaritos de fondo (empiezan con el primer toque del lector)
-        startAmbience('pajaros')
         ui.setNarration(`${story.title}. ${story.subtitle}.`)
         ui.setNext(false)
         ui.coverStrip()
@@ -142,9 +140,8 @@ export class StoryController {
             this.visited.clear()
             this.maxBeat.clear()
             this.gameProgress.clear()
-            // nueva lectura: vuelven los pajaritos y el primer temblor vuelve a sonar
+            // nueva lectura: el temblor fuerte vuelve a estar disponible
             resetOnce()
-            startAmbience('pajaros')
             ui.setProgress(0, 1)
             this.stars = 0
             this.closing = false
@@ -189,6 +186,7 @@ export class StoryController {
         book.stage.add(this.incoming.group)
         this.scene?.hide()
         this.stopActivity()
+        stopEffects() // nada de la escena anterior sigue sonando
         ui.hideDialog()
         ui.hideMission()
         ui.setTurning(true)
@@ -200,8 +198,9 @@ export class StoryController {
 
     commit(kind, dir) {
         const { ui, env, rig, quake } = this.ctx
-        if (kind === 'cover') { this.mode = 'opening'; playSfx('pasar-pagina'); return }
-        if (kind === 'close') { this.mode = 'closing'; playSfx('pasar-pagina'); return }
+        // la música entra con la apertura del libro y se va al cerrarlo
+        if (kind === 'cover') { this.mode = 'opening'; playSfx('pasar-pagina'); startMusic(); return }
+        if (kind === 'close') { this.mode = 'closing'; playSfx('pasar-pagina'); stopEffects(); stopMusic(4); return }
         playSfx('pasar-pagina')
         this.beatTl?.progress(1)
         ui.clearAll()
@@ -288,10 +287,9 @@ export class StoryController {
         if (b.quake !== undefined) {
             const [value, duration] = Array.isArray(b.quake) ? b.quake : [b.quake, 1.2]
             quake.to(value, duration)
-            // los pajaritos se callan con el primer gruñido del piso
-            if (value > 0.1) stopAmbience(1.5)
-            // "¡La casa empezó a temblar!": el terremoto suena solo la primera vez en cada lectura
-            if (value >= 0.5) playSfx('temblor')
+            // el colchón "temblor INICIANDO" sigue solo a la intensidad (Experience);
+            // "¡La casa empezó a temblar!" es el único momento del temblor fuerte
+            if (value >= 0.7) strongQuake()
         }
         if (b.mood) env.setMood(b.mood, 2.5)
         this.beatTl = this.scene ? this.scene.runSequence(b.do ?? []) : null

@@ -15,7 +15,7 @@ import { Activity } from './Activity.js'
 import { sparkle, popWord } from '../animations/motions.js'
 import { geo, mat, add } from '../models/kit.js'
 import { palette } from '../data/theme.js'
-import { playSfx } from '../audio/sfx.js'
+import { playSfx, duck, unduck, setQuakeBedScale } from '../audio/sfx.js'
 
 const SOFT = [palette.pink, palette.lilac, palette.blue, palette.yellow, palette.mint, palette.orange]
 const w = new THREE.Vector3()
@@ -46,6 +46,9 @@ export class DrumActivity extends Activity {
         this.spawned = 0
         this.missed = 0
         quake.to(0.45, 1)
+        // el tambor manda: música y temblor se apartan con suavidad
+        duck('actividad', 0.55, 1)
+        setQuakeBedScale(0.45)
 
         // punto sobre el caparazón (la espalda de Nico agachado)
         this.shell = new THREE.Object3D()
@@ -174,6 +177,8 @@ export class DrumActivity extends Activity {
 
     cleanup() {
         super.cleanup()
+        unduck('actividad', 2)
+        setQuakeBedScale(1)
         const { ui } = this.ctx
         ui.el.drum.hidden = true
         ui.el.drum.onclick = null

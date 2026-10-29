@@ -12,6 +12,7 @@ import { Book } from '../book/Book.js'
 import { PageTurner } from '../book/PageTurner.js'
 import { setAnisotropy } from '../book/PageArt.js'
 import { renderPortraits } from '../book/CoverArt.js'
+import { setQuake } from '../audio/sfx.js'
 import { setSfxHandler } from '../animations/motions.js'
 import { Guardian } from '../models/characters/Guardian.js'
 import { UI } from '../ui/UI.js'
@@ -115,6 +116,7 @@ export class Experience {
 
         gsap.updateRoot(time / 1000)
         this.quake.update(dt)
+        setQuake(this.quake.intensity) // el colchón del temblor sigue a la escena
         this.env.update(dt, t, this.quake, this.camera)
         this.book.update(dt, t, this.quake, this.rig.parallax)
         this.turner.update(dt)

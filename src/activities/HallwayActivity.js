@@ -205,8 +205,7 @@ export class HallwayActivity extends Activity {
         pointer.clear()
         hotspots.clear()
         this.stop()
-        quake.to(0.28, 0.4)
-        playSfx('temblor')
+        quake.to(0.28, 0.4) // la réplica: el colchón del temblor entra con ella
         // las antenas del Guardián parpadean
         scene.guardian?.pulse(3)
         this.mission(this.data.turtle)
