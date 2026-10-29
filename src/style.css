@@ -127,7 +127,7 @@ strong, .kw { font-weight: 700; }
     padding: 4px 16px 4px 6px;
     cursor: pointer;
 }
-.box--activity-tab .box__text { font-size: 16px; white-space: nowrap; text-align: center; }
+.box--activity-tab .box__text { font-size: 22px; white-space: nowrap; text-align: center; }
 .mission__icon {
     flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%;
     background: var(--naranja); display: grid; place-items: center;
@@ -146,7 +146,7 @@ strong, .kw { font-weight: 700; }
 .box--activity-tab:not([hidden]) + .box--dialog-main { padding-top: 22px; }
 .box--dialog-main[data-speaker="guardian"] { --bg: var(--morado-claro); --line-color: var(--tinta); }
 .box--dialog-main[data-speaker="nico"]     { --bg: var(--azul-claro);   --line-color: var(--azul); }
-.box--dialog-main .box__text { flex: 1 1 auto; min-width: 0; font-size: 16px; line-height: 1.45; transition: opacity .2s ease; }
+.box--dialog-main .box__text { flex: 1 1 auto; min-width: 0; font-size: 22px; line-height: 1.4; transition: opacity .2s ease; }
 .box--dialog-main.is-swapping .box__text { opacity: 0; }
 .avatar {
     flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%;
@@ -158,7 +158,7 @@ strong, .kw { font-weight: 700; }
 .stack-top:has(.has-howto) { width: min(700px, calc(100% - 2 * var(--gap))); }
 .howto {
     display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 0; padding: 0; list-style: none;
-    font-size: 16px; font-weight: 500; line-height: 1.3;
+    font-size: 22px; font-weight: 500; line-height: 1.25;
 }
 .howto li { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .howto__icon {
@@ -187,7 +187,7 @@ strong, .kw { font-weight: 700; }
 .story-box {
     /* el libro es el protagonista: el cuadro es un poco más ancho y más bajo
        para que el texto quepa en menos líneas y deje más alto al libro */
-    --h: clamp(92px, 12vh, 124px); /* proporcionado al texto de 18 px */
+    --h: clamp(104px, 14vh, 144px); /* proporcionado al texto de 24 px */
     position: absolute; left: 50%; bottom: calc(var(--gap) + env(safe-area-inset-bottom, 0px)); z-index: 6;
     transform: translateX(-50%);
     width: min(max(54%, 640px), calc(100% - 2 * var(--gap)));
@@ -198,7 +198,7 @@ strong, .kw { font-weight: 700; }
     border: var(--line) solid var(--dorado); border-radius: var(--radius);
     font-family: var(--font);
 }
-.story-box__text { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 18px; line-height: 1.5; text-align: left; text-wrap: pretty; }
+.story-box__text { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 24px; line-height: 1.45; text-align: left; text-wrap: pretty; }
 .story-box__next {
     flex: 0 0 auto; width: calc(var(--h) * .57); height: calc(var(--h) * .57);
     border-radius: 50%; border: 0; padding: 0;
@@ -414,7 +414,7 @@ strong, .kw { font-weight: 700; }
     .stack-top { width: 92%; }
     .box--activity-tab { width: 60%; }
     /* en un teléfono las guías de limpieza se reducen para que el texto respire */
-    .story-box { --h: 92px; width: 92%; padding: 14px 14px 14px 20px; gap: 12px; }
+    .story-box { --h: 104px; width: 92%; padding: 14px 14px 14px 20px; gap: 12px; }
 }
 
 /* Reducir movimiento: solo desvanecimientos */
