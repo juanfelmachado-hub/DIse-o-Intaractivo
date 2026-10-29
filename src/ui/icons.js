@@ -39,28 +39,38 @@ export const stepIcons = {
     </svg>`,
 }
 
-/** Íconos de la tarjeta de misión (Guía visual §7.6): trazo tinta sobre el círculo naranja. */
-const T = '#2B1B4D'
+/**
+ * Íconos de la actividad (Guía visual v2 §6.4): círculo naranja (o dorado al
+ * terminar) con un dibujo simple en tinta, de línea gruesa y esquinas redondeadas.
+ */
+const T = '#1E1B3A'
 export const missionIcons = {
-    radar: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linecap="round">
-        <circle cx="24" cy="30" r="4" fill="${T}"/><path d="M16 22a11 11 0 0 1 16 0M10 16a19 19 0 0 1 28 0"/></svg>`,
+    // Busca peligros: ondas de señal hacia arriba
+    radar: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="4.5" stroke-linecap="round">
+        <circle cx="24" cy="34" r="4" fill="${T}" stroke="none"/><path d="M15.5 25.5a12 12 0 0 1 17 0M8.5 18.5a22 22 0 0 1 31 0"/></svg>`,
+    // A la mesa: mesa de frente con un punto debajo
+    mesa: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 14h34M11 14v22M37 14v22"/><circle cx="24" cy="28" r="4.5" fill="${T}" stroke="none"/></svg>`,
+    // Zapatos: un zapato de lado
+    zapatos: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 12v22h31c0-5-4-8-10-9l-6-3V12z"/></svg>`,
+    // Despacio: dos pares de huellas pequeñas
+    camino: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="${T}">
+        <ellipse cx="15" cy="33" rx="4.5" ry="6.5"/><circle cx="12" cy="23.5" r="1.9"/><circle cx="17.5" cy="23.5" r="1.9"/>
+        <ellipse cx="32" cy="17" rx="4.5" ry="6.5"/><circle cx="29" cy="7.5" r="1.9"/><circle cx="34.5" cy="7.5" r="1.9"/></svg>`,
+    // Lugar seguro: pin de ubicación con un anillo en la base
+    patio: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="4" stroke-linecap="round">
+        <path d="M24 34s-10-9-10-17a10 10 0 0 1 20 0c0 8-10 17-10 17z" fill="${T}" stroke="none"/>
+        <ellipse cx="24" cy="38" rx="11" ry="4"/></svg>`,
+    // Actividad terminada: estrella tinta llena (sobre el círculo dorado)
+    estrella: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 5l5.8 11.8 13 1.9-9.4 9.2 2.2 12.9L24 34.7l-11.6 6.1 2.2-12.9-9.4-9.2 13-1.9z" fill="${T}" stroke="${T}" stroke-width="2" stroke-linejoin="round"/></svg>`,
     tambor: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linejoin="round">
         <ellipse cx="24" cy="18" rx="14" ry="6"/><path d="M10 18v13c0 3.3 6.3 6 14 6s14-2.7 14-6V18"/><path d="M14 9l8 8M34 9l-8 8" stroke-linecap="round"/></svg>`,
-    zapatos: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linejoin="round">
-        <path d="M8 34V16h10l3 8c5 1 13 2 17 6 2 2 1 4-1 4H8z"/><path d="M8 29h31" stroke-linecap="round"/></svg>`,
-    camino: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="${T}">
-        <ellipse cx="16" cy="32" rx="5" ry="7"/><ellipse cx="31" cy="16" rx="5" ry="7"/>
-        <circle cx="13" cy="22" r="2"/><circle cx="19" cy="22.5" r="2"/><circle cx="28" cy="6.5" r="2"/><circle cx="34" cy="7" r="2"/></svg>`,
-    patio: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linecap="round">
-        <ellipse cx="24" cy="32" rx="16" ry="6"/><circle cx="24" cy="18" r="5" fill="${T}"/><path d="M24 23v8"/></svg>`,
-    mesa: `<svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="3.5" stroke-linecap="round">
-        <path d="M6 16h36M11 16v22M37 16v22"/><circle cx="24" cy="31" r="5" fill="${T}"/></svg>`,
-    estrella: `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 6l5.6 11.4 12.4 1.8-9 8.8 2.1 12.4L24 34.5l-11.1 5.9L15 28l-9-8.8 12.4-1.8z" fill="${T}"/></svg>`,
     turtle: `<svg viewBox="0 0 64 48" aria-hidden="true">
         <ellipse cx="32" cy="30" rx="20" ry="13" fill="${T}"/>
         <circle cx="55" cy="30" r="6" fill="${T}"/>
         <ellipse cx="19" cy="42" rx="5" ry="3" fill="${T}"/><ellipse cx="45" cy="42" rx="5" ry="3" fill="${T}"/>
-        <path d="M22 30h20M32 20v20" stroke="#FFE7CC" stroke-width="2.5"/></svg>`,
+        <path d="M22 30h20M32 20v20" stroke="#DDF5E8" stroke-width="2.5"/></svg>`,
     cover: `<svg viewBox="0 0 64 48" aria-hidden="true" fill="none" stroke="${T}" stroke-width="5" stroke-linecap="round">
         <circle cx="32" cy="30" r="10" fill="${T}" stroke="none"/><path d="M12 32C14 16 22 10 32 10s18 6 20 22"/></svg>`,
     hold: `<svg viewBox="0 0 64 48" aria-hidden="true" fill="${T}">

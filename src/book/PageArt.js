@@ -17,7 +17,14 @@ import { story } from '../data/story.js'
 const W = 768
 const H = 1024
 // una sola familia tipográfica en todo el libro (Instructivo de texto y diálogos)
-const FONT = "'Fredoka', 'Trebuchet MS', sans-serif"
+const FONT = "'Fredoka', 'Baloo 2', 'Andika', sans-serif"
+// Guía visual v2 §5: tinta, dorado, crema y naranja
+const INK = '#1E1B3A'
+const GOLD = '#FAB612'
+const CREAM = '#F2EAD6'
+const ORANGE = '#F28A2E'
+/** Ancho de Fredoka (eje wdth) cuando el navegador lo admite en canvas. */
+function stretch(g, value) { if ('fontStretch' in g) g.fontStretch = value }
 
 let maxAnisotropy = 4
 export function setAnisotropy(value) { maxAnisotropy = Math.min(8, value) }
@@ -246,18 +253,20 @@ export function makePageTexture(page, side) {
         g.beginPath()
         g.arc(outer + 22, base - 13, 9, 0, Math.PI * 2)
         g.fill()
-        g.fillStyle = palette.ink
-        g.font = `600 40px ${FONT}`
+        g.fillStyle = INK
+        g.font = `700 42px ${FONT}`
+        stretch(g, 'semi-expanded')
         g.textAlign = 'left'
         g.fillText(page.title, outer + 44, base, W - outer - 140)
+        stretch(g, 'normal')
     }
     if (side === 'right' && page.number !== undefined) {
         const cx = W - outer - 34
-        g.fillStyle = accent
+        g.fillStyle = ORANGE
         g.beginPath()
         g.arc(cx, base - 13, 32, 0, Math.PI * 2)
         g.fill()
-        g.fillStyle = '#fff'
+        g.fillStyle = INK
         g.font = `700 36px ${FONT}`
         g.textAlign = 'center'
         g.fillText(String(page.number), cx, base)
@@ -438,7 +447,8 @@ export function makeCoverTexture(title, label = null) {
     g.textAlign = 'center'
     g.textBaseline = 'alphabetic'
     g.lineJoin = 'round'
-    const ink = '#2b1b4d'
+    const ink = INK
+    stretch(g, 'semi-expanded') // título: peso 700, ancho 112
     const fit = (text, size, weight) => {
         g.font = `${weight} ${size}px ${FONT}`
         const maxW = CW - 150
@@ -450,17 +460,16 @@ export function makeCoverTexture(title, label = null) {
         g.fillStyle = 'rgba(43,27,77,.35)'
         g.fillText(text, cx, y + size * 0.07)
         g.strokeStyle = ink
-        g.lineWidth = size * 0.13
+        g.lineWidth = Math.max(8, size * 0.11)
         g.strokeText(text, cx, y)
         g.fillStyle = fill
         g.fillText(text, cx, y)
     }
-    word(l1, 86, 138, '#fff6e0')
-    const tg = g.createLinearGradient(0, 160, 0, 300)
-    tg.addColorStop(0, '#ffe58a')
-    tg.addColorStop(1, '#ffc247')
-    word(l2, 168, 290, tg)
-    word(l3, 96, 384, '#fff6e0')
+    // título del cuento en dorado con contorno tinta
+    word(l1, 86, 138, GOLD)
+    word(l2, 168, 290, GOLD)
+    word(l3, 96, 384, GOLD)
+    stretch(g, 'normal')
 
     // subtítulo del cuento en una cinta crema
     if (story.subtitle) {
@@ -474,12 +483,12 @@ export function makeCoverTexture(title, label = null) {
         lines.push(line)
         const bw = Math.max(...lines.map((l) => g.measureText(l).width)) + 56
         const bh = lines.length * 40 + 26
-        g.fillStyle = 'rgba(255,246,224,.95)'
-        roundRect(g, cx - bw / 2, 418, bw, bh, 24)
+        g.fillStyle = CREAM
+        roundRect(g, cx - bw / 2, 418, bw, bh, 15)
         g.fill()
         g.strokeStyle = ink
         g.lineWidth = 3
-        roundRect(g, cx - bw / 2, 418, bw, bh, 24)
+        roundRect(g, cx - bw / 2, 418, bw, bh, 15)
         g.stroke()
         g.fillStyle = ink
         lines.forEach((l, i) => g.fillText(l, cx, 418 + 44 + i * 40))

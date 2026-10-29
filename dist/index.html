@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Nico y su guardián personal</title>
     <meta name="description" content="Cuento interactivo en 3D: Nico y su Guardián aprenden a protegerse cuando la tierra se mueve.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <script type="module" crossorigin src="./assets/index-CwhibWBX.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DwrH-ucU.css">
+    <!-- Fredoka variable (pesos 300–700, ancho 75–125), alojada en la propia web (Guía visual §3.1) -->
+    <link rel="preload" href="./assets/Fredoka-Variable-tvVNXCOf.woff2" as="font" type="font/woff2" crossorigin>
+  <script type="module" crossorigin src="./assets/index-Bc9B-XRy.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BzpGikUr.css">
 </head>
 <body>
     <!-- Pantalla de carga (estilo cuadrícula del moodboard) -->
@@ -20,61 +19,45 @@
         <p class="loader__text">Abriendo el cuento…</p>
     </div>
 
-    <!-- Guía visual §7.1: escena (con las zonas de diálogo y misión encima),
-         barra de página debajo del libro y banda narrativa abajo -->
-    <div class="app">
-        <main class="scene" data-scene>
-            <canvas class="webgl" aria-label="Libro ilustrado en 3D"></canvas>
+    <!-- Guía visual v2 §4.1 y §7: la escena ocupa toda la pantalla. Arriba, la
+         pila centrada (actividad + indicaciones/diálogo); abajo, sobre la
+         hierba, el cuadro de la historia. Ningún cuadro toca el libro. -->
+    <main class="scene" data-scene>
+        <canvas class="webgl" aria-label="Libro ilustrado en 3D"></canvas>
 
-            <!-- Marcadores tocables (accesibles con teclado) sobre objetos 3D -->
-            <div class="hotspots" data-hotspots></div>
-            <!-- El Guardián le habla al lector: velo de atención -->
-            <div class="veil" data-veil aria-hidden="true"></div>
-            <!-- Juego 1: el radar sigue al dedo -->
-            <div class="radar" data-radar hidden aria-hidden="true"><span></span></div>
-            <!-- Juego 2: el círculo dorado que late sobre el caparazón -->
-            <button class="drum" data-drum type="button" hidden aria-label="Tocar el tambor al ritmo"></button>
+        <!-- Marcadores tocables (accesibles con teclado) sobre objetos 3D -->
+        <div class="hotspots" data-hotspots></div>
+        <!-- El Guardián le habla al lector: velo de atención -->
+        <div class="veil" data-veil aria-hidden="true"></div>
+        <!-- Juego 1: el radar sigue al dedo -->
+        <div class="radar" data-radar hidden aria-hidden="true"><span></span></div>
+        <!-- Juego 2: el círculo dorado que late sobre el caparazón -->
+        <button class="drum" data-drum type="button" hidden aria-label="Tocar el tambor al ritmo"></button>
 
-            <div class="zones">
-                <!-- IZQUIERDA: quién habla -->
-                <aside class="zone zone--dialog">
-                    <article class="card card--dialog" data-dialog data-speaker="guardian" hidden aria-live="polite">
-                        <div class="avatar" data-avatar aria-hidden="true"></div>
-                        <p class="card__name"><span data-dialog-name>Guardián</span><span class="sr-only"> dice:</span></p>
-                        <p class="card__text" data-dialog-text></p>
-                    </article>
-                </aside>
-                <!-- DERECHA: qué debe hacer -->
-                <aside class="zone zone--mission">
-                    <article class="card card--mission" data-mission data-state="idle" hidden role="status">
-                        <div class="mission__icon" data-mission-icon aria-hidden="true"></div>
-                        <p class="card__text"><span class="sr-only">Misión: </span><span data-mission-text></span></p>
-                    </article>
-                    <button class="turtle-btn" data-turtle type="button" hidden aria-label="Tortuga: agacharse y cubrirse"></button>
-                </aside>
-            </div>
+        <!-- ARRIBA: nivel 1 actividad (pestaña) y nivel 2 indicaciones o diálogo -->
+        <div class="stack-top" data-stack>
+            <article class="box box--activity box--activity-tab" data-mission data-state="idle" hidden role="status">
+                <div class="mission__icon" data-mission-icon aria-hidden="true"></div>
+                <p class="box__text t-mission"><span class="sr-only">Actividad: </span><span data-mission-text></span></p>
+            </article>
+            <article class="box box--dialog-main" data-dialog data-speaker="guardian" hidden aria-live="polite">
+                <div class="avatar" data-avatar aria-hidden="true"></div>
+                <p class="box__text t-dialog"><span class="sr-only"><span data-dialog-name>Guardián</span> dice: </span><span data-dialog-text></span></p>
+                <button class="turtle-btn" data-turtle type="button" hidden aria-label="Tortuga: agacharse y cubrirse"></button>
+            </article>
+        </div>
 
-            <!-- Sonidos escritos -->
-            <div class="sfx-layer" data-sfx aria-hidden="true"></div>
-        </main>
+        <!-- Sonidos escritos -->
+        <div class="sfx-layer" data-sfx aria-hidden="true"></div>
 
-        <!-- DEBAJO DEL LIBRO: cuándo se puede pasar la página -->
-        <nav class="page-strip" data-strip data-state="pending" aria-label="Avance de la página">
-            <p class="page-strip__label" data-strip-label aria-live="polite">Sigue explorando</p>
-            <ol class="page-strip__steps" data-strip-steps aria-hidden="true"></ol>
-            <button class="page-strip__go" data-strip-go type="button" aria-disabled="true" aria-label="Pasar la página">
-                <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-        </nav>
-
-        <!-- ABAJO: narración -->
-        <section class="story-bar" data-story-bar role="region" aria-label="Texto de la historia">
-            <p class="story-bar__text" data-story-text aria-live="polite"></p>
-            <button class="story-bar__next" data-story-next type="button" aria-label="Siguiente" aria-disabled="true">
-                <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <!-- ABAJO: nivel 3, la historia y el botón siguiente (también pasa la página) -->
+        <section class="story-box" data-story-bar role="region" aria-label="Texto de la historia">
+            <p class="story-box__text t-body" data-story-text aria-live="polite"></p>
+            <button class="story-box__next" data-story-next type="button" aria-label="Siguiente" aria-disabled="true">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
         </section>
-    </div>
+    </main>
 
 </body>
 </html>

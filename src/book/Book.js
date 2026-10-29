@@ -87,6 +87,16 @@ export class Book {
             new THREE.MeshStandardMaterial({ roughness: 0.55, map: makeCoverTexture(story.title) }),
         )
         this.coverArt.rotation.x = -Math.PI / 2
+        // portada editada a mano (Photoshop): static/textures/portada.png, 768×1024 o
+        // cualquier tamaño 3:4. Si no existe, se usa la portada generada.
+        new THREE.TextureLoader().load('textures/portada.png', (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace
+            tex.anisotropy = 8
+            const old = this.coverArt.material.map
+            this.coverArt.material.map = tex
+            this.coverArt.material.needsUpdate = true
+            old?.dispose()
+        }, undefined, () => {})
         this.coverArt.position.set((PW + M) / 2, BLOCK_T + COVER_T + 0.002, 0)
         this.leftHinge.add(front, lBlock, this.leftPage, this.coverArt)
 

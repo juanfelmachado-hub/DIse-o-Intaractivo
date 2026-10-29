@@ -1,18 +1,15 @@
 /**
- * Interfaz HTML según la "Guía visual" (§3, §7 y §8).
+ * Interfaz HTML según la "Guía visual" v2 (§6 y §7).
  *
- *  - Banda narrativa (abajo): el texto de la historia y el botón "siguiente",
- *    que solo avanza momentos (nunca cambia de página).
- *  - Tarjeta de diálogo (izquierda): Nico o el Guardián, con avatar y nombre.
- *    Un diálogo a la vez; las pistas de los juegos también van aquí.
- *  - Tarjeta de misión (derecha): lo que el niño debe hacer. Se compacta al
- *    jugar y pasa a verde con "¡Lo lograste!" al terminar.
- *  - Sonidos escritos: en la escena, junto a lo que suena.
- *  - Barra de página (debajo del libro): un segmento por tarea; dorada y con
- *    pulso cuando la página está lista.
- *
- * Nunca más de dos contenedores con texto completo a la vez: la banda cuenta
- * como uno, así que si hay diálogo y misión, la misión va compacta.
+ * Tres niveles, en una pila centrada que nunca toca el libro:
+ *  1. Actividad (arriba, pestaña): ícono + nombre corto. Pasa a verde con
+ *     "¡Lo lograste!" al terminar. Nunca aparece sola: siempre la acompaña el
+ *     cuadro de indicaciones.
+ *  2. Indicaciones o diálogo (debajo): lo que dice el Guardián (qué hacer y las
+ *     pistas) o lo que dice Nico. Un solo diálogo a la vez; al cambiar quien
+ *     habla, el cuadro cambia de color sin moverse.
+ *  3. Historia (abajo, debajo del libro): el narrador y el botón siguiente.
+ *     El mismo botón pasa la página cuando la página está lista.
  * La UI no conoce la historia: el StoryController le dice qué mostrar.
  */
 import * as THREE from 'three'
@@ -36,6 +33,7 @@ function richText(text) {
 }
 
 function enter(el, delay = 0) {
+    clearTimeout(el._leaveTimer)
     el.hidden = false
     el.classList.remove('is-leaving')
     el.style.setProperty('--delay', `${delay}ms`)
@@ -60,10 +58,8 @@ export class UI {
             missionIcon: $('[data-mission-icon]'),
             missionText: $('[data-mission-text]'),
             turtle: $('[data-turtle]'),
-            strip: $('[data-strip]'),
-            stripLabel: $('[data-strip-label]'),
-            stripSteps: $('[data-strip-steps]'),
-            go: $('[data-strip-go]'),
+            stack: $('[data-stack]'),
+            storyBox: $('[data-story-bar]'),
             sfx: $('[data-sfx]'),
             hotspots: $('[data-hotspots]'),
             veil: $('[data-veil]'),
@@ -72,22 +68,35 @@ export class UI {
         }
         this.avatarImages = {}
         this.mission = null // { icon, text, short }
-        this.missionPlaying = false
-        this.missionExpanded = false
+        this.talk = null    // { speaker, text } diálogo o pista explícitos
+        this.success = false
+        this.canAdvance = false
+        this.turning = false
         this.pageTasks = []
         this.done = new Set()
         this.stripMode = 'page'
         this.onNext = null
         this.onGo = null
         this.el.turtle.innerHTML = missionIcons.turtle
+        // espacio libre para el libro: se mide solo cuando cambian los cuadros
+        this.space = null
+        if (window.ResizeObserver) {
+            const ro = new ResizeObserver(() => { this.space = null })
+            ro.observe(this.el.stack)
+            ro.observe(this.el.storyBox)
+            ro.observe(this.el.scene)
+        }
+        window.addEventListener('resize', () => { this.space = null })
 
         this.el.next.addEventListener('click', () => {
-            if (this.el.next.getAttribute('aria-disabled') === 'true') return this.nudgeMission()
-            playSfx('siguiente')
-            this.onNext?.()
+            const role = this.el.next.dataset.role
+            if (role === 'next') { playSfx('siguiente'); return this.onNext?.() }
+            if (role === 'turn') return this.onGo?.()
+            // aún no se puede avanzar: se señala lo que falta
+            if (this.mission) this.nudgeMission()
+            else this.onGo?.()
         })
-        this.el.go.addEventListener('click', () => this.onGo?.())
-        // la misión compacta vuelve a crecer si el niño la toca
+        // tocar la actividad recuerda qué hay que hacer
         this.el.mission.addEventListener('click', () => this.expandMission())
         // Teclado (§12): Enter o flecha derecha avanzan el texto
         window.addEventListener('keydown', (e) => {
@@ -130,107 +139,153 @@ export class UI {
     }
 
     setNext(enabled) {
-        this.el.next.setAttribute('aria-disabled', String(!enabled))
+        this.canAdvance = enabled
+        this.refreshNext()
     }
 
-    // ------------------------------------------------------------ diálogo (izquierda)
+    /** El botón siguiente avanza un momento o, con la página lista, la pasa. */
+    refreshNext() {
+        const b = this.el.next
+        const turn = !this.turning && (this.stripMode === 'cover' || this.ready)
+        const role = this.canAdvance ? 'next' : turn ? 'turn' : 'off'
+        b.dataset.role = role
+        b.setAttribute('aria-disabled', String(role === 'off'))
+        b.setAttribute('aria-label', role !== 'turn' ? 'Siguiente'
+            : this.stripMode === 'cover' ? 'Abrir el libro'
+            : this.stripMode === 'last' ? 'Cerrar el libro y volver al inicio' : 'Pasar la página')
+    }
+
+    // ------------------------------------------------------------ pila de arriba (§7)
+    /** Diálogo o pista: va en el cuadro de indicaciones (nivel 2). */
     say(speaker, text, { delay = 250, hint = false } = {}) {
-        const d = this.el.dialog
-        const show = () => {
-            d.dataset.speaker = speaker
-            this.el.dialogName.textContent = story.characters[speaker]?.name ?? speaker
-            this.el.dialogText.innerHTML = richText(text)
-            const img = this.avatarImages[speaker]
-            this.el.avatar.style.backgroundImage = img ? `url(${img})` : `url("data:image/svg+xml,${encodeURIComponent(avatars[speaker] ?? '')}")`
-            enter(d, hint ? 0 : delay)
-            this.layoutMission()
-        }
-        clearTimeout(this.dialogTimer)
-        // un diálogo a la vez: si cambia quien habla, la tarjeta anterior sale primero
-        if (!d.hidden && d.dataset.speaker !== speaker) {
-            d.classList.add('is-leaving')
-            this.dialogTimer = setTimeout(show, 150)
-        } else show()
+        this.talk = { speaker, text }
+        clearTimeout(this.talkTimer)
+        // una pista dura un momento; después vuelve la indicación de la actividad
+        if (hint && this.mission) this.talkTimer = setTimeout(() => { this.talk = null; this.renderStack() }, 4500)
+        this.renderStack(hint ? 0 : delay)
         if (hint) playSfx('pista')
     }
 
     hideDialog() {
-        const d = this.el.dialog
-        clearTimeout(this.dialogTimer)
-        if (d.hidden) return
-        d.classList.remove('is-entering')
-        d.classList.add('is-leaving')
-        this.dialogTimer = setTimeout(() => {
-            d.hidden = true
-            d.classList.remove('is-leaving')
-            this.layoutMission()
-        }, 150)
+        clearTimeout(this.talkTimer)
+        this.talk = null
+        this.renderStack()
     }
 
-    get dialogVisible() { return !this.el.dialog.hidden && !this.el.dialog.classList.contains('is-leaving') }
+    get dialogVisible() { return !this.el.dialog.hidden }
 
-    // ------------------------------------------------------------ misión (derecha)
     setMission(m, { delay = 500 } = {}) {
+        clearTimeout(this.successTimer)
+        this.success = false
         this.mission = m
-        this.missionPlaying = false
-        this.missionExpanded = false
-        const el = this.el.mission
-        el.dataset.state = 'idle'
-        this.el.missionIcon.innerHTML = missionIcons[m.icon] ?? missionIcons.estrella
-        this.layoutMission()
-        enter(el, delay)
+        // la indicación de la actividad reemplaza al diálogo anterior
+        this.talk = null
+        this.renderStack(250, delay)
     }
 
-    /** Al empezar a jugar la misión se compacta (ícono y 2 o 3 palabras). */
-    playing(on = true) {
-        this.missionPlaying = on
-        this.missionExpanded = false
-        this.layoutMission()
-    }
+    /** Compatibilidad: con la pestaña la actividad ya es siempre corta. */
+    playing() {}
 
+    /** Tocar la actividad vuelve a mostrar qué hay que hacer. */
     expandMission() {
-        if (!this.mission || this.el.mission.dataset.state === 'success') return
-        this.missionExpanded = true
-        // dos contenedores como máximo: el diálogo se retira mientras la misión crece
-        if (this.dialogVisible) this.hideDialog()
-        this.layoutMission()
-        clearTimeout(this.expandTimer)
-        this.expandTimer = setTimeout(() => { this.missionExpanded = false; this.layoutMission() }, 4000)
-    }
-
-    layoutMission() {
-        const m = this.mission
-        const el = this.el.mission
-        if (!m || el.dataset.state === 'success') return
-        const compact = !this.missionExpanded && (this.missionPlaying || this.dialogVisible)
-        el.dataset.state = compact ? 'compact' : 'idle'
-        this.el.missionText.textContent = compact ? m.short : m.text
+        if (!this.mission || this.success) return
+        this.talk = null
+        this.renderStack(0)
     }
 
     nudgeMission() {
-        const el = this.el.mission
-        if (el.hidden) return
-        el.classList.remove('is-nudged')
+        const el = this.el.mission.hidden ? this.el.storyBox : this.el.mission
+        el.classList.remove('is-nudged', 'is-denied')
         void el.offsetWidth
-        el.classList.add('is-nudged')
+        el.classList.add(el === this.el.storyBox ? 'is-denied' : 'is-nudged')
     }
 
-    /** Éxito: la misión pasa a verde con una estrella. */
-    missionSuccess(text = '¡Lo lograste!') {
-        const el = this.el.mission
+    /** Éxito: la actividad pasa a verde con la estrella; la felicitación del Guardián se va a los 3 s. */
+    missionSuccess(text = '¡Lo lograste!', cheer = '¡Muy bien! Ya sabes cómo cuidarte.') {
         this.mission = null
-        el.hidden = false
-        el.dataset.state = 'success'
-        this.el.missionIcon.innerHTML = missionIcons.estrella
-        this.el.missionText.textContent = text
-        enter(el, 0)
+        this.success = text
+        this.talk = { speaker: 'guardian', text: cheer }
+        clearTimeout(this.talkTimer)
+        this.renderStack(0, 0)
         playSfx('acierto')
+        clearTimeout(this.successTimer)
+        this.successTimer = setTimeout(() => {
+            this.success = false
+            if (this.talk?.text === cheer) this.talk = null
+            this.renderStack()
+        }, 3000)
     }
 
     hideMission() {
+        clearTimeout(this.successTimer)
         this.mission = null
-        this.el.mission.hidden = true
+        this.success = false
         this.el.turtle.hidden = true
+        this.renderStack()
+    }
+
+    /**
+     * Dibuja la pila: el cuadro de indicaciones muestra el diálogo (si lo hay) o
+     * la indicación de la actividad; la pestaña de actividad solo aparece si hay
+     * indicaciones debajo.
+     */
+    renderStack(dialogDelay = 250, tabDelay = 500) {
+        const d = this.el.dialog
+        const tab = this.el.mission
+        const m = this.mission
+        const talk = this.talk ?? (m ? { speaker: 'guardian', text: m.text } : null)
+        if (!talk) {
+            this.leave(d)
+            this.leave(tab)
+            return
+        }
+        // --- nivel 2
+        const key = `${talk.speaker}|${talk.text}`
+        if (d.dataset.key !== key) {
+            const wasShown = !d.hidden && !d.classList.contains('is-leaving')
+            const fill = () => {
+                d.dataset.key = key
+                d.dataset.speaker = talk.speaker
+                this.el.dialogName.textContent = story.characters[talk.speaker]?.name ?? talk.speaker
+                this.el.dialogText.innerHTML = richText(talk.text)
+                const img = this.avatarImages[talk.speaker]
+                this.el.avatar.style.backgroundImage = img ? `url(${img})` : `url("data:image/svg+xml,${encodeURIComponent(avatars[talk.speaker] ?? '')}")`
+            }
+            clearTimeout(this.swapTimer)
+            if (wasShown) {
+                // mismo lugar: cambia el color y el texto con un desvanecimiento de 200 ms
+                d.classList.add('is-swapping')
+                this.swapTimer = setTimeout(() => { fill(); d.classList.remove('is-swapping') }, 200)
+            } else {
+                fill()
+                enter(d, dialogDelay)
+            }
+        } else if (d.hidden || d.classList.contains('is-leaving')) enter(d, dialogDelay)
+
+        // --- nivel 1
+        const tabContent = this.success ? { icon: 'estrella', text: this.success } : m ? { icon: m.icon, text: m.short ?? m.text } : null
+        if (!tabContent) return this.leave(tab)
+        const tkey = `${this.success ? 's' : 'm'}|${tabContent.text}`
+        tab.dataset.state = this.success ? 'success' : 'idle'
+        if (tab.dataset.key !== tkey) {
+            tab.dataset.key = tkey
+            this.el.missionIcon.innerHTML = missionIcons[tabContent.icon] ?? missionIcons.estrella
+            this.el.missionText.textContent = tabContent.text
+            if (tab.hidden || tab.classList.contains('is-leaving')) enter(tab, tabDelay)
+        } else if (tab.hidden || tab.classList.contains('is-leaving')) enter(tab, tabDelay)
+    }
+
+    leave(el) {
+        if (el.hidden || el.classList.contains('is-leaving')) return
+        el.classList.remove('is-entering')
+        el.classList.add('is-leaving')
+        clearTimeout(el._leaveTimer)
+        el._leaveTimer = setTimeout(() => {
+            if (!el.classList.contains('is-leaving')) return
+            el.hidden = true
+            el.classList.remove('is-leaving')
+            el.dataset.key = ''
+        }, 200)
     }
 
     showTurtle(on, onTap) {
@@ -260,30 +315,26 @@ export class UI {
         this.sfx(text, x, y)
     }
 
-    // ------------------------------------------------------------ barra de página
+    // ------------------------------------------------------------ avance de página
     /**
-     * @param tasks  ids de las tareas de la página ('leer', 'juego-…')
-     * @param mode   'page' | 'last' (en la última página la barra lista dice "¡Fin del cuento!")
+     * Tareas de la página ('leer', 'juego-…'). Cuando todas están hechas, el
+     * botón siguiente del cuadro de la historia pasa la página.
+     * @param mode 'page' | 'last' (en la última página cierra el libro)
      */
     startPage(tasks, done = [], mode = 'page') {
         this.pageTasks = tasks
         this.done = new Set(done)
         this.stripMode = mode
-        this.el.stripSteps.innerHTML = tasks.map(() => '<li class="step"></li>').join('')
-        this.el.go.setAttribute('aria-label', mode === 'last' ? 'Volver al inicio del libro' : 'Pasar la página')
+        this.wasReady = this.ready
         this.renderStrip()
     }
 
-    /** Portada: la barra invita a abrir el libro. */
+    /** Portada: el botón siguiente abre el libro. */
     coverStrip() {
         this.pageTasks = []
         this.done = new Set()
         this.stripMode = 'cover'
-        this.el.stripSteps.innerHTML = ''
-        this.el.strip.dataset.state = 'ready'
-        this.el.stripLabel.textContent = '¡Abre el cuento!'
-        this.el.go.setAttribute('aria-disabled', 'false')
-        this.el.go.setAttribute('aria-label', 'Abrir el libro')
+        this.refreshNext()
     }
 
     completeTask(id) {
@@ -296,31 +347,52 @@ export class UI {
 
     /** Devuelve true si la página acaba de quedar lista. */
     renderStrip() {
-        ;[...this.el.stripSteps.children].forEach((el, i) => el.classList.toggle('is-done', this.done.has(this.pageTasks[i])))
         const ready = this.ready
-        const wasReady = this.el.strip.dataset.state === 'ready'
-        this.el.strip.dataset.state = ready ? 'ready' : 'pending'
-        this.el.stripLabel.textContent = ready ? (this.stripMode === 'last' ? '¡Fin del cuento!' : '¡Página lista! Pásala') : 'Sigue explorando'
-        this.el.go.setAttribute('aria-disabled', String(!ready))
-        if (ready && !wasReady) playSfx('pagina-lista')
-        return ready && !wasReady
+        const just = ready && !this.wasReady
+        this.wasReady = ready
+        this.refreshNext()
+        if (just) playSfx('pagina-lista')
+        return just
     }
 
-    /** Intento de pasar la página antes de tiempo: la barra se sacude. */
+    /** Intento de pasar la página antes de tiempo: el cuadro se sacude. */
     denyTurn() {
-        const s = this.el.strip
-        s.classList.remove('is-denied')
-        void s.offsetWidth
-        s.classList.add('is-denied')
-        this.el.stripLabel.textContent = 'Aún hay algo por hacer'
-        clearTimeout(this.denyTimer)
-        this.denyTimer = setTimeout(() => this.renderStrip(), 1500)
+        this.nudgeMission()
         playSfx('pagina-bloqueada')
     }
 
-    /** Mientras gira la hoja, la barra se desvanece (250 ms). */
+    /** Mientras gira la hoja, el botón espera. */
     setTurning(on) {
-        this.el.strip.classList.toggle('is-turning', on)
+        this.turning = on
+        this.refreshNext()
+    }
+
+    /**
+     * Rectángulo libre para el libro (px de la escena, Guía visual v2 §4.2):
+     * de la pila de arriba al cuadro de la historia, con 16 px de aire.
+     * La pila reserva siempre el alto de una indicación de 2 líneas, para que el
+     * libro no cambie de tamaño cada vez que aparece o se va un diálogo.
+     */
+    bookSpace() {
+        if (this.space) return this.space
+        const GAP = 16
+        const stack = this.el.stack
+        const fs = parseFloat(getComputedStyle(this.el.dialogText).fontSize) || 22
+        const tab = 44 - 14
+        const reserved = stack.offsetTop + tab + Math.max(63, 2 * fs * 1.4 + 22 + 14 + 4)
+        const actual = stack.offsetTop + stack.offsetHeight
+        const story = this.el.storyBox.offsetTop
+        this.space = { top: Math.max(reserved, actual) + GAP, bottom: story - GAP }
+        return this.space
+    }
+
+    /** Desarrollo (§7.1): ningún cuadro de texto puede invadir el libro. */
+    assertNoOverlap(book, quiet = false) {
+        const GAP = 15 // 16 px con 1 px de tolerancia de redondeo
+        const boxes = [...document.querySelectorAll('.box, .story-box')].filter((el) => !el.hidden).map((el) => el.getBoundingClientRect())
+        const bad = boxes.filter((r) => r.left < book.r + GAP && r.right > book.l - GAP && r.top < book.b + GAP && r.bottom > book.t - GAP)
+        if (bad.length && !quiet) console.warn('Un cuadro de texto invade el libro', bad, book)
+        return bad.length === 0
     }
 
     // ------------------------------------------------------------ El Guardián le habla al lector
@@ -349,7 +421,9 @@ export class UI {
     }
 
     clearAll() {
-        this.hideDialog()
+        clearTimeout(this.talkTimer)
+        clearTimeout(this.successTimer)
+        this.talk = null
         this.hideMission()
         this.el.drum.hidden = true
         this.el.radar.hidden = true
