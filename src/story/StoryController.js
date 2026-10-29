@@ -37,6 +37,8 @@ export class StoryController {
         this.blocked = false
         this.visited = new Set()
         this.done = new Map() // id de página → Set de tareas hechas
+        this.maxBeat = new Map() // id de página → último momento leído (barra de avance)
+        this.gameProgress = new Map() // id del juego → avance 0…1 mientras se juega
         this.stars = 0
         this.closing = false
 
@@ -51,6 +53,23 @@ export class StoryController {
     get page() { return this.pages[this.index] }
     get isLast() { return this.index === this.pages.length - 1 }
     get isEnd() { return false } // el libro se cierra con el botón de la barra (última página)
+    /**
+     * Barra de avance: cada página es un tercio del recorrido. Dentro de la
+     * página cuentan lo leído y cada juego (lo jugado hasta ahora, o completo).
+     * Solo informa: pasar la página sigue dependiendo de las tareas (canTurn).
+     */
+    syncProgress() {
+        const { ui } = this.ctx
+        const page = this.page
+        const done = this.tasksDone(page)
+        const games = page.tasks.filter((t) => t !== 'leer')
+        const read = done.has('leer') ? 1 : Math.min(1, ((this.maxBeat.get(page.id) ?? -1) + 1) / page.beats.length)
+        let sum = read
+        for (const g of games) sum += done.has(g) ? 1 : (this.gameProgress.get(g) ?? 0)
+        const p = sum / (1 + games.length)
+        ui.setProgress((this.index + p) / this.pages.length, this.index + 1)
+    }
+
     tasksDone(page = this.page) {
         if (!this.done.has(page.id)) this.done.set(page.id, new Set())
         return this.done.get(page.id)
@@ -74,6 +93,9 @@ export class StoryController {
         rig.set(story.cover.camera)
         rig.focus = []
         ui.clearAll()
+        ui.progressAllowed = false
+        ui.showProgress(false)
+        ui.setProgress(0, 1)
         ui.setNarration(`${story.title}. ${story.subtitle}.`)
         ui.setNext(false)
         ui.coverStrip()
@@ -102,6 +124,7 @@ export class StoryController {
         const { book, env, rig, quake, ui } = this.ctx
         this.mode = 'closing'
         ui.clearAll()
+        ui.progressAllowed = false
         ui.setTurning(true)
         this.ctx.rig.focus = []
         quake.to(0, 1)
@@ -115,6 +138,9 @@ export class StoryController {
             this.scene = null
             this.done.clear()
             this.visited.clear()
+            this.maxBeat.clear()
+            this.gameProgress.clear()
+            ui.setProgress(0, 1)
             this.stars = 0
             this.closing = false
             const [l, r] = this.texturesFor(this.pages[0])
@@ -219,6 +245,8 @@ export class StoryController {
         const page = this.page
         const first = !this.visited.has(page.id)
         this.visited.add(page.id)
+        ui.progressAllowed = true
+        this.syncProgress()
         ui.setTurning(false)
         // los objetos que se tocan en esta página nunca quedan detrás de los cuadros
         this.ctx.rig.focus = Object.values(this.scene.markers)
@@ -238,6 +266,10 @@ export class StoryController {
         if (!b) return
         this.beat = i
         const last = i === page.beats.length - 1
+        if (i > (this.maxBeat.get(page.id) ?? -1)) {
+            this.maxBeat.set(page.id, i)
+            this.syncProgress()
+        }
 
         ui.setNarration(b.narrator)
         if (b.dialog) {
@@ -310,6 +342,7 @@ export class StoryController {
         const page = this.page
         this.tasksDone(page).add(taskId)
         if (this.ctx.ui.completeTask(taskId)) this.ctx.book.setCornerGlow(true)
+        this.syncProgress()
     }
 
     // ================================================================ juegos
@@ -318,6 +351,13 @@ export class StoryController {
         const { ui } = this.ctx
         const act = createActivity(instruction.taskId, this.ctx, this.scene)
         this.activity = act
+        // lo jugado hasta ahora mueve la barra de avance
+        act.onProgress = (f) => {
+            const prev = this.gameProgress.get(instruction.taskId) ?? 0
+            if (f <= prev) return
+            this.gameProgress.set(instruction.taskId, f)
+            this.syncProgress()
+        }
         await act.start()
         if (this.activity !== act || act.disposed) return
         this.activity = null

@@ -58,6 +58,7 @@ export class HallwayActivity extends Activity {
             })
             tl.add(nico.hop())
             tl.call(() => {
+                this.report(0.2)
                 this.hint(this.data.shoesDone)
                 this.after(0.6, () => this.stageWalk())
             })
@@ -142,6 +143,7 @@ export class HallwayActivity extends Activity {
         if (duration) gsap.to(nico.position, { x: p.x, z: p.z, duration, ease: 'sine.inOut' })
         else nico.position.set(p.x, 0, p.z)
         this.u = u
+        this.report(0.2 + 0.75 * u)
         if (!this.replicaDone && this.u >= 0.5) this.replica()
         else if (this.u >= 0.985) this.arrive()
     }

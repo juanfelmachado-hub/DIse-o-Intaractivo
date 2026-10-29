@@ -7,8 +7,8 @@
     <meta name="description" content="Cuento interactivo en 3D: Nico y su Guardián aprenden a protegerse cuando la tierra se mueve.">
     <!-- Fredoka variable (pesos 300–700, ancho 75–125), alojada en la propia web (Guía visual §3.1) -->
     <link rel="preload" href="./assets/Fredoka-Variable-tvVNXCOf.woff2" as="font" type="font/woff2" crossorigin>
-  <script type="module" crossorigin src="./assets/index-BiD-tJ4a.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DbS_T8jS.css">
+  <script type="module" crossorigin src="./assets/index-BgFOVATH.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-C0Z_nbkt.css">
 </head>
 <body>
     <!-- Pantalla de carga (estilo cuadrícula del moodboard) -->
@@ -45,6 +45,18 @@
                 <p class="box__text t-dialog"><span class="sr-only"><span data-dialog-name>Guardián</span> dice: </span><span data-dialog-text></span></p>
                 <button class="turtle-btn" data-turtle type="button" hidden aria-label="Tortuga: agacharse y cubrirse"></button>
             </article>
+        </div>
+
+        <!-- Avance del cuento: barra sobre el pie de las hojas, 3 tramos (una
+             página = una actividad); la cabeza de Nico marca el progreso real -->
+        <div class="progress" data-progress hidden role="progressbar" aria-label="Avance del cuento"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="progress__track">
+                <span class="progress__fill" data-progress-fill></span>
+                <i class="progress__sep" data-progress-sep></i>
+                <i class="progress__sep" data-progress-sep></i>
+            </div>
+            <img class="progress__head" data-progress-head alt="" aria-hidden="true">
         </div>
 
         <!-- Sonidos escritos -->

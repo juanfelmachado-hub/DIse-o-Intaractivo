@@ -10,6 +10,51 @@ import { assets } from '../models/assets.js'
 import { disposeOwned } from '../models/kit.js'
 
 /**
+ * Cabeza de Nico con fondo transparente (marcador de la barra de avance).
+ * Se pinta una vez con el mismo modelo 3D, en un lienzo pequeño propio con
+ * canal alfa que se libera enseguida.
+ */
+function headCutout() {
+    const SIZE = 160
+    const canvas = document.createElement('canvas')
+    const r = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true })
+    try {
+        r.setPixelRatio(1)
+        r.setSize(SIZE, SIZE, false)
+        r.setClearColor(0x000000, 0)
+        r.outputColorSpace = THREE.SRGBColorSpace
+        const scene = new THREE.Scene()
+        scene.add(new THREE.HemisphereLight('#ffffff', '#c9b8e8', 1.7))
+        const key = new THREE.DirectionalLight('#fff1dc', 2.1)
+        key.position.set(-1, 2, 3)
+        scene.add(key)
+        const nico = new Nico()
+        nico.face('smile')
+        nico.poseInstant('idle')
+        nico.applyRig(0.4, 0, { intensity: 0, shake: new THREE.Vector3() })
+        // sin ropa: solo la cara, el pelo y el cuello
+        const HEAD = ['piel', 'ojos', 'ojos_brillo', 'cejas', 'pelo', 'nariz']
+        nico.model.traverse((o) => { if (o.isSkinnedMesh && !HEAD.includes(o.userData.matName)) o.visible = false })
+        scene.add(nico)
+        scene.updateMatrixWorld(true)
+        // solo la cabeza (con el pelo): de la barbilla a la coronilla
+        const cam = new THREE.PerspectiveCamera(30, 1, 0.05, 10)
+        cam.position.set(0.04, 0.71, 0.92)
+        cam.lookAt(0, 0.71, 0)
+        r.render(scene, cam)
+        const url = canvas.toDataURL('image/png')
+        disposeOwned(scene)
+        return url
+    } catch (err) {
+        console.warn('[cuento] No se pudo pintar la cabeza de Nico', err)
+        return null
+    } finally {
+        r.dispose()
+        r.forceContextLoss()
+    }
+}
+
+/**
  * Avatares de la tarjeta de diálogo (Guía visual §7.5): el rostro de Nico sobre
  * azul y el del Guardián sobre morado, pintados con los mismos modelos 3D.
  * Devuelve { nico, guardian } como data URLs.
@@ -72,6 +117,8 @@ export function renderPortraits(renderer) {
         s2.updateMatrixWorld(true)
         out.guardian = shot(s2, c2)
         disposeOwned(s2)
+
+        out.nicoHead = headCutout()
     } catch (err) {
         console.warn('[cuento] No se pudieron pintar los avatares', err)
     } finally {

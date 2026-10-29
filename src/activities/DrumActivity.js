@@ -99,6 +99,7 @@ export class DrumActivity extends Activity {
         if (off > this.interval * 0.38) return this.miss()
         this.missed = 0
         this.taps++
+        this.report(this.taps / this.data.taps)
         const { ui, camera } = this.ctx
         const scene = this.scene
         // el escudo cambia de color como un arcoíris

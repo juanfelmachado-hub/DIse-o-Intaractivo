@@ -67,6 +67,11 @@ export class Activity {
         this.ctx.ui.playing(true)
     }
 
+    /** Avance del juego (0…1) para la barra de avance del cuento. */
+    report(fraction) {
+        this.onProgress?.(Math.max(0, Math.min(1, fraction)))
+    }
+
     /** Pista del Guardián (izquierda). */
     hint(text) {
         this.ctx.ui.say('guardian', text, { hint: true })

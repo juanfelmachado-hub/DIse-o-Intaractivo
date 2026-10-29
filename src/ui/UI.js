@@ -59,6 +59,10 @@ export class UI {
             missionText: $('[data-mission-text]'),
             turtle: $('[data-turtle]'),
             stack: $('[data-stack]'),
+            progress: $('[data-progress]'),
+            progressFill: $('[data-progress-fill]'),
+            progressSeps: [...document.querySelectorAll('[data-progress-sep]')],
+            progressHead: $('[data-progress-head]'),
             storyBox: $('[data-story-bar]'),
             sfx: $('[data-sfx]'),
             hotspots: $('[data-hotspots]'),
@@ -67,6 +71,8 @@ export class UI {
             drum: $('[data-drum]'),
         }
         this.avatarImages = {}
+        // barra de avance: valor real (0…1) y valor mostrado (se acerca con suavidad)
+        this.progress = { target: 0, shown: 0, phases: 3, on: false, ends: null }
         this.mission = null // { icon, text, short }
         this.talk = null    // { speaker, text } diálogo o pista explícitos
         this.success = false
@@ -118,6 +124,30 @@ export class UI {
     /** Rostros de Nico y del Guardián (pintados con los modelos 3D). */
     setAvatars(images) {
         this.avatarImages = images ?? {}
+        if (this.avatarImages.nicoHead) this.el.progressHead.src = this.avatarImages.nicoHead
+    }
+
+    // ------------------------------------------------------------ barra de avance
+    /** Extremos de la barra en el libro (objetos 3D sobre el pie de las hojas). */
+    setProgressEnds(ends) { this.progress.ends = ends }
+
+    /**
+     * Avance real del cuento (0…1): cada página es un tercio. Solo informa: la
+     * navegación sigue dependiendo de las tareas de cada página.
+     */
+    setProgress(value, phase) {
+        const p = this.progress
+        p.target = THREE.MathUtils.clamp(value, 0, 1)
+        const el = this.el.progress
+        el.setAttribute('aria-valuenow', String(Math.round(p.target * 100)))
+        if (phase) el.setAttribute('aria-valuetext', `Actividad ${phase} de ${p.phases}`)
+    }
+
+    /** Visible con el libro abierto; se oculta mientras gira la hoja o cerrado. */
+    showProgress(on) {
+        this.progress.on = on
+        if (on) this.el.progress.hidden = false
+        this.el.progress.classList.toggle('is-off', !on)
     }
 
     // ------------------------------------------------------------ banda narrativa
@@ -365,6 +395,7 @@ export class UI {
     setTurning(on) {
         this.turning = on
         this.refreshNext()
+        this.showProgress(!on && !!this.progressAllowed)
     }
 
     /**
@@ -411,13 +442,39 @@ export class UI {
         return out
     }
 
-    update(camera) {
+    update(camera, dt = 1 / 60) {
+        this.updateProgress(camera, dt)
         const d = this.drumTarget
         if (d && !this.el.drum.hidden) {
             d.getWorldPosition(v)
             const p = this.toScene(v, camera)
             this.el.drum.style.translate = `${p.x}px ${p.y}px`
         }
+    }
+
+    updateProgress(camera, dt) {
+        const p = this.progress
+        const el = this.el.progress
+        if (!p.ends || el.hidden) return
+        // posición sobre el libro (sigue su flotación y la cámara)
+        const a = this.toScene(p.ends[0].getWorldPosition(v), camera, { x: 0, y: 0 })
+        const b = this.toScene(p.ends[1].getWorldPosition(v), camera, { x: 0, y: 0 })
+        const len = Math.hypot(b.x - a.x, b.y - a.y)
+        const angle = Math.atan2(b.y - a.y, b.x - a.x)
+        el.style.width = `${len}px`
+        el.style.transform = `translate(${a.x}px, ${a.y}px) rotate(${angle}rad)`
+        // tamaño de la cabeza proporcional a la barra (legible, sin dominar)
+        const head = THREE.MathUtils.clamp(len * 0.07, 28, 52)
+        el.style.setProperty('--head', `${head}px`)
+        // la cabeza recorre la barra sin salirse: su centro va de r a len - r
+        p.shown += (p.target - p.shown) * Math.min(1, dt * 4)
+        if (Math.abs(p.target - p.shown) < 0.0005) p.shown = p.target
+        const r = head * 0.5
+        const x = (t) => r + t * (len - 2 * r)
+        this.el.progressSeps.forEach((s, i) => { s.style.left = `${x((i + 1) / p.phases)}px` })
+        this.el.progressFill.style.width = `${x(p.shown)}px`
+        // la cabeza no gira con la barra: se mantiene derecha
+        this.el.progressHead.style.transform = `translateX(${x(p.shown)}px) rotate(${-angle}rad)`
     }
 
     clearAll() {

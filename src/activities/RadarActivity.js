@@ -112,6 +112,8 @@ export class RadarActivity extends Activity {
         scene.guardian?.addSticker(STICKERS[(this.found.size - 1) % STICKERS.length])
         this.ctx.hotspots.remove(id)
         this.ctx.pointer.remove(scene.hotspots[id])
+        // los peligros son casi todo el juego; falta llevar a Nico a la mesa
+        this.report(this.found.size / (this.data.hazards.length + 1))
         if (this.found.size === this.data.hazards.length) this.after(0.9, () => this.lightsOn())
     }
 

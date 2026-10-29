@@ -52,6 +52,7 @@ export class Experience {
 
         this.ui = new UI()
         this.ui.setAvatars(portraits)
+        this.ui.setProgressEnds(this.book.progressEnds)
         this.rig.layout = () => this.ui.bookSpace()
         // sonidos escritos: en HTML sobre la escena, junto a lo que suena
         setSfxHandler((text, world) => this.ui.sfxAt(text, world, this.camera))
@@ -120,7 +121,7 @@ export class Experience {
         this.story.update(dt, t, this.quake)
         this.rig.update(dt, t, this.quake)
         this.hotspots.update()
-        this.ui.update(this.camera)
+        this.ui.update(this.camera, dt)
         this.renderer.render(this.scene, this.camera)
         // en desarrollo: comprobar que ningún cuadro de texto invade el libro
         if (import.meta.env.DEV && (this.checkT = (this.checkT ?? 0) + dt) > 1) {

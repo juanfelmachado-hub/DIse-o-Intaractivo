@@ -31,6 +31,7 @@ export class PatioActivity extends Activity {
             space: scene.group,
             onStart: () => {
                 this.played()
+                this.report(0.3)
                 nico.pose('dangle', 0.3)
                 gsap.to(nico.p, { lift: 0.22, duration: 0.25 })
             },

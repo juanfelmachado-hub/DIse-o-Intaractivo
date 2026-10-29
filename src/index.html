@@ -46,6 +46,18 @@
             </article>
         </div>
 
+        <!-- Avance del cuento: barra sobre el pie de las hojas, 3 tramos (una
+             página = una actividad); la cabeza de Nico marca el progreso real -->
+        <div class="progress" data-progress hidden role="progressbar" aria-label="Avance del cuento"
+             aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+            <div class="progress__track">
+                <span class="progress__fill" data-progress-fill></span>
+                <i class="progress__sep" data-progress-sep></i>
+                <i class="progress__sep" data-progress-sep></i>
+            </div>
+            <img class="progress__head" data-progress-head alt="" aria-hidden="true">
+        </div>
+
         <!-- Sonidos escritos -->
         <div class="sfx-layer" data-sfx aria-hidden="true"></div>
 

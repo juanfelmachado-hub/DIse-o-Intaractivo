@@ -109,6 +109,13 @@ export class Book {
         this.anchors.left.position.set(-PW * 0.86, 0.05, PD * 0.36)
         this.anchors.cover.position.set(PW * 0.92, BLOCK_T + COVER_T + 0.02, PD * 0.1)
         this.inner.add(this.anchors.right, this.anchors.left)
+
+        // extremos de la barra de avance: franja del pie de las hojas (entre el
+        // título de la página y el folio), sobre el papel del libro abierto
+        this.progressEnds = [new THREE.Object3D(), new THREE.Object3D()]
+        this.progressEnds[0].position.set(-PW * 0.59, 0.004, PD * 0.437)
+        this.progressEnds[1].position.set(PW * 0.59, 0.004, PD * 0.437)
+        this.inner.add(...this.progressEnds)
         this.leftHinge.add(this.anchors.cover)
 
         this.buildFlipper()
