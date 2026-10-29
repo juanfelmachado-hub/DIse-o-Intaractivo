@@ -11,17 +11,13 @@
 import * as THREE from 'three'
 import { palette } from '../data/theme.js'
 import { seeded } from '../models/kit.js'
-import { getCoverIllustration } from './CoverArt.js'
-import { story } from '../data/story.js'
 
 const W = 768
 const H = 1024
 // una sola familia tipográfica en todo el libro (Instructivo de texto y diálogos)
 const FONT = "'Fredoka', 'Baloo 2', 'Andika', sans-serif"
-// Guía visual v2 §5: tinta, dorado, crema y naranja
+// Guía visual v2 §5: tinta y naranja
 const INK = '#1E1B3A'
-const GOLD = '#FAB612'
-const CREAM = '#F2EAD6'
 const ORANGE = '#F28A2E'
 /** Ancho de Fredoka (eje wdth) cuando el navegador lo admite en canvas. */
 function stretch(g, value) { if ('fontStretch' in g) g.fontStretch = value }
@@ -405,123 +401,6 @@ function wrap(g, text, x, y, maxWidth, lineHeight) {
         } else line = test
     }
     g.fillText(line, x, yy)
-}
-
-/**
- * Portada (referencias editoriales): ilustración a sangre con los modelos del
- * cuento (book/CoverArt.js) y el título grande arriba, con la palabra
- * principal ("Tierra") como protagonista. Sin textos inventados.
- */
-export function makeCoverTexture(title, label = null) {
-    const CW = 768
-    const CH = 1024
-    const canvas = document.createElement('canvas')
-    canvas.width = CW
-    canvas.height = CH
-    const g = canvas.getContext('2d')
-    const art = getCoverIllustration()
-    if (art) g.drawImage(art, 0, 0, CW, CH)
-    else {
-        const grd = g.createLinearGradient(0, 0, 0, CH)
-        grd.addColorStop(0, '#6fb4ee')
-        grd.addColorStop(0.6, '#fde7cc')
-        grd.addColorStop(0.61, '#a9d68c')
-        grd.addColorStop(1, '#8cc873')
-        g.fillStyle = grd
-        g.fillRect(0, 0, CW, CH)
-    }
-    // velo suave arriba para que el título se lea sobre el cielo
-    const veil = g.createLinearGradient(0, 0, 0, CH * 0.5)
-    veil.addColorStop(0, 'rgba(60,110,190,.28)')
-    veil.addColorStop(1, 'rgba(60,110,190,0)')
-    g.fillStyle = veil
-    g.fillRect(0, 0, CW, CH * 0.5)
-
-    // título
-    const cx = CW / 2 + 20 // el lomo ocupa el borde izquierdo
-    // "Nico y su" / "guardián" / "personal": la palabra central es la protagonista
-    const words = title.split(' ')
-    const [l1, l2, l3] = words.length >= 4
-        ? [words.slice(0, -2).join(' '), words[words.length - 2], words[words.length - 1]]
-        : splitTitle(title)
-    g.textAlign = 'center'
-    g.textBaseline = 'alphabetic'
-    g.lineJoin = 'round'
-    const ink = INK
-    stretch(g, 'semi-expanded') // título: peso 700, ancho 112
-    const fit = (text, size, weight) => {
-        g.font = `${weight} ${size}px ${FONT}`
-        const maxW = CW - 150
-        return g.measureText(text).width > maxW ? size * maxW / g.measureText(text).width : size
-    }
-    const word = (text, size, y, fill, weight = 700) => {
-        size = fit(text, size, weight)
-        g.font = `${weight} ${size}px ${FONT}`
-        g.fillStyle = 'rgba(43,27,77,.35)'
-        g.fillText(text, cx, y + size * 0.07)
-        g.strokeStyle = ink
-        g.lineWidth = Math.max(8, size * 0.11)
-        g.strokeText(text, cx, y)
-        g.fillStyle = fill
-        g.fillText(text, cx, y)
-    }
-    // título del cuento en dorado con contorno tinta
-    word(l1, 86, 138, GOLD)
-    word(l2, 168, 290, GOLD)
-    word(l3, 96, 384, GOLD)
-    stretch(g, 'normal')
-
-    // subtítulo del cuento en una cinta crema
-    if (story.subtitle) {
-        g.font = `600 30px ${FONT}`
-        const lines = []
-        let line = ''
-        for (const w of story.subtitle.split(' ')) {
-            const test = line ? `${line} ${w}` : w
-            if (g.measureText(test).width > CW - 240 && line) { lines.push(line); line = w } else line = test
-        }
-        lines.push(line)
-        const bw = Math.max(...lines.map((l) => g.measureText(l).width)) + 56
-        const bh = lines.length * 40 + 26
-        g.fillStyle = CREAM
-        roundRect(g, cx - bw / 2, 418, bw, bh, 15)
-        g.fill()
-        g.strokeStyle = ink
-        g.lineWidth = 3
-        roundRect(g, cx - bw / 2, 418, bw, bh, 15)
-        g.stroke()
-        g.fillStyle = ink
-        lines.forEach((l, i) => g.fillText(l, cx, 418 + 44 + i * 40))
-    }
-
-    // lomo: sombra y filo de luz
-    const sp = g.createLinearGradient(0, 0, 56, 0)
-    sp.addColorStop(0, 'rgba(60,20,10,.42)')
-    sp.addColorStop(1, 'rgba(60,20,10,0)')
-    g.fillStyle = sp
-    g.fillRect(0, 0, 56, CH)
-    g.fillStyle = 'rgba(255,240,220,.22)'
-    g.fillRect(46, 0, 3, CH)
-
-    if (label) {
-        g.save()
-        g.translate(cx, 560)
-        g.rotate(-0.05)
-        g.fillStyle = palette.yellow
-        roundRect(g, -120, -50, 240, 100, 50)
-        g.fill()
-        g.strokeStyle = ink
-        g.lineWidth = 6
-        roundRect(g, -120, -50, 240, 100, 50)
-        g.stroke()
-        g.fillStyle = palette.red
-        g.font = `700 68px ${FONT}`
-        g.textBaseline = 'middle'
-        g.fillText(label, 0, 4)
-        g.restore()
-    }
-    paperGrain(g, 3)
-    return finish(canvas)
 }
 
 /** Textura del canto de las hojas (rayitas de papel apilado). */

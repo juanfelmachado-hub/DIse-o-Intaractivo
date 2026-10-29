@@ -17,8 +17,8 @@
 import * as THREE from 'three'
 import gsap from 'gsap'
 import { geo, mesh, glowTexture, glowSprite, popupClip } from '../models/kit.js'
-import { story } from '../data/story.js'
-import { makeCoverTexture, makeEdgeTexture } from './PageArt.js'
+import { makeEdgeTexture } from './PageArt.js'
+import { assets } from '../models/assets.js'
 
 export const BOOK = { PW: 3.05, PD: 4.0, M: 0.1, COVER_T: 0.07, BLOCK_T: 0.15 }
 const SEGS = 24
@@ -56,8 +56,10 @@ export class Book {
         this.turn = null
         this.sheet = { theta: 0, curl: 0, twist: 0 }
 
-        // material propio (no del kit): el recorte de la ranura no afecta al libro
-        const coverMat = new THREE.MeshStandardMaterial({ color: '#cf5b3c', roughness: 0.62 })
+        // material propio (no del kit): el recorte de la ranura no afecta al libro.
+        // Tapas y lomo en el azul del cielo de la portada, para que el libro se
+        // vea de una sola pieza con la ilustración
+        const coverMat = new THREE.MeshStandardMaterial({ color: '#2b67ad', roughness: 0.62 })
         const edgeMat = new THREE.MeshStandardMaterial({ map: makeEdgeTexture(), roughness: 0.95 })
 
         // ---- mitad derecha (fija)
@@ -82,21 +84,12 @@ export class Book {
         this.leftPage.quaternion.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, Math.PI, 'ZYX'))
         this.leftPage.position.set(PW / 2, -0.0015, 0)
 
+        // portada: la ilustración "El susurro de la Tierra" (textures/portada.jpg, 3:4)
         this.coverArt = new THREE.Mesh(
             geo.plane(PW + M - 0.04, PD + 2 * M - 0.04),
-            new THREE.MeshStandardMaterial({ roughness: 0.55, map: makeCoverTexture(story.title) }),
+            new THREE.MeshStandardMaterial({ roughness: 0.55, map: assets.cover }),
         )
         this.coverArt.rotation.x = -Math.PI / 2
-        // portada editada a mano (Photoshop): static/textures/portada.png, 768×1024 o
-        // cualquier tamaño 3:4. Si no existe, se usa la portada generada.
-        new THREE.TextureLoader().load('textures/portada.png', (tex) => {
-            tex.colorSpace = THREE.SRGBColorSpace
-            tex.anisotropy = 8
-            const old = this.coverArt.material.map
-            this.coverArt.material.map = tex
-            this.coverArt.material.needsUpdate = true
-            old?.dispose()
-        }, undefined, () => {})
         this.coverArt.position.set((PW + M) / 2, BLOCK_T + COVER_T + 0.002, 0)
         this.leftHinge.add(front, lBlock, this.leftPage, this.coverArt)
 
@@ -328,12 +321,6 @@ export class Book {
         this.flipFront.visible = this.flipBack.visible = false
         this.disposeTex(t.newLeft, [t.oldLeft, t.oldRight])
         this.disposeTex(t.newRight, [t.oldLeft, t.oldRight])
-    }
-
-    setCoverLabel(label) {
-        const old = this.coverArt.material.map
-        this.coverArt.material.map = makeCoverTexture(story.title, label)
-        old?.dispose()
     }
 
     // ------------------------------------------------------------ tapa
