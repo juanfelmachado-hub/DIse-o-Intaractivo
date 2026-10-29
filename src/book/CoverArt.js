@@ -234,8 +234,8 @@ export function renderPortraits(renderer) {
         s1.add(nico)
         s1.updateMatrixWorld(true)
         const c1 = new THREE.PerspectiveCamera(34, 1, 0.05, 10)
-        c1.position.set(0.06, 0.78, 0.62)
-        c1.lookAt(0, 0.75, 0)
+        c1.position.set(0.05, 0.71, 0.64)
+        c1.lookAt(0, 0.68, 0)
         out.nico = shot(s1, c1)
         disposeOwned(s1)
 

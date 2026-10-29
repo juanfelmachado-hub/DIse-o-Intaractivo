@@ -1,8 +1,11 @@
 /**
- * Nico — personaje principal. Usa el modelo 3D entregado (models/nico.glb,
- * convertido del FBX). El FBX no traía esqueleto: se le agregó uno sencillo
- * (cadera, columna, pecho, cabeza, brazos con codo y piernas con rodilla y
- * tobillo) con pesos suaves para que la ropa se doble sin romperse.
+ * Nico — personaje principal. Usa el modelo 3D entregado (models/nico.glb, de
+ * "animacion niño.blend"): esqueleto Mixamo y cuatro animaciones hechas en
+ * Blender — Caminar, Empinarse, Agacharse y Cubrirse.
+ *
+ * Esas animaciones mandan cuando Nico camina, se estira (reach), se agacha
+ * (crouch) o se cubre (cover); se mezclan con suavidad con las demás poses,
+ * que siguen siendo procedurales sobre los mismos huesos.
  *
  * Animación por capas:
  *   1. Pose: valores (this.p) que gsap interpola entre poses predefinidas.
@@ -22,11 +25,26 @@ import { geo, mat, add, glowSprite } from '../kit.js'
 import { assets } from '../assets.js'
 
 const MOUTH = '#6b3a32'
-const HIP_Y = 0.25 // altura de la cadera de pie
-const DROP = 0.15 // cuánto baja la cadera con crouch = 1
-const L_THIGH = 0.08
-const L_SHIN = 0.08
-const STRIDE = 0.05 // medio paso (las piernas del modelo son cortitas)
+// medidas del esqueleto (se leen del modelo en template())
+let HIP_Y = 0.25 // altura de la cadera de pie
+let DROP = 0.15 // cuánto baja la cadera con crouch = 1
+let L_THIGH = 0.08
+let L_SHIN = 0.08
+let STRIDE = 0.05 // medio paso (las piernas del modelo son cortitas)
+
+/** Nombres cortos de los huesos → huesos Mixamo del modelo (sin ':' en three.js). */
+const BONES = {
+    hips: 'mixamorigHips', spine: 'mixamorigSpine', chest: 'mixamorigSpine2', head: 'mixamorigHead',
+    upperArmR: 'mixamorigRightArm', forearmR: 'mixamorigRightForeArm', handR: 'mixamorigRightHand',
+    upperArmL: 'mixamorigLeftArm', forearmL: 'mixamorigLeftForeArm', handL: 'mixamorigLeftHand',
+    thighR: 'mixamorigRightUpLeg', shinR: 'mixamorigRightLeg', footR: 'mixamorigRightFoot',
+    thighL: 'mixamorigLeftUpLeg', shinL: 'mixamorigLeftLeg', footL: 'mixamorigLeftFoot',
+}
+/** Poses que usan las animaciones de Blender (nombre del clip en nico.glb). */
+const CLIP_POSES = { crouch: 'Agacharse', cover: 'Cubrirse', hold: 'Cubrirse', reach: 'Empinarse' }
+/** En "¡Sujétate!" el brazo derecho deja la cabeza y agarra la pata de la mesa (pose procedural). */
+const CLIP_MASK = { hold: ['mixamorigRightShoulder', 'mixamorigRightArm', 'mixamorigRightForeArm', 'mixamorigRightHand'] }
+const SHOE_PARTS = ['zapato', 'lengueta', 'cordones', 'punta', 'suela']
 
 /**
  * Ángulos en radianes (ejes del personaje: x = lado, y = arriba, z = adelante).
@@ -112,8 +130,10 @@ function template() {
         m.multiplyMatrices(inv, o.matrixWorld)
         const pos = new THREE.Vector3()
         const q = new THREE.Quaternion()
-        m.decompose(pos, q, new THREE.Vector3())
-        rest[o.name] = { pos, q, localPos: o.position.clone(), localQ: o.quaternion.clone() }
+        const sc = new THREE.Vector3()
+        m.decompose(pos, q, sc)
+        // scale: escala del hueso en el personaje (el esqueleto viene escalado de Blender)
+        rest[o.name] = { pos, q, scale: sc.x, localPos: o.position.clone(), localQ: o.quaternion.clone() }
     })
     for (const [name, r] of Object.entries(rest)) {
         const bone = src.getObjectByName(name)
@@ -126,6 +146,13 @@ function template() {
         })()
         r.parentInv = pq.clone().invert()
     }
+    for (const [alias, name] of Object.entries(BONES)) if (rest[name]) rest[alias] = rest[name]
+    // medidas de las piernas del modelo
+    HIP_Y = rest.hips.pos.y
+    L_THIGH = rest.thighR.pos.distanceTo(rest.shinR.pos)
+    L_SHIN = rest.shinR.pos.distanceTo(rest.footR.pos)
+    DROP = HIP_Y * 0.6
+    STRIDE = HIP_Y * 0.2
     TEMPLATE = { src, rest, sock }
     return TEMPLATE
 }
@@ -166,6 +193,8 @@ export class Nico extends THREE.Group {
         this.add(this.model)
         this.bones = {}
         this.model.traverse((o) => { if (o.isBone) this.bones[o.name] = o })
+        for (const [alias, name] of Object.entries(BONES)) if (this.bones[name]) this.bones[alias] = this.bones[name]
+        this.allBones = [...new Set(Object.values(this.bones))]
         this.parts = {}
         this.model.traverse((o) => {
             if (o.name && (o.isMesh || o.isGroup)) this.parts[o.name] = o
@@ -173,31 +202,44 @@ export class Nico extends THREE.Group {
             if (o.isMesh) o.raycast = noRaycast
         })
 
-        // zapatos ↔ calcetines (la actividad 3 se los pone)
-        this.shoes = [this.parts.zapatoR, this.parts.zapatoL].filter(Boolean)
-        this.socks = this.shoes.map((shoe) => {
-            const body = shoe.isSkinnedMesh ? shoe : shoe.children.find((c) => c.userData.matName === 'zapato') ?? shoe.children[0]
+        // zapatos ↔ calcetines (la actividad 3 se los pone): las piezas del
+        // zapato se reconocen por su material; el calcetín es el zapato en blanco
+        const meshes = []
+        this.model.traverse((o) => { if (o.isSkinnedMesh) meshes.push(o) })
+        this.shoes = meshes.filter((m) => SHOE_PARTS.includes(m.userData.matName))
+        this.socks = this.shoes.filter((m) => m.userData.matName === 'zapato').map((body) => {
             const s = new THREE.SkinnedMesh(body.geometry, T.sock)
             s.bind(body.skeleton, body.bindMatrix)
             s.castShadow = true
             s.frustumCulled = false
             s.visible = false
+            s.raycast = noRaycast
             body.parent.add(s)
             return s
         })
 
-        // ojos (parpadeo): eje "arriba" del personaje dentro de cada hueso
-        this.eyes = ['eyeR', 'eyeL'].map((n) => this.bones[n]).filter(Boolean)
-        const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.rest.eyeR.q.clone().invert())
-        const ax = ['x', 'y', 'z'].reduce((a, k) => (Math.abs(up[k]) > Math.abs(up[a]) ? k : a), 'x')
-        this.eyeAxis = ax
+        // el modelo no tiene huesos de párpados: sin parpadeo
+        this.eyes = []
 
-        // boca (el modelo no trae boca: se agrega una pequeña para las expresiones)
+        // boca (el modelo no trae boca): justo debajo de la nariz, apoyada en la
+        // cara (la base de la nariz). La nariz se mide con el esqueleto en reposo.
+        const nose = new THREE.Box3()
+        this.model.updateMatrixWorld(true)
+        this.model.traverse((o) => {
+            if (!o.isSkinnedMesh || o.userData.matName !== 'nariz') return
+            o.skeleton.update()
+            const v = new THREE.Vector3()
+            for (let i = 0; i < o.geometry.attributes.position.count; i++) nose.expandByPoint(o.getVertexPosition(i, v).applyMatrix4(o.matrixWorld))
+        })
+        const ok = !nose.isEmpty()
+        const mx = ok ? (nose.min.x + nose.max.x) / 2 : 0
+        const my = ok ? nose.min.y - 0.018 : 0.62
+        const mz = ok ? nose.min.z + 0.011 : 0.15
         const mouthMat = mat.clay(MOUTH, 0.6)
         this.mouths = {
-            smile: this.attach('head', new THREE.Mesh(geo.torus(0.015, 0.0042, 6, 16, Math.PI), mouthMat), [-0.004, 0.66, 0.151]),
-            o: this.attach('head', new THREE.Mesh(geo.sphere(0.0095, 12, 10), mouthMat), [-0.004, 0.652, 0.151]),
-            worried: this.attach('head', new THREE.Mesh(geo.torus(0.012, 0.0038, 6, 16, Math.PI), mouthMat), [-0.004, 0.647, 0.149]),
+            smile: this.attach('head', new THREE.Mesh(geo.torus(0.015, 0.0042, 6, 16, Math.PI), mouthMat), [mx, my, mz]),
+            o: this.attach('head', new THREE.Mesh(geo.sphere(0.0095, 12, 10), mouthMat), [mx, my - 0.006, mz]),
+            worried: this.attach('head', new THREE.Mesh(geo.torus(0.012, 0.0038, 6, 16, Math.PI), mouthMat), [mx, my - 0.011, mz - 0.002]),
         }
         // pegadas a la cara (la superficie se inclina hacia atrás bajo la nariz)
         for (const m of Object.values(this.mouths)) m.rotateX(0.3)
@@ -210,7 +252,23 @@ export class Nico extends THREE.Group {
         this.attach('chest', this.heart, [0, 0.46, 0.125])
 
         // mano derecha: aquí se sostiene el bloque azul
-        this.hand = this.attach('forearmR', new THREE.Group(), [-0.158, 0.3, 0.035])
+        const hr = this.rest.handR.pos
+        this.hand = this.attach('handR', new THREE.Group(), [hr.x, hr.y - 0.03, hr.z + 0.01])
+
+        // animaciones de Blender
+        this.mixer = new THREE.AnimationMixer(this.model)
+        this.clips = {}
+        for (const clip of assets.nicoClips) {
+            const a = this.mixer.clipAction(clip)
+            a.enabled = true
+            a.setEffectiveWeight(0)
+            this.clips[clip.name] = a
+        }
+        this.clipW = 0      // peso de la animación de pose (agacharse, cubrirse, estirarse)
+        this.poseClip = null
+        if (this.clips.Caminar) this.clips.Caminar.setLoop(THREE.LoopRepeat).play()
+        this.clipQ = this.allBones.map(() => new THREE.Quaternion())
+        this.clipP = this.allBones.map(() => new THREE.Vector3())
 
         // zona de toque generosa (actividades)
         this.hit = new THREE.Mesh(geo.box(0.5, 0.95, 0.5), mat.hit())
@@ -229,10 +287,14 @@ export class Nico extends THREE.Group {
         const bone = this.bones[boneName]
         const r = this.rest[boneName]
         const inv = r.q.clone().invert()
-        obj.position.set(x, y, z).sub(r.pos).applyQuaternion(inv)
-        obj.quaternion.copy(inv)
+        // soporte que deshace la escala del hueso: el objeto conserva su tamaño
+        const holder = new THREE.Group()
+        holder.position.set(x, y, z).sub(r.pos).applyQuaternion(inv).divideScalar(r.scale ?? 1)
+        holder.quaternion.copy(inv)
+        holder.scale.setScalar(1 / (r.scale ?? 1))
         obj.castShadow = false
-        bone.add(obj)
+        holder.add(obj)
+        bone.add(holder)
         return obj
     }
 
@@ -260,6 +322,8 @@ export class Nico extends THREE.Group {
         const target = POSES[name]
         if (!target) return gsap.timeline()
         this.currentPose = name
+        this.playPoseClip(CLIP_POSES[name], Math.max(duration, 0.45))
+        this.setMask(CLIP_MASK[name], Math.max(duration, 0.45))
         // agacharse/levantarse: nunca de golpe (el peso baja y sube con control)
         const big = Math.abs(target.crouch - this.p.crouch) > 0.25
         if (big) {
@@ -269,7 +333,43 @@ export class Nico extends THREE.Group {
         return gsap.to(this.p, { ...target, duration, ease, overwrite: 'auto' })
     }
 
+    /** Pasa a la animación de Blender de una pose (o sale de ella, con clip = undefined). */
+    playPoseClip(clipName, fade = 0.5) {
+        const next = clipName && this.clips?.[clipName]
+        if (next && next !== this.poseClip) {
+            next.reset().setLoop(THREE.LoopOnce, 1)
+            next.clampWhenFinished = true
+            next.play()
+            this.prevClip = this.poseClip
+            this.poseClip = next
+            this.clipMix = 0 // de la animación anterior a la nueva
+            gsap.to(this, { clipMix: 1, duration: fade, ease: 'power2.inOut', overwrite: 'auto' })
+        }
+        gsap.to(this, { clipW: next ? 1 : 0, duration: fade, ease: 'power2.inOut' })
+    }
+
+    /** Huesos que dejan la animación y siguen la pose procedural (con un fundido). */
+    setMask(names = [], fade = 0.5) {
+        this.mask = this.mask ?? {}
+        const to = {}
+        for (const b of this.allBones) to[b.name] = names.includes(b.name) ? 1 : 0
+        gsap.to(this.mask, { ...to, duration: fade, ease: 'power2.inOut', overwrite: true })
+    }
+
     poseInstant(name) {
+        this.mask = Object.fromEntries((CLIP_MASK[name] ?? []).map((n) => [n, 1]))
+        const clip = CLIP_POSES[name] && this.clips?.[CLIP_POSES[name]]
+        if (clip) {
+            this.playPoseClip(CLIP_POSES[name], 0)
+            clip.time = clip.getClip().duration
+            gsap.killTweensOf(this, 'clipW,clipMix')
+            this.clipW = 1
+            this.clipMix = 1
+        } else if (this.clips) {
+            gsap.killTweensOf(this, 'clipW,clipMix')
+            this.clipW = 0
+            this.poseClip = null
+        }
         Object.assign(this.p, POSES[name])
         Object.assign(this.s, POSES[name])
         for (const k of Object.keys(this.sv)) this.sv[k] = 0
@@ -354,9 +454,37 @@ export class Nico extends THREE.Group {
         const B = this.bones
         const bal = this.balance
 
+        // ---- 1. animaciones de Blender: se evalúan y se guardan
+        const walkOn = this.walking > 0
+        this.walkAmt += ((walkOn ? 1 : 0) - this.walkAmt) * Math.min(1, dt * 8)
+        const wW = this.clips?.Caminar ? this.walkAmt * (1 - this.clipW) : 0
+        const W = Math.min(1, this.clipW + wW)
+        if (W > 0.001) {
+            const walk = this.clips.Caminar
+            if (walk) {
+                walk.setEffectiveWeight(wW / W)
+                walk.setEffectiveTimeScale(THREE.MathUtils.clamp((this.walkSpeed * Math.max(1, this.walking)) / 0.5, 0.6, 2))
+            }
+            for (const a of Object.values(this.clips)) if (a !== walk) a.setEffectiveWeight(0)
+            if (this.poseClip) {
+                const pw = this.clipW / W
+                if (this.prevClip && this.clipMix < 1) {
+                    this.prevClip.setEffectiveWeight(pw * (1 - this.clipMix))
+                    this.poseClip.setEffectiveWeight(pw * this.clipMix)
+                } else this.poseClip.setEffectiveWeight(pw)
+            }
+            this.mixer.update(dt)
+            this.allBones.forEach((b, i) => { this.clipQ[i].copy(b.quaternion); this.clipP[i].copy(b.position) })
+        } else if (dt) this.mixer?.update(dt)
+        // las poses procedurales parten del reposo
+        for (const b of this.allBones) {
+            const r = this.rest[b.name]
+            b.quaternion.copy(r.localQ)
+            b.position.copy(r.localPos)
+        }
+
         // ---- caminar (pasos cortos y rápidos: piernas cortitas)
         const walking = this.walking > 0
-        this.walkAmt += ((walking ? 1 : 0) - this.walkAmt) * Math.min(1, dt * 8)
         if (walking) this.walkPhase += dt * (Math.PI * this.walkSpeed * this.walking) / (2 * STRIDE) * 0.55
         const wa = this.walkAmt
         const ph = this.walkPhase
@@ -401,6 +529,15 @@ export class Nico extends THREE.Group {
         }
         const ey = this.blink > 0 ? 0.12 : 1
         for (const e of this.eyes) { e.scale.set(1, 1, 1); e.scale[this.eyeAxis] = ey }
+
+        // ---- 2. mezcla con las animaciones de Blender
+        if (W > 0.001) {
+            this.allBones.forEach((b, i) => {
+                const w = W * (1 - (this.mask?.[b.name] ?? 0) * (this.clipW / W))
+                b.quaternion.slerp(this.clipQ[i], w)
+                b.position.lerp(this.clipP[i], w)
+            })
+        }
 
         // ---- corazón
         const hg = this.heartGlow

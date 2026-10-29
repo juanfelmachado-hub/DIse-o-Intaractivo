@@ -125,6 +125,7 @@ export class DrumActivity extends Activity {
         const posture = this.data.postures.find((p) => p.every === this.taps)
         if (posture) {
             scene.nico.pose(posture.pose, 0.8)
+            scene.guardian?.mimic(posture.pose) // el Guardián hace la misma postura
             ui.setMission({ icon: posture.icon, text: posture.text, short: posture.text }, { delay: 0 })
             ui.playing(true)
             sparkle(scene.group, scene.nico.position.clone().setY(0.7), { color: '#fff6c2', count: 8, radius: 0.4 })
@@ -152,6 +153,7 @@ export class DrumActivity extends Activity {
         this.beatCall?.kill()
         quake.to(0.15, 3)
         this.hint(this.data.calm)
+        this.after(2, () => this.scene.guardian?.mimic(null))
         // el ritmo se hace cada vez más lento
         const slow = [1.2, 1.6, 2.1]
         let t = 0
@@ -175,6 +177,7 @@ export class DrumActivity extends Activity {
         ui.el.drum.onclick = null
         ui.drumTarget = null
         for (const o of this.falling ?? []) this.scene.group.remove(o)
+        this.scene.guardian?.mimic(null)
         this.falling = []
     }
 }
