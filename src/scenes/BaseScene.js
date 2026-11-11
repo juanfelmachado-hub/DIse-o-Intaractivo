@@ -327,8 +327,9 @@ export class BaseScene {
                 const cam = this.ctx.camera
                 cam.getWorldDirection(fwd)
                 right.crossVectors(fwd, UP).normalize()
-                const side = Math.min(0.42, 0.3 * cam.aspect)
-                tmp.copy(cam.position).addScaledVector(fwd, 2.6).addScaledVector(right, side).addScaledVector(UP, -0.12)
+                // la versión VR (vr/) acerca al Guardián: ctx.viewerReach / ctx.viewerSide
+                const side = this.ctx.viewerSide ?? Math.min(0.42, 0.3 * cam.aspect)
+                tmp.copy(cam.position).addScaledVector(fwd, this.ctx.viewerReach ?? 2.6).addScaledVector(right, side).addScaledVector(UP, -0.12)
                 this.group.worldToLocal(tmp)
                 g.viewerPoint.copy(tmp)
                 g.viewerBlend = this.viewer.t

@@ -128,6 +128,16 @@ function unlock() {
 document.addEventListener('pointerdown', unlock, { once: true, capture: true })
 document.addEventListener('keydown', unlock, { once: true, capture: true })
 
+// ------------------------------------------------------------ ganchos (versión VR)
+// La versión para Meta Quest (carpeta vr/) usa estos ganchos para ubicar los
+// efectos en el espacio. En la web no se llaman: sin gancho todo suena igual.
+let spatial = null
+/** fn(nombre, audioContext, bus) → nodo de entrada (p. ej. un PannerNode) o null. */
+export function setSpatialAudio(fn) { spatial = fn }
+/** Dentro de una sesión VR no hay "pointerdown" del documento: se desbloquea a mano. */
+export function unlockAudio() { unlock() }
+export function audioContext() { return ctx }
+
 // ------------------------------------------------------------ música de fondo
 /** La música baja (ducking) según los efectos activos y vuelve con suavidad. */
 function applyDucks(time = 0.6) {
@@ -244,7 +254,7 @@ export function strongQuake() {
         const end = t + buf.duration
         gain.gain.setValueAtTime(STRONG, Math.max(t + 1.2, end - 2.2))
         gain.gain.linearRampToValueAtTime(0, end)
-        src.connect(gain).connect(sfxBus)
+        src.connect(gain).connect(spatial?.(name, ctx, sfxBus) ?? sfxBus)
         src.start(t)
         strong = { src, gain }
         duck('fuerte', 0.25, 1)
@@ -308,6 +318,7 @@ function drum(volume, pitch, double) {
     if (t0 - lastDrum < 0.07) return // toques muy seguidos no se apilan
     lastDrum = t0
     ctx.resume?.()
+    const out = spatial?.(double ? 'latido' : 'tambor', ctx, drumBus) ?? drumBus
     const tone = (t, v, f0, f1, type, decay) => {
         const osc = ctx.createOscillator()
         const g = ctx.createGain()
@@ -317,7 +328,7 @@ function drum(volume, pitch, double) {
         g.gain.setValueAtTime(0.0001, t)
         g.gain.exponentialRampToValueAtTime(v, t + 0.008)
         g.gain.exponentialRampToValueAtTime(0.0001, t + decay)
-        osc.connect(g).connect(drumBus)
+        osc.connect(g).connect(out)
         osc.start(t)
         osc.stop(t + decay + 0.03)
     }
@@ -331,7 +342,7 @@ function drum(volume, pitch, double) {
         bp.Q.value = 0.9
         g.gain.setValueAtTime(v, t)
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035)
-        src.connect(bp).connect(g).connect(drumBus)
+        src.connect(bp).connect(g).connect(out)
         src.start(t)
         src.stop(t + 0.05)
     }

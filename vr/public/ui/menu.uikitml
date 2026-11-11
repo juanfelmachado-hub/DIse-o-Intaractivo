@@ -1,0 +1,103 @@
+<!--
+  Menú del cuento (VR): inicio, instrucciones, pausa, reinicio, tamaño del texto
+  y entrar o salir de VR. El título y el texto de inicio son los de la web.
+-->
+<style>
+  .root {
+    flex-direction: column;
+    width: 580;
+  }
+  .content {
+    flex-direction: column;
+    gap: 12;
+    padding-top: 26;
+    padding-bottom: 14;
+    padding-left: 28;
+    padding-right: 28;
+  }
+  .eyebrow {
+    color: #8a5a00;
+    font-size: 16;
+    font-weight: 7000;
+  }
+  .eyebrow:dark {
+    color: #ffd27a;
+  }
+  .title {
+    color: #1c1d20;
+    font-size: 36;
+    font-weight: 7000;
+    line-height: 1.15;
+  }
+  .title:dark {
+    color: #fafaf7;
+  }
+  .body {
+    color: #3a3b40;
+    font-size: 21;
+    line-height: 1.35;
+  }
+  .body:dark {
+    color: #dddfe3;
+  }
+  .help {
+    color: #4b4c52;
+    font-size: 18;
+    line-height: 1.35;
+  }
+  .help:dark {
+    color: #c3c5cc;
+  }
+  .row {
+    flex-direction: row;
+    gap: 12;
+    padding-left: 28;
+    padding-right: 28;
+    padding-bottom: 14;
+  }
+  .last {
+    padding-bottom: 26;
+  }
+</style>
+<Panel id="root" class="root">
+  <div class="content">
+    <div id="eyebrow" class="eyebrow">CUENTO EN REALIDAD VIRTUAL</div>
+    <div id="title" class="title">Nico y su guardián personal</div>
+    <div id="intro" class="body">...</div>
+    <div id="help" class="help">Apunta con el rayo del control o de la mano y presiona el gatillo (o junta el índice y el pulgar) para tocar. Mantén presionado para arrastrar. Palanca izquierda o derecha: girar. Botón A o X: recentrar.</div>
+  </div>
+  <div class="row">
+    <Button id="btn-start">
+      <ButtonIcon>
+        <BookOpen></BookOpen>
+      </ButtonIcon>
+      <ButtonLabel id="btn-start-label">Abre el libro</ButtonLabel>
+    </Button>
+    <Button id="btn-xr">
+      <ButtonIcon>
+        <RectangleGoggles></RectangleGoggles>
+      </ButtonIcon>
+      <ButtonLabel>Entrar en VR</ButtonLabel>
+    </Button>
+  </div>
+  <div class="row last">
+    <Button id="btn-text" variant="secondary">
+      <ButtonIcon>
+        <Type></Type>
+      </ButtonIcon>
+      <ButtonLabel id="btn-text-label">Texto: normal</ButtonLabel>
+    </Button>
+    <Button id="btn-restart" variant="secondary">
+      <ButtonIcon>
+        <RotateCcw></RotateCcw>
+      </ButtonIcon>
+      <ButtonLabel>Reiniciar</ButtonLabel>
+    </Button>
+    <Button id="btn-exit" variant="secondary" style="display: none">
+      <ButtonIcon>
+        <LogOut></LogOut>
+      </ButtonIcon>
+      <ButtonLabel>Salir de VR</ButtonLabel>
+    </Button>
+  </div>
+</Panel>

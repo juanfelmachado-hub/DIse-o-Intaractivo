@@ -1,0 +1,47 @@
+{
+  "version": "iwsdk.scene.v1",
+  "units": "meters",
+  "components": {},
+  "environment": {
+    "toneMapping": "aces",
+    "exposure": 1,
+    "shadows": true,
+    "shadowMapType": "pcf"
+  },
+  "resources": {},
+  "nodes": [
+    {
+      "id": "story-panel",
+      "name": "Panel del cuento",
+      "content": {
+        "type": "asset",
+        "asset": "story-panel"
+      },
+      "transform": {
+        "position": [-0.55, 1.25, -1.1],
+        "rotationDeg": [0, 25, 0],
+        "scale": 1
+      },
+      "components": {
+        "RayInteractable": {},
+        "StoryPanel": { "role": "story" }
+      }
+    },
+    {
+      "id": "menu-panel",
+      "name": "Menú del cuento",
+      "content": {
+        "type": "asset",
+        "asset": "menu-panel"
+      },
+      "transform": {
+        "position": [0, 1.35, -1.2],
+        "scale": 1
+      },
+      "components": {
+        "RayInteractable": {},
+        "StoryPanel": { "role": "menu" }
+      }
+    }
+  ]
+}
