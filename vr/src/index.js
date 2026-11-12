@@ -1,9 +1,10 @@
 /**
- * «Nico y su guardián personal» — versión de realidad virtual (Meta Quest 3).
+ * «Nico y su guardián personal» — realidad mixta para Meta Quest 3.
  *
- * IWSDK crea el mundo (renderer, cámara, jugador, WebXR, entrada, UI espacial)
- * a partir de iwsdk.config.json; luego se arma el cuento original dentro de él
- * y se registran los sistemas ECS que lo hacen funcionar en VR.
+ * IWSDK crea el mundo (renderer, cámara, jugador, WebXR immersive-ar con
+ * passthrough, hit-test, entrada, UI espacial) a partir de iwsdk.config.json;
+ * luego se arma el cuento original dentro de él, como una maqueta sobre el
+ * piso real, y se registran los sistemas ECS que lo hacen funcionar.
  */
 import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';

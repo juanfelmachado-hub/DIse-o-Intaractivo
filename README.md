@@ -24,9 +24,10 @@ npm run build    # versión optimizada en /dist
 Atajo para revisar una página concreta: `http://localhost:5173/?pagina=6`
 (número de página), `?pagina=a1` (actividad) o `?pagina=end` (doble página final).
 
-## Versión de realidad virtual (Meta Quest 3)
+## Versión de realidad mixta (Meta Quest 3)
 
-La carpeta [`vr/`](vr/README.md) contiene la versión VR del mismo cuento (WebXR +
+La carpeta [`vr/`](vr/README.md) contiene la versión de realidad mixta del mismo
+cuento: una maqueta sobre el piso real, vista con passthrough (WebXR immersive-ar +
 Immersive Web SDK de Meta). Reutiliza el código de `src/` y los recursos de
 `static/` sin copiarlos; la web no cambia. Publicada en `dist/vr/`:
 https://juanfelmachado-hub.github.io/DIse-o-Intaractivo/dist/vr/

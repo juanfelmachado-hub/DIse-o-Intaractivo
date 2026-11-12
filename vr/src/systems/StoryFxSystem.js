@@ -62,14 +62,16 @@ export class StoryFxSystem extends createSystem({
         if (!this.wired) this.wire(c);
         const cam = c.viewCam;
         const dt = Math.min(delta, 0.1);
+        // los anillos están en metros reales: a escala de la maqueta (un poco más grandes para verlos)
+        const k = (this.world.globals.dioramaScale ?? 0.17) * 1.6;
 
         for (const e of this.queries.markers.entities) {
             const o = e.object3D;
             const target = o?.userData.target;
             if (!target) continue;
             target.getWorldPosition(o.position);
-            o.position.y += 0.08;
-            this.face(o, cam, 1 + Math.sin(performance.now() / 260) * 0.08);
+            o.position.y += 0.08 * k;
+            this.face(o, cam, k * (1 + Math.sin(performance.now() / 260) * 0.08));
             o.visible = target.visible !== false;
         }
 
@@ -83,8 +85,8 @@ export class StoryFxSystem extends createSystem({
                 this.radar.position.copy(aim);
                 this.radarPing.position.copy(aim);
             }
-            this.face(this.radar, cam, 1.2);
-            this.face(this.radarPing, cam, 1 + (1 - this.radarBeat) * 2.4);
+            this.face(this.radar, cam, 1.2 * k);
+            this.face(this.radarPing, cam, k * (1 + (1 - this.radarBeat) * 2.4));
             this.radarPing.material.opacity = this.radarBeat * 0.9;
             this.radarBeat = Math.max(0, this.radarBeat - dt * 2.2);
         }
@@ -99,7 +101,7 @@ export class StoryFxSystem extends createSystem({
                 this.lastShield = shield;
                 try { this.drum.material.color.setStyle(shield.replace(/hsl\((\S+)\s+(\S+)\s+(\S+)\)/, 'hsl($1, $2, $3)')); } catch { /* color no válido: se conserva */ }
             }
-            this.face(this.drum, cam, 1 + this.drumBeat * 0.45);
+            this.face(this.drum, cam, k * (1 + this.drumBeat * 0.45));
             this.drumBeat = Math.max(0, this.drumBeat - dt * 3);
         }
     }

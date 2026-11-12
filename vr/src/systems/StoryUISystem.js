@@ -141,6 +141,11 @@ export class StoryUISystem extends createSystem({
         const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
 
         // --- visibilidad de los paneles
+        // colocando la maqueta en el piso: sin paneles (la vista previa tiene su indicación)
+        if (this.world.globals.placing) {
+            this.sp.visible = this.mp.visible = false;
+            return;
+        }
         const menu = this.menuOpen && (mode === 'cover' || paused);
         if (mode !== 'cover' && !paused) this.menuOpen = false;
         this.sp.visible = !menu && mode !== 'cover';
@@ -150,6 +155,8 @@ export class StoryUISystem extends createSystem({
         this.set(el.startLabel, 'startLabel', 'text', paused ? 'Continuar' : this.goText);
         this.show(el.xr, 'xr', !immersive && this.world.xrEnabled);
         this.show(el.exit, 'exit', immersive);
+        this.show(el.near, 'near', immersive);
+        this.show(el.recenter, 'recenter', immersive);
         this.set(el.textLabel, 'textLabel', 'text', TEXT_SIZES[this.textSize][1]);
         if (!this.sp.visible) return;
 

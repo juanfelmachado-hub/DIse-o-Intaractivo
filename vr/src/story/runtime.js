@@ -16,8 +16,20 @@
  *    o de la mano en lugar del mouse/dedo.
  *  - VRHotspots: los marcadores tocables pasan de botones HTML a anillos 3D.
  *  - Los sonidos escritos (onomatopeyas) se dibujan en 3D junto al objeto.
+ *
+ * Realidad mixta: el cuento es una MAQUETA sobre el piso real. Todo el mundo
+ * del cuento (libro, escenarios, personajes y sus luces) cuelga de `diorama`,
+ * un grupo que se coloca sobre el piso y se escala (≈0,17: Nico mide ~16 cm y
+ * el libro abierto ~1 × 0,7 m). El cielo, la niebla y el paisaje lejano de la
+ * web no se dibujan: en su lugar se ve la habitación (passthrough).
  */
-import { Group, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, Vector3, DoubleSide, NeutralToneMapping, PCFShadowMap, PointLight, TextureLoader } from '@iwsdk/core';
+
+/** Escala inicial de la maqueta y las que se pueden elegir (Nico ≈ 0,95 × escala). */
+export const DIORAMA_SCALES = [0.12, 0.17, 0.22];
+export const DIORAMA_SCALE = 0.17;
+/** Altura (en unidades del cuento) de la base del libro abierto sobre el pasto de la web. */
+const BOOK_FLOOR = 0.4;
+import { CircleGeometry, Color, Fog, Group, Mesh, MeshBasicMaterial, PerspectiveCamera, RingGeometry, ShadowMaterial, Vector3, DoubleSide, NeutralToneMapping, PCFShadowMap, PointLight, TextureLoader } from '@iwsdk/core';
 import gsap from 'gsap';
 import { Quake } from '../../../src/core/Quake.js';
 import { Environment } from '../../../src/world/Environment.js';
@@ -119,6 +131,39 @@ function loadTextures() {
 }
 
 /**
+ * Del mundo de la web a una maqueta en la habitación real:
+ *  - sin cielo, niebla, pasto infinito, colinas ni polvo (se ve la habitación);
+ *  - las luces del cuento pasan a la maqueta (giran y se escalan con ella) y la
+ *    cámara de la sombra se ajusta a su tamaño;
+ *  - las luciérnagas quedan dentro de la maqueta, también en miniatura.
+ */
+function toMiniature(env, scene, root) {
+    env.sky.mesh.visible = false;
+    env.nature.group.visible = false;
+    scene.remove(env.sky.mesh, env.nature.group, env.dust, env.motes);
+    // Environment sigue animando su niebla, pero sobre un objeto que no se dibuja
+    env.scene = { fog: new Fog(new Color(), 1e4, 1e5) };
+    scene.fog = null;
+    root.add(env.hemi, env.sun, env.sun.target, env.rim, env.fireflies);
+    env.sun.shadow.mapSize.set(1024, 1024); // una sola sombra, pequeña: 72 fps en Quest
+    env.baseShadow = { ...env.sun.shadow.camera, normalBias: env.sun.shadow.normalBias };
+    env.baseFirefly = env.fireflies.material.uniforms.uSize.value;
+}
+
+/** La cámara de la sombra y las luciérnagas usan metros reales: se ajustan al tamaño de la maqueta. */
+export function fitShadow(env, k) {
+    if (Guardian.light) Guardian.light.distance = 2.4 * k;
+    const sc = env.sun.shadow.camera;
+    const b = env.baseShadow;
+    sc.left = b.left * k; sc.right = b.right * k; sc.top = b.top * k; sc.bottom = b.bottom * k;
+    sc.near = b.near * k; sc.far = b.far * k;
+    sc.updateProjectionMatrix();
+    env.sun.shadow.normalBias = b.normalBias * k;
+    // el tamaño de las luciérnagas se calcula con la distancia real: también a escala
+    env.fireflies.material.uniforms.uSize.value = env.baseFirefly * k;
+}
+
+/**
  * Crea el cuento dentro de `world`. Devuelve el contexto compartido por los
  * sistemas (se guarda en world.globals.cuento).
  */
@@ -135,10 +180,17 @@ export async function createStory(world) {
     const viewCam = new PerspectiveCamera(90, 1, 0.05, 400);
     viewCam.name = 'cuento-vista';
 
-    // raíz del cuento: el libro, el escenario y las onomatopeyas
+    // la maqueta: se apoya en el piso real (PlacementSystem la coloca y la escala)
+    const diorama = new Group();
+    diorama.name = 'maqueta';
+    diorama.scale.setScalar(DIORAMA_SCALE);
+    const dioramaEntity = world.createTransformEntity(diorama, { persistent: true });
+    // raíz del cuento: el libro, el escenario y las onomatopeyas. Se baja para
+    // que la base del libro abierto toque el piso (en la web flotaba sobre el pasto).
     const root = new Group();
     root.name = 'cuento';
-    const rootEntity = world.createTransformEntity(root, { persistent: true });
+    root.position.y = -BOOK_FLOOR;
+    diorama.add(root);
     const fx = new Group();
     fx.name = 'cuento-sonidos-escritos';
     root.add(fx);
@@ -146,14 +198,26 @@ export async function createStory(world) {
     const quake = new Quake();
     const rig = rigStub();
     const env = new Environment({ scene, renderer, textures });
-    // una sola sombra, más pequeña para mantener 72 fps en Quest
-    env.sun.shadow.mapSize.set(1024, 1024);
+    toMiniature(env, scene, root);
 
-    Guardian.light = new PointLight('#bff5a0', 0, 2.4, 2);
-    root.add(Guardian.light);
+    // sombras sobre el piso real: un plano invisible que solo recibe sombra
+    const floorShadow = new Mesh(new CircleGeometry(4.2, 40), new ShadowMaterial({ color: '#1d1430', opacity: 0.38, depthWrite: false }));
+    floorShadow.rotation.x = -Math.PI / 2;
+    floorShadow.position.y = BOOK_FLOOR + 0.004;
+    floorShadow.receiveShadow = true;
+    floorShadow.renderOrder = -2;
+    floorShadow.name = 'sombra-en-el-piso';
+    root.add(floorShadow);
+
+    // en la maqueta las distancias reales son ~6 veces menores: sin caída física
+    // (decay 0) y con el alcance a escala, la luz del Guardián ilumina lo mismo que en la web
+    // (el Guardián le pone su posición en el MUNDO: la luz va en la escena, no en la maqueta)
+    Guardian.light = new PointLight('#bff5a0', 0, 2.4 * DIORAMA_SCALE, 0);
+    scene.add(Guardian.light);
 
     const book = new Book();
     root.add(book.root, book.shadow);
+    book.shadow.position.y = BOOK_FLOOR + 0.006; // la mancha oscura queda sobre el piso
 
     const canvas = virtualCanvas();
     const ui = new UI();
@@ -165,9 +229,9 @@ export async function createStory(world) {
     const ctx = {
         book, env, rig, quake, ui, hotspots, pointer,
         camera: viewCam,
-        // el Guardián se acerca al lector a una distancia cómoda en VR (en metros reales × escala)
-        viewerReach: 1.2,
-        viewerSide: 0.28,
+        // el Guardián sale de la maqueta hacia el lector, pero se queda a medio camino (metros reales)
+        viewerReach: 0.55,
+        viewerSide: 0.12,
     };
     const story = new StoryController(ctx);
     const turner = new PageTurner({ canvas, camera: viewCam, book, pointer }, story);
@@ -177,14 +241,15 @@ export async function createStory(world) {
 
     // onomatopeyas en 3D (en la web eran texto HTML sobre la escena)
     const tmp = new Vector3();
+    // (el texto vive dentro de la maqueta: su tamaño en unidades del cuento ya sale a escala)
     ui.sfxAt = (text, w) => {
-        popWord(fx, text, tmp.copy(w));
+        popWord(fx, text, fx.worldToLocal(tmp.copy(w)));
     };
     ui.sfx = (text, x, y) => {
-        const s = world.globals.cuentoScale ?? 1;
         tmp.set(x / 50 - 1, 1 - y / 50, 0.5).unproject(viewCam).sub(viewCam.position).normalize();
-        tmp.multiplyScalar(1.3 * s).add(viewCam.position);
-        popWord(fx, text, tmp, { size: 0.5 * s, rise: 0.3 * s });
+        tmp.multiplyScalar(0.9).add(viewCam.position);
+        const k = diorama.scale.x;
+        popWord(fx, text, fx.worldToLocal(tmp), { size: 0.18 / k, rise: 0.1 / k });
     };
     // «Ponerse a salvo»: se guarda la vista para el panel (la web la dibuja en HTML)
     const safeSteps = ui.safeSteps.bind(ui);
@@ -196,11 +261,12 @@ export async function createStory(world) {
     // GSAP se actualiza dentro del bucle de IWSDK (StorySystem), como en la web
     gsap.ticker.remove(gsap.updateRoot);
 
+    fitShadow(env, DIORAMA_SCALE);
     story.showCover();
     ui.hideLoader();
     try { renderer.compile(scene, world.camera); } catch { /* el primer cuadro compila igual */ }
 
-    return { world, ctx, story, ui, book, env, quake, turner, pointer, hotspots, viewCam, root, rootEntity, fx };
+    return { world, ctx, story, ui, book, env, quake, turner, pointer, hotspots, viewCam, root, diorama, dioramaEntity, fx };
 }
 
 /** «Reiniciar»: vuelve a la portada como al terminar el cuento (sin recargar la página ni salir de VR). */

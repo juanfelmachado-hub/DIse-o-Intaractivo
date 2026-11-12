@@ -8,8 +8,12 @@
  * que usan el radar y los toques. Si el rayo apunta a un panel, el panel tiene
  * prioridad (lo atiende IWSDK). En el navegador sin VR, el mouse hace lo mismo.
  *
- * Tambor (juego 2): cualquier gatillo o pellizco es un golpe al ritmo, como
- * tocar el círculo dorado en la web.
+ * Maqueta (realidad mixta): los objetos se tocan dentro del mundo pequeño.
+ *  - Tambor (juego 2): el tambor es el caparazón de Nico con su anillo dorado.
+ *    Se golpea apuntándole y apretando el gatillo/pellizco, o tocándolo con
+ *    el control o la mano (al acercarla a menos de ~6 cm).
+ *  - Ponerse a salvo: además del botón del panel, tocar a Nico le da el
+ *    siguiente paso (agacharse, cubrirse, agarrarse).
  */
 import { createSystem, Plane, Ray, Raycaster, Vector2, Vector3, VisibilityState } from '@iwsdk/core';
 import { unlockAudio } from '../../../src/audio/sfx.js';
@@ -29,10 +33,13 @@ export class StoryInputSystem extends createSystem({
         this.caster = new Raycaster();
         this.hits = [];
         this.center = new Vector3();
+        this.up = new Vector3(0, 1, 0);
         this.active = null; // mano que está presionando
         this.sel = { start: false, end: false };
         this.evt = { clientX: 0, clientY: 0, pointerId: 7, pointerType: 'xr', ray: this.ray, ndcX: 0, ndcY: 0, button: 0 };
         this.world.globals.cuentoAim = this.aim;
+        this.drumPos = new Vector3();
+        this.touchArmed = { left: true, right: true };
 
         // mouse en el navegador (sin VR): mismo camino que el rayo
         this.mouse = { down: false, start: false, end: false, ndc: new Vector2(), has: false };
@@ -113,14 +120,40 @@ export class StoryInputSystem extends createSystem({
         return false;
     }
 
+    /** ¿El rayo pasa cerca de `p` (a menos de r metros, por delante)? */
+    rayNear(p, r) {
+        return this.ray.distanceSqToPoint(p) < r * r && this.v.copy(p).sub(this.ray.origin).dot(this.ray.direction) > 0;
+    }
+
+    /** Tambor tocado con el cuerpo del control o la mano (flanco: hay que alejarse para volver a tocar). */
+    drumTouch(c) {
+        const drum = c.ui.el.drum;
+        if (drum.hidden || !drum.onclick || !c.ui.drumTarget) return;
+        const k = this.world.globals.dioramaScale ?? 0.17;
+        c.ui.drumTarget.getWorldPosition(this.drumPos);
+        for (const h of HANDS) {
+            const grip = this.player.gripSpaces?.[h] ?? this.player.raySpaces[h];
+            if (!grip || (!this.input.xr.gamepads[h] && !this.input.xr.getSelectState(h))) continue;
+            grip.getWorldPosition(this.center);
+            const d = this.center.distanceTo(this.drumPos);
+            if (d < 0.06 + 0.2 * k && this.touchArmed[h]) {
+                this.touchArmed[h] = false;
+                unlockAudio();
+                drum.onclick();
+            } else if (d > 0.1 + 0.3 * k) this.touchArmed[h] = true;
+        }
+    }
+
     update() {
         const c = this.world.globals.cuento;
-        if (!c || this.world.globals.cuentoPaused) {
+        if (!c || this.world.globals.cuentoPaused || this.world.globals.placing) {
             this.mouse.start = this.mouse.end = false;
             return;
         }
         const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
         const { pointer, ui, story } = c;
+
+        if (immersive) this.drumTouch(c);
 
         // entradas de este cuadro
         let startHand = null;
@@ -143,8 +176,14 @@ export class StoryInputSystem extends createSystem({
             if (!this.onPanel()) {
                 story.scene?.skipReveal(); // como tocar el lienzo en la web
                 const drum = ui.el.drum;
+                const k = this.world.globals.dioramaScale ?? 0.17;
+                const nico = story.scene?.nico;
                 if (!drum.hidden && drum.onclick) {
-                    drum.onclick(); // juego 2: el golpe al ritmo
+                    // juego 2: el golpe al ritmo, apuntando al tambor de la maqueta
+                    if (ui.drumTarget) ui.drumTarget.getWorldPosition(this.drumPos);
+                    if (!ui.drumTarget || this.rayNear(this.drumPos, 0.05 + 0.35 * k)) drum.onclick();
+                } else if (ui.onStepsGo && ui.vrSteps && nico && this.rayNear(nico.getWorldPosition(this.drumPos).addScaledVector(this.up, 0.5 * k), 0.04 + 0.5 * k)) {
+                    ui.onStepsGo(); // «Ponerse a salvo»: tocar a Nico es el siguiente paso
                 } else {
                     this.active = startHand;
                     pointer.onDown(e);

@@ -61,10 +61,10 @@
 </style>
 <Panel id="root" class="root">
   <div class="content">
-    <div id="eyebrow" class="eyebrow">CUENTO EN REALIDAD VIRTUAL</div>
+    <div id="eyebrow" class="eyebrow">CUENTO EN REALIDAD MIXTA</div>
     <div id="title" class="title">Nico y su guardián personal</div>
     <div id="intro" class="body">...</div>
-    <div id="help" class="help">Apunta con el rayo del control o de la mano y presiona el gatillo (o junta el índice y el pulgar) para tocar. Mantén presionado para arrastrar. Palanca izquierda o derecha: girar. Botón A o X: recentrar.</div>
+    <div id="help" class="help">El cuento es una maqueta sobre tu piso: camina a su alrededor y agáchate para verla de cerca. Apunta con el rayo y aprieta el gatillo (o junta índice y pulgar) para tocar; mantén para arrastrar. Palanca: girar (izq./der.) o cambiar el tamaño (arriba/abajo). A o X: mover el libro.</div>
   </div>
   <div class="row">
     <Button id="btn-start">
@@ -77,7 +77,7 @@
       <ButtonIcon>
         <RectangleGoggles></RectangleGoggles>
       </ButtonIcon>
-      <ButtonLabel>Entrar en VR</ButtonLabel>
+      <ButtonLabel>Entrar (passthrough)</ButtonLabel>
     </Button>
   </div>
   <div class="row last">
@@ -97,7 +97,7 @@
       <ButtonIcon>
         <LogOut></LogOut>
       </ButtonIcon>
-      <ButtonLabel>Salir de VR</ButtonLabel>
+      <ButtonLabel>Salir</ButtonLabel>
     </Button>
   </div>
 </Panel>

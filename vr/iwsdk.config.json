@@ -10,10 +10,11 @@
   },
   "world": {
     "xr": {
-      "mode": "vr",
+      "mode": "ar",
       "offer": "always",
       "features": {
-        "handTracking": true
+        "handTracking": true,
+        "hitTest": true
       }
     },
     "input": {
@@ -21,18 +22,18 @@
     },
     "render": {
       "fov": 70,
-      "near": 0.001,
+      "near": 0.01,
       "far": 200,
       "camera": {
         "position": [
           0,
-          1.6,
-          1
+          1.05,
+          0.15
         ],
         "lookAt": [
           0,
-          0.95,
-          -1.95
+          0.12,
+          -0.8
         ]
       }
     },
@@ -41,7 +42,7 @@
       "grabbing": false,
       "physics": false,
       "sceneUnderstanding": false,
-      "environmentRaycast": false,
+      "environmentRaycast": true,
       "spatialUI": {
         "kit": "horizon",
         "preferredColorScheme": "dark"

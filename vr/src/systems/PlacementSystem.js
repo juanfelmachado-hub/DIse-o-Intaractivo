@@ -1,28 +1,59 @@
 /**
- * PlacementSystem — dónde está el lector, siempre con fundido (comodidad).
+ * PlacementSystem — la maqueta sobre el piso real (realidad mixta).
  *
- * El cuento de la web movía una cámara cinematográfica. En VR nada mueve la
- * cabeza del lector: el lector "aparece" en tres lugares, cada cambio con un
- * fundido a negro corto, y entre fundidos todo queda quieto.
+ * El cuento ya no mueve ni escala al lector: el lector camina de verdad
+ * alrededor de un mundo en miniatura que está quieto en su habitación.
  *
- *   portada   de pie frente al libro gigante cerrado
- *   general   mirando el libro desde arriba (abrir, pasar y cerrar la hoja)
- *   página    junto a Nico, a la altura de sus ojos, sobre la página
+ *  1. Al entrar a la sesión inmersiva (passthrough) se muestra una vista previa
+ *     semitransparente del área de la maqueta donde apunta el rayo.
+ *  2. El piso se busca con el hit-test de WebXR (EnvironmentRaycastTarget de
+ *     IWSDK): solo valen superficies horizontales a la altura del piso. Si el
+ *     visor no da hit-test, se usa el piso del espacio de referencia
+ *     `local-floor` (y = 0), que el Quest calibra con su límite de seguridad.
+ *  3. Gatillo o pellizco: el libro queda ahí, con su frente hacia el lector.
  *
- * El tamaño del lector se ajusta escalando el "rig" del jugador (escala =
- * altura de ojos deseada / altura real de la cabeza): así Nico se ve de su
- * tamaño de niño sin tocar el cuento. También: giro por pasos con la palanca,
- * recentrar (A/X o botón del panel) e "Ir junto a Nico".
+ * Después: palanca izquierda/derecha gira la maqueta 30°, arriba/abajo cambia
+ * su tamaño; A/X (o «Mover» en el panel) vuelve a colocarla. Los paneles del
+ * cuento siguen al lector con suavidad, como antes.
  */
-import { createSystem, InputComponent, Mesh, MeshBasicMaterial, SphereGeometry, BackSide, Vector3, Quaternion, Euler, VisibilityState } from '@iwsdk/core';
+import {
+    createSystem, CanvasTexture, Color, DoubleSide, EdgesGeometry, EnvironmentRaycastTarget, Group, InputComponent, LineBasicMaterial,
+    LineSegments, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, CircleGeometry, Quaternion, Euler, RaycastSpace, Plane, Ray,
+    Vector3, VisibilityState, SRGBColorSpace,
+} from '@iwsdk/core';
 import { PlayerSpot, StoryPanel, StoryState } from '../story-components.js';
+import { DIORAMA_SCALE, DIORAMA_SCALES, fitShadow } from '../story/runtime.js';
 
-const EYE_COVER = 2.1;
-const EYE_OVER = 3.4;
-const EYE_NICO = 0.78; // sobre el piso de la página (Nico mide ≈0.95)
-const FADE_OUT = 0.28;
-const FADE_IN = 0.45;
+const HANDS = ['right', 'left'];
 const SNAP = Math.PI / 6;
+/** Huella de la maqueta en unidades del cuento (libro abierto 6,1 × 4 + margen). */
+const FOOT_W = 7.2;
+const FOOT_D = 5.2;
+/** Un punto del hit-test cuenta como piso si está a menos de esto del y = 0 de local-floor. */
+const FLOOR_TOL = 0.25;
+/** Posición de la maqueta en el navegador sin visor (la cámara de iwsdk.config.json la mira). */
+const DESK = { x: 0, y: 0, z: -0.8 };
+
+function label(lines) {
+    const c = document.createElement('canvas');
+    c.width = 1024;
+    c.height = 256;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(20, 16, 32, 0.82)';
+    g.beginPath();
+    g.roundRect(8, 8, 1008, 240, 48);
+    g.fill();
+    g.fillStyle = '#fff8e8';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = '600 58px "Fredoka", system-ui, sans-serif';
+    lines.forEach((t, i) => g.fillText(t, 512, 128 + (i - (lines.length - 1) / 2) * 76));
+    const tex = new CanvasTexture(c);
+    tex.colorSpace = SRGBColorSpace;
+    const m = new Mesh(new PlaneGeometry(0.56, 0.14), new MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false }));
+    m.renderOrder = 30;
+    return m;
+}
 
 export class PlacementSystem extends createSystem({
     state: { required: [StoryState] },
@@ -31,112 +62,202 @@ export class PlacementSystem extends createSystem({
     init() {
         this.v = new Vector3();
         this.w = new Vector3();
+        this.hit = new Vector3();
+        this.up = new Vector3(0, 1, 0);
         this.q = new Quaternion();
         this.e = new Euler(0, 0, 0, 'YXZ');
-        this.up = new Vector3(0, 1, 0);
-        this.spotKey = '';
-        this.pending = null;
-        this.fading = false; // false | 'out' | 'apply' | 'in'
-        this.turnArmed = { left: true, right: true };
+        this.ray = new Ray();
+        this.floor = new Plane(new Vector3(0, 1, 0), 0);
+        this.scaleIndex = DIORAMA_SCALES.indexOf(DIORAMA_SCALE);
+        this.placing = false;
+        this.placedImmersive = false;
+        this.wasImmersive = null;
+        this.stickArmed = { left: true, right: true };
         this.panelYaw = 0;
         this.textScale = 1;
+        this.lastHand = 'right';
+        this.previewYaw = 0;
+        this.deskBg = new Color('#241d33');
 
-        // fundido: una esfera negra alrededor de la cabeza, dibujada al final
-        this.fade = new Mesh(
-            new SphereGeometry(0.4, 16, 12),
-            new MeshBasicMaterial({ color: '#05040a', side: BackSide, transparent: true, opacity: 1, depthTest: false, depthWrite: false, fog: false }),
-        );
-        this.fade.renderOrder = 9999;
-        this.fade.frustumCulled = false;
-        this.world.camera.add(this.fade);
+        // sondas de hit-test (una por mano): IWSDK las pone donde el rayo toca el mundo real
+        this.probes = {};
+        for (const hand of HANDS) {
+            const o = new Object3D();
+            o.visible = false;
+            const ent = this.world.createTransformEntity(o, { persistent: true });
+            ent.addComponent(EnvironmentRaycastTarget, { space: hand === 'right' ? RaycastSpace.Right : RaycastSpace.Left, maxDistance: 8 });
+            this.probes[hand] = o;
+        }
+
+        // vista previa: el área gris de la maqueta, su borde, el centro y la flecha del frente
+        const preview = new Group();
+        preview.name = 'vista-previa-maqueta';
+        const area = new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ color: '#b9b4c4', transparent: true, opacity: 0.32, depthWrite: false, side: DoubleSide, fog: false }));
+        area.rotation.x = -Math.PI / 2;
+        const edge = new LineSegments(new EdgesGeometry(area.geometry), new LineBasicMaterial({ color: '#fff8e8', transparent: true, opacity: 0.85, fog: false }));
+        edge.rotation.x = -Math.PI / 2;
+        const dot = new Mesh(new CircleGeometry(0.018, 24), new MeshBasicMaterial({ color: '#ff9a2e', fog: false, depthWrite: false }));
+        dot.rotation.x = -Math.PI / 2;
+        dot.position.y = 0.002;
+        this.footprint = new Group();
+        this.footprint.add(area, edge);
+        const arrow = new Mesh(new CircleGeometry(0.03, 3), new MeshBasicMaterial({ color: '#ffd84d', fog: false, depthWrite: false }));
+        arrow.rotation.set(-Math.PI / 2, 0, -Math.PI / 2); // apunta al lector (+z de la maqueta)
+        arrow.position.y = 0.002;
+        this.arrow = arrow;
+        this.hint = label(['Apunta al piso y aprieta el gatillo', 'o pellizca para colocar el libro']);
+        this.hintFloor = label(['Buscando el piso…', 'apunta hacia abajo']);
+        preview.add(this.footprint, dot, arrow);
+        preview.visible = false;
+        for (const o of [area, edge, dot, arrow]) o.renderOrder = 25;
+        this.preview = preview;
+        this.world.createTransformEntity(preview, { persistent: true });
+        for (const h of [this.hint, this.hintFloor]) {
+            h.visible = false;
+            this.world.createTransformEntity(h, { persistent: true });
+        }
+        this.sizePreview();
 
         this.spotEntity = this.world.createEntity();
-        this.spotEntity.addComponent(PlayerSpot, {});
+        this.spotEntity.addComponent(PlayerSpot, { spot: 'escritorio', eye: 0, scale: DIORAMA_SCALE });
 
         this.world.globals.placement = {
-            recenter: () => this.go(this.spotKey, true),
-            nearNico: () => this.go('page', true),
+            recenter: () => this.startPlacing(),
+            nearNico: () => this.cycleScale(1, true),
             setTextScale: (s) => { this.textScale = s; this.placePanels(false); },
+            rotate: (a) => this.rotate(a),
         };
-        // al entrar o salir de VR la altura y el origen cambian: se vuelve a colocar
-        this.cleanupFuncs.push(this.world.visibilityState.subscribe(() => {
-            if (this.spotKey) this.go(this.spotKey, true);
-        }));
+        this.world.globals.dioramaScale = DIORAMA_SCALE;
+        this.world.globals.cuentoScale = 1; // el lector ya no se escala
     }
 
-    /** Lugar que pide el estado del cuento. */
-    wanted(state, c) {
-        const mode = state.getValue(StoryState, 'mode');
-        if (mode === 'cover' || mode === 'loading') return 'cover';
-        if (mode !== 'reading' || state.getValue(StoryState, 'turning') || !c.story.scene) return 'overview';
-        return 'page';
+    get k() { return DIORAMA_SCALES[this.scaleIndex]; }
+
+    sizePreview() {
+        const k = this.k;
+        this.footprint.scale.set(FOOT_W * k, 1, FOOT_D * k);
+        this.arrow.position.z = (FOOT_D * k) / 2 - 0.05;
     }
 
-    /** Destino de cada lugar: posición en el piso, altura de ojos, punto que se mira. */
-    target(key, c) {
-        if (key === 'cover') return { x: 0, z: 4.4, floor: 0, eye: EYE_COVER, look: this.w.set(0, 2.05, 0) };
-        if (key === 'overview') return { x: 0, z: 6.6, floor: 0, eye: EYE_OVER, look: this.w.set(0, 0.6, 0) };
-        const nico = c.story.scene?.nico;
-        c.book.stage.getWorldPosition(this.v);
-        const floor = this.v.y;
-        if (!nico) return { x: 0, z: 1.6, floor, eye: EYE_NICO, look: this.w.set(0, floor + 0.5, 0) };
-        nico.getWorldPosition(this.w);
-        const x = Math.max(-2.6, Math.min(2.6, this.w.x * 0.7));
-        const z = Math.max(1.3, Math.min(1.8, this.w.z + 1.2));
-        this.w.y = floor + 0.55;
-        return { x, z, floor, eye: EYE_NICO, look: this.w };
+    /** Vuelve a la vista previa (al entrar en la sesión, con A/X o con «Mover»). */
+    startPlacing() {
+        if (this.world.visibilityState.peek() === VisibilityState.NonImmersive) return;
+        this.placing = true;
+        this.world.globals.placing = true;
+        const c = this.world.globals.cuento;
+        if (c) c.diorama.visible = false;
+        this.spotEntity.setValue(PlayerSpot, 'spot', 'colocando');
     }
 
-    /** Coloca el rig para que la cabeza quede en el lugar pedido, mirando al punto. */
-    apply(key, c) {
-        const t = this.target(key, c);
-        const player = this.world.player;
-        const head = this.world.camera;
-        const hy = Math.max(0.9, head.position.y);
-        const s = t.eye / hy;
-        this.e.setFromQuaternion(head.quaternion);
-        const headYaw = this.e.y;
-        const yaw = Math.atan2(-(t.look.x - t.x), -(t.look.z - t.z));
-        const theta = yaw - headYaw;
-        player.scale.setScalar(s);
-        player.rotation.set(0, theta, 0);
-        this.v.set(head.position.x * s, 0, head.position.z * s).applyAxisAngle(this.up, theta);
-        player.position.set(t.x - this.v.x, t.floor, t.z - this.v.z);
-        player.updateMatrixWorld(true);
-        this.spotKey = key;
-        this.spotEntity.setValue(PlayerSpot, 'spot', key);
-        this.spotEntity.setValue(PlayerSpot, 'eye', t.eye);
-        this.spotEntity.setValue(PlayerSpot, 'scale', 1 / s);
-        this.world.globals.cuentoScale = s;
+    /** Deja la maqueta en el piso: centro en `p`, con el frente hacia `yaw`. */
+    place(p, yaw) {
+        const c = this.world.globals.cuento;
+        if (!c) return;
+        const d = c.diorama;
+        d.position.copy(p);
+        d.rotation.set(0, yaw, 0);
+        d.scale.setScalar(this.k);
+        d.visible = true;
+        d.updateMatrixWorld(true);
+        fitShadow(c.env, this.k);
+        this.world.globals.dioramaScale = this.k;
+        this.placing = false;
+        this.world.globals.placing = false;
+        this.preview.visible = this.hint.visible = this.hintFloor.visible = false;
+        this.spotEntity.setValue(PlayerSpot, 'spot', this.world.visibilityState.peek() === VisibilityState.NonImmersive ? 'escritorio' : 'maqueta');
+        this.spotEntity.setValue(PlayerSpot, 'scale', this.k);
         this.placePanels(true);
     }
 
-    /** Cambio de lugar con fundido (nunca un movimiento continuo de cámara). */
-    go(key, force = false) {
+    /** Tamaño de la maqueta (Nico ≈ 11, 16 o 21 cm), sin moverla del piso. */
+    cycleScale(step, wrap = false) {
+        const n = DIORAMA_SCALES.length;
+        const i = wrap ? (this.scaleIndex + step + n) % n : Math.max(0, Math.min(n - 1, this.scaleIndex + step));
+        if (i === this.scaleIndex) return;
+        this.scaleIndex = i;
+        this.sizePreview();
         const c = this.world.globals.cuento;
-        if (!c || (!force && key === this.spotKey)) return;
-        this.pending = key;
-        // primera colocación: directo desde negro; si no, primero se oscurece
-        if (!this.fading) this.fading = this.spotKey ? 'out' : 'apply';
+        if (!c || this.placing) return;
+        c.diorama.scale.setScalar(this.k);
+        fitShadow(c.env, this.k);
+        this.world.globals.dioramaScale = this.k;
+        this.spotEntity.setValue(PlayerSpot, 'scale', this.k);
     }
 
-    /** Fundido con tiempo real (también en pausa): out → colocar → in. */
-    stepFade(dt, c) {
-        const m = this.fade.material;
-        if (this.fading === 'out') {
-            m.opacity = Math.min(1, m.opacity + dt / FADE_OUT);
-            if (m.opacity >= 1) this.fading = 'apply';
-        } else if (this.fading === 'apply') {
-            m.opacity = 1;
-            this.apply(this.pending, c);
-            this.pending = null;
-            this.fading = 'in';
-        } else if (this.fading === 'in') {
-            if (this.pending) { this.fading = 'apply'; return; }
-            m.opacity = Math.max(0, m.opacity - dt / FADE_IN);
-            if (m.opacity <= 0) this.fading = false;
+    /** Gira la maqueta sobre su centro (por pasos: el piso no se mueve bajo los pies). */
+    rotate(a) {
+        const c = this.world.globals.cuento;
+        if (!c || this.placing) return;
+        c.diorama.rotation.y += a;
+    }
+
+    /**
+     * Punto del piso al que apunta una mano. Primero el hit-test real (solo si
+     * es horizontal y está a la altura del piso); si no hay, el plano y = 0.
+     * Devuelve 'hit', 'floor' o null.
+     */
+    floorPoint(hand) {
+        const probe = this.probes[hand];
+        if (probe.visible) {
+            this.v.set(0, 1, 0).applyQuaternion(probe.quaternion);
+            if (this.v.y > 0.9 && Math.abs(probe.position.y) < FLOOR_TOL) {
+                this.hit.copy(probe.position);
+                return 'hit';
+            }
         }
-        this.fade.visible = m.opacity > 0.001;
+        const space = this.player.raySpaces[hand];
+        if (!space || !this.input.xr.gamepads[hand] && !this.input.xr.getSelectState(hand)) return null;
+        space.updateWorldMatrix(true, false);
+        this.ray.origin.setFromMatrixPosition(space.matrixWorld);
+        this.ray.direction.set(0, 0, -1).transformDirection(space.matrixWorld);
+        if (this.ray.direction.y > -0.05) return null; // apuntando al techo o al horizonte
+        if (!this.ray.intersectPlane(this.floor, this.hit)) return null;
+        if (this.hit.distanceTo(this.ray.origin) > 6) return null;
+        return 'floor';
+    }
+
+    updatePlacing() {
+        // la mano que se usó por última vez manda; si no tiene rayo, la otra
+        let kind = null;
+        let hand = null;
+        for (const h of [this.lastHand, this.lastHand === 'right' ? 'left' : 'right']) {
+            kind = this.floorPoint(h);
+            if (kind) { hand = h; break; }
+        }
+        const head = this.world.camera;
+        head.getWorldPosition(this.w);
+        this.preview.visible = !!kind;
+        if (kind) {
+            this.previewYaw = Math.atan2(this.w.x - this.hit.x, this.w.z - this.hit.z);
+            this.preview.position.copy(this.hit);
+            this.preview.position.y += 0.002;
+            this.preview.rotation.set(0, this.previewYaw, 0);
+        }
+        // indicación flotando frente al lector, un poco abajo
+        const hint = kind ? this.hint : this.hintFloor;
+        const other = kind ? this.hintFloor : this.hint;
+        other.visible = false;
+        hint.visible = true;
+        head.getWorldQuaternion(this.q);
+        this.e.setFromQuaternion(this.q);
+        const yaw = this.e.y;
+        hint.position.set(this.w.x - Math.sin(yaw) * 0.75, this.w.y - 0.28, this.w.z - Math.cos(yaw) * 0.75);
+        hint.rotation.set(-0.35, yaw, 0, 'YXZ');
+
+        for (const h of HANDS) {
+            const pad = this.input.xr.gamepads[h];
+            const hs = this.input.xr.getSelectState(h);
+            if (!(pad?.getSelectStart() || hs?.start)) continue;
+            this.lastHand = h;
+            if (h !== hand) {
+                const k2 = this.floorPoint(h);
+                if (!k2) continue;
+                this.previewYaw = Math.atan2(this.w.x - this.hit.x, this.w.z - this.hit.z);
+            } else if (!kind) continue;
+            this.spotEntity.setValue(PlayerSpot, 'eye', this.w.y - this.hit.y); // altura de los ojos sobre la maqueta
+            this.place(this.hit, this.previewYaw);
+            return;
+        }
     }
 
     /** Los paneles se colocan frente al lector (el del cuento, un poco a la izquierda). */
@@ -146,69 +267,75 @@ export class PlacementSystem extends createSystem({
         head.getWorldQuaternion(this.q);
         this.e.setFromQuaternion(this.q);
         if (snapYaw) this.panelYaw = this.e.y;
-        const s = this.world.globals.cuentoScale ?? 1;
         for (const ent of this.queries.panels.entities) {
             const obj = ent.object3D;
             if (!obj) continue;
             const role = ent.getValue(StoryPanel, 'role');
             const side = role === 'story' ? 0.42 : 0;
             const yaw = this.panelYaw + side;
-            const dist = (role === 'story' ? 0.85 : 0.95) * s;
-            obj.position.set(this.v.x - Math.sin(yaw) * dist, this.v.y - (role === 'story' ? 0.22 : 0.08) * s, this.v.z - Math.cos(yaw) * dist);
+            const dist = role === 'story' ? 0.85 : 0.95;
+            obj.position.set(this.v.x - Math.sin(yaw) * dist, this.v.y - (role === 'story' ? 0.22 : 0.08), this.v.z - Math.cos(yaw) * dist);
             obj.rotation.set(-0.12, yaw, 0, 'YXZ');
-            obj.scale.setScalar(0.1 * s * (role === 'story' ? this.textScale : 1)); // los paneles se diseñan en mm
+            obj.scale.setScalar(0.1 * (role === 'story' ? this.textScale : 1)); // los paneles se diseñan en mm
         }
     }
 
     update(delta) {
         const c = this.world.globals.cuento;
-        const state = this.world.globals.cuentoState;
-        if (!c || !state) return;
-        this.stepFade(Math.min(delta, 0.1), c);
-
-        const key = this.wanted(state, c);
-        if (key !== this.spotKey && this.pending !== key) this.go(key);
+        if (!c) return;
+        const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
+        if (immersive !== this.wasImmersive) {
+            this.wasImmersive = immersive;
+            // en el visor se ve la habitación (passthrough); en el navegador, un fondo de noche
+            this.world.scene.background = immersive ? null : this.deskBg;
+            if (immersive) this.startPlacing();
+            else {
+                // navegador sin visor: la maqueta frente a la cámara inicial
+                this.placing = false;
+                this.world.globals.placing = false;
+                this.place(this.v.set(DESK.x, DESK.y, DESK.z), 0);
+            }
+        }
+        if (this.placing) {
+            this.updatePlacing();
+            return;
+        }
 
         // panel perezoso: si el lector se gira mucho, el panel lo sigue con suavidad
-        if (this.spotKey && !this.fading) {
-            this.world.camera.getWorldQuaternion(this.q);
-            this.e.setFromQuaternion(this.q);
-            let d = this.e.y - this.panelYaw;
-            d = Math.atan2(Math.sin(d), Math.cos(d));
-            if (Math.abs(d) > 0.9) this.followTo = this.e.y;
-            if (this.followTo !== undefined) {
-                let f = this.followTo - this.panelYaw;
-                f = Math.atan2(Math.sin(f), Math.cos(f));
-                this.panelYaw += f * Math.min(1, delta * 3);
-                if (Math.abs(f) < 0.02) this.followTo = undefined;
-            }
-            this.placePanels(false);
+        this.world.camera.getWorldQuaternion(this.q);
+        this.e.setFromQuaternion(this.q);
+        let d = this.e.y - this.panelYaw;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        if (Math.abs(d) > 0.9) this.followTo = this.e.y;
+        if (this.followTo !== undefined) {
+            let f = this.followTo - this.panelYaw;
+            f = Math.atan2(Math.sin(f), Math.cos(f));
+            this.panelYaw += f * Math.min(1, delta * 3);
+            if (Math.abs(f) < 0.02) this.followTo = undefined;
         }
+        this.placePanels(false);
 
-        if (this.world.visibilityState.peek() === VisibilityState.NonImmersive) return;
-        // recentrar (A o X) y giro por pasos (palanca), en cualquiera de los dos controles
-        for (const hand of ['left', 'right']) {
+        if (!immersive) return;
+        // A/X: volver a colocar · palanca: girar la maqueta (izq./der.) o cambiar su tamaño (arriba/abajo)
+        for (const hand of HANDS) {
             const pad = this.input.xr.gamepads[hand];
             if (!pad) continue;
-            if (pad.getButtonDown(InputComponent.A_Button) || pad.getButtonDown(InputComponent.X_Button)) this.go(this.spotKey, true);
+            if (pad.getSelectStart()) this.lastHand = hand;
+            if (pad.getButtonDown(InputComponent.A_Button) || pad.getButtonDown(InputComponent.X_Button)) {
+                this.lastHand = hand;
+                this.startPlacing();
+                return;
+            }
             const axes = pad.getAxesValues(InputComponent.Thumbstick);
             const x = axes?.x ?? 0;
-            if (Math.abs(x) < 0.35) this.turnArmed[hand] = true;
-            else if (Math.abs(x) > 0.75 && this.turnArmed[hand]) {
-                this.turnArmed[hand] = false;
-                this.snapTurn(x > 0 ? -SNAP : SNAP);
+            const y = axes?.y ?? 0;
+            const m = Math.max(Math.abs(x), Math.abs(y));
+            if (m < 0.35) this.stickArmed[hand] = true;
+            else if (m > 0.75 && this.stickArmed[hand]) {
+                this.stickArmed[hand] = false;
+                if (Math.abs(x) >= Math.abs(y)) this.rotate(x > 0 ? SNAP : -SNAP);
+                else this.cycleScale(y < 0 ? 1 : -1); // palanca arriba (y < 0): más grande
             }
         }
-    }
-
-    /** Gira el rig alrededor de la cabeza (instantáneo: sin rotación continua). */
-    snapTurn(angle) {
-        const player = this.world.player;
-        this.world.camera.getWorldPosition(this.v);
-        this.w.copy(player.position).sub(this.v).applyAxisAngle(this.up, angle);
-        player.position.copy(this.v).add(this.w);
-        player.rotation.y += angle;
-        player.updateMatrixWorld(true);
-        this.panelYaw += angle;
     }
 }

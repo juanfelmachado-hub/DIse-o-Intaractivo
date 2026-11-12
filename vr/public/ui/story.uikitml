@@ -121,15 +121,15 @@
   <div class="tools">
     <Button id="btn-near" variant="secondary">
       <ButtonIcon>
-        <Footprints></Footprints>
+        <Scaling></Scaling>
       </ButtonIcon>
-      <ButtonLabel>Junto a Nico</ButtonLabel>
+      <ButtonLabel>Tamaño</ButtonLabel>
     </Button>
     <Button id="btn-recenter" variant="secondary">
       <ButtonIcon>
-        <LocateFixed></LocateFixed>
+        <Move></Move>
       </ButtonIcon>
-      <ButtonLabel>Recentrar</ButtonLabel>
+      <ButtonLabel>Mover</ButtonLabel>
     </Button>
     <Button id="btn-menu" variant="secondary">
       <ButtonIcon>

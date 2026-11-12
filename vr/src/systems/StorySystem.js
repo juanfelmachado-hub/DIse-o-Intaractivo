@@ -26,7 +26,8 @@ export class StorySystem extends createSystem({
     }
 
     get paused() {
-        return !!this.world.globals.cuentoPaused || this.world.visibilityState.peek() === VisibilityState.VisibleBlurred;
+        // también mientras se coloca la maqueta en el piso
+        return !!this.world.globals.cuentoPaused || !!this.world.globals.placing || this.world.visibilityState.peek() === VisibilityState.VisibleBlurred;
     }
 
     /** Copia la pose real de la cabeza (en el mundo) a la cámara de referencia del cuento. */
@@ -63,8 +64,8 @@ export class StorySystem extends createSystem({
         quake.update(dt);
         setQuake(quake.intensity); // el colchón del temblor sigue a la escena
         env.update(dt, t, quake, c.viewCam);
-        // Comodidad: en VR el libro no flota y su sacudida es un cuarto de la web
-        // (el lector está de pie sobre él); el resto del temblor no cambia.
+        // Maqueta: el libro no flota (está apoyado en el piso real) y su sacudida
+        // es un cuarto de la web; el resto del temblor no cambia.
         book.float.amp = 0;
         book.float.tilt = 0;
         this.calm.shake.copy(quake.shake).multiplyScalar(0.25);
