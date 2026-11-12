@@ -29,7 +29,10 @@ Atajo para revisar una página concreta: `http://localhost:5173/?pagina=6`
 La carpeta [`vr/`](vr/README.md) contiene la versión de realidad mixta del mismo
 cuento: una maqueta sobre el piso real, vista con passthrough (WebXR immersive-ar +
 Immersive Web SDK de Meta). Reutiliza el código de `src/` y los recursos de
-`static/` sin copiarlos; la web no cambia. Publicada en `dist/vr/`:
+`static/` sin copiarlos; la web no cambia. En el visor se juega también con las
+manos: agarrar con la pinza, construir la torre de bloques con físicas, llevar a
+Nico como un juguete, cubrirse la cabeza y un panel fijo en la habitación.
+Publicada en `dist/vr/`:
 https://juanfelmachado-hub.github.io/DIse-o-Intaractivo/dist/vr/
 
 ## Estructura

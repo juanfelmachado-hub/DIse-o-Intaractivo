@@ -69,10 +69,10 @@ export class StoryUISystem extends createSystem({
             talkBox: $s('talk-box'), speaker: $s('speaker'), dialog: $s('dialog'), narration: $s('narration'),
             next: $s('btn-next'), nextLabel: $s('btn-next-label'), turtle: $s('btn-turtle'),
             steps: $s('btn-steps'), stepsLabel: $s('btn-steps-label'),
-            near: $s('btn-near'), recenter: $s('btn-recenter'), menu: $s('btn-menu'),
+            near: $s('btn-near'), recenter: $s('btn-recenter'), menu: $s('btn-menu'), hide: $s('btn-hide'),
             title: $m('title'), intro: $m('intro'), start: $m('btn-start'), startLabel: $m('btn-start-label'),
             xr: $m('btn-xr'), exit: $m('btn-exit'), text: $m('btn-text'), textLabel: $m('btn-text-label'),
-            restart: $m('btn-restart'),
+            restart: $m('btn-restart'), panel: $m('btn-panel'),
         };
         const { ui } = c;
         const on = (el, fn) => {
@@ -83,7 +83,14 @@ export class StoryUISystem extends createSystem({
         };
         const placement = () => this.world.globals.placement;
         // panel del cuento: los mismos botones de la web
-        on(this.el.next, () => ui.el.next.click());
+        on(this.el.next, () => {
+            // la torre (TowerSystem): tras un rato, «Siguiente» ofrece que la termine Nico
+            const tower = this.world.globals.tower;
+            if (tower?.active) return tower.canSkip ? tower.skip() : ui.nudgeMission?.();
+            ui.el.next.click();
+        });
+        on(this.el.hide, () => this.world.globals.panel?.hide());
+        on(this.el.panel, () => { this.world.globals.panel?.reset(); this.setPaused(false); });
         on(this.el.turtle, () => ui.el.turtle.onclick?.());
         on(this.el.steps, () => ui.onStepsGo?.());
         on(this.el.near, () => placement()?.nearNico());
@@ -148,7 +155,7 @@ export class StoryUISystem extends createSystem({
         }
         const menu = this.menuOpen && (mode === 'cover' || paused);
         if (mode !== 'cover' && !paused) this.menuOpen = false;
-        this.sp.visible = !menu && mode !== 'cover';
+        this.sp.visible = !menu && mode !== 'cover' && !this.world.globals.panel?.hidden;
         this.mp.visible = menu || mode === 'cover';
 
         // --- menú
@@ -157,6 +164,7 @@ export class StoryUISystem extends createSystem({
         this.show(el.exit, 'exit', immersive);
         this.show(el.near, 'near', immersive);
         this.show(el.recenter, 'recenter', immersive);
+        this.show(el.hide, 'hide', immersive);
         this.set(el.textLabel, 'textLabel', 'text', TEXT_SIZES[this.textSize][1]);
         if (!this.sp.visible) return;
 
@@ -202,8 +210,10 @@ export class StoryUISystem extends createSystem({
         const narration = ui.el.storyText.dataset.text || '';
         this.set(el.narration, 'narration', 'text', narration);
         const role = ui.el.next.dataset.role;
-        this.set(el.nextLabel, 'nextLabel', 'text', ui.el.next.getAttribute('aria-label') || 'Siguiente');
-        this.set(el.next, 'nextDim', 'opacity', role === 'off' ? 0.45 : 1);
+        const tower = this.world.globals.tower;
+        const skip = tower?.active && tower.canSkip;
+        this.set(el.nextLabel, 'nextLabel', 'text', skip ? 'Que la termine Nico' : ui.el.next.getAttribute('aria-label') || 'Siguiente');
+        this.set(el.next, 'nextDim', 'opacity', role === 'off' && !skip ? 0.45 : 1);
         this.show(el.turtle, 'turtle', !ui.el.turtle.hidden);
         this.show(el.steps, 'steps', !!stepsGo && !!ui.onStepsGo);
         if (stepsGo) this.set(el.stepsLabel, 'stepsLabel', 'text', stepsGo);

@@ -173,7 +173,19 @@ export class StoryInputSystem extends createSystem({
 
         if (startHand) {
             const e = this.fill(startHand, c);
-            if (!this.onPanel()) {
+            // icono del panel minimizado (rayo + gatillo)
+            if (this.world.globals.panel?.rayClick(this.ray)) startHand = null;
+        }
+        if (startHand) {
+            const e = this.evt;
+            // con la MANO (sin control) lo manipulable no se arrastra a distancia: se agarra con los dedos
+            const handOnly = startHand !== 'mouse' && !this.input.xr.gamepads[startHand];
+            let farDrag = false;
+            if (handOnly && pointer.draggables.size) {
+                pointer.setNdc(e);
+                farDrag = !!pointer.pick(pointer.draggables);
+            }
+            if (!this.onPanel() && !farDrag) {
                 story.scene?.skipReveal(); // como tocar el lienzo en la web
                 const drum = ui.el.drum;
                 const k = this.world.globals.dioramaScale ?? 0.17;

@@ -44,6 +44,7 @@ import { loadAssets } from '../../../src/models/assets.js';
 import { popWord } from '../../../src/animations/motions.js';
 import { stopEffects, stopMusic, resetOnce } from '../../../src/audio/sfx.js';
 import { StoryMarker } from '../story-components.js';
+import { Layers } from '../interaction/layers.js';
 
 /** Lienzo virtual de 1000×1000 "px": las coordenadas de pantalla del cuento salen de proyectar la mira del rayo. */
 export const VIRTUAL = 1000;
@@ -266,13 +267,15 @@ export async function createStory(world) {
     ui.hideLoader();
     try { renderer.compile(scene, world.camera); } catch { /* el primer cuadro compila igual */ }
 
-    return { world, ctx, story, ui, book, env, quake, turner, pointer, hotspots, viewCam, root, diorama, dioramaEntity, fx };
+    return { world, ctx, story, ui, book, env, quake, turner, pointer, hotspots, viewCam, root, diorama, dioramaEntity, fx, layers: new Layers() };
 }
 
 /** «Reiniciar»: vuelve a la portada como al terminar el cuento (sin recargar la página ni salir de VR). */
 export function restartStory(c) {
     const { story, ctx, turner, book, quake } = c;
     gsap.globalTimeline.clear();
+    c.layers.undo();
+    c.layers.items.clear();
     story.stopActivity();
     story.scene?.dispose();
     story.incoming?.dispose();

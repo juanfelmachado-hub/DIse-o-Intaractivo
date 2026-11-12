@@ -13,15 +13,15 @@
  *  3. Gatillo o pellizco: el libro queda ahí, con su frente hacia el lector.
  *
  * Después: palanca izquierda/derecha gira la maqueta 30°, arriba/abajo cambia
- * su tamaño; A/X (o «Mover» en el panel) vuelve a colocarla. Los paneles del
- * cuento siguen al lector con suavidad, como antes.
+ * su tamaño; A/X (o «Mover» en el panel) vuelve a colocarla. El panel del
+ * cuento queda fijo junto a la maqueta (PanelSystem).
  */
 import {
     createSystem, CanvasTexture, Color, DoubleSide, EdgesGeometry, EnvironmentRaycastTarget, Group, InputComponent, LineBasicMaterial,
     LineSegments, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, CircleGeometry, Quaternion, Euler, RaycastSpace, Plane, Ray,
     Vector3, VisibilityState, SRGBColorSpace,
 } from '@iwsdk/core';
-import { PlayerSpot, StoryPanel, StoryState } from '../story-components.js';
+import { PlayerSpot, StoryState } from '../story-components.js';
 import { DIORAMA_SCALE, DIORAMA_SCALES, fitShadow } from '../story/runtime.js';
 
 const HANDS = ['right', 'left'];
@@ -57,7 +57,6 @@ function label(lines) {
 
 export class PlacementSystem extends createSystem({
     state: { required: [StoryState] },
-    panels: { required: [StoryPanel] },
 }) {
     init() {
         this.v = new Vector3();
@@ -73,8 +72,6 @@ export class PlacementSystem extends createSystem({
         this.placedImmersive = false;
         this.wasImmersive = null;
         this.stickArmed = { left: true, right: true };
-        this.panelYaw = 0;
-        this.textScale = 1;
         this.lastHand = 'right';
         this.previewYaw = 0;
         this.deskBg = new Color('#241d33');
@@ -124,7 +121,7 @@ export class PlacementSystem extends createSystem({
         this.world.globals.placement = {
             recenter: () => this.startPlacing(),
             nearNico: () => this.cycleScale(1, true),
-            setTextScale: (s) => { this.textScale = s; this.placePanels(false); },
+            setTextScale: (s) => this.world.globals.panel?.setTextScale(s),
             rotate: (a) => this.rotate(a),
         };
         this.world.globals.dioramaScale = DIORAMA_SCALE;
@@ -166,7 +163,7 @@ export class PlacementSystem extends createSystem({
         this.preview.visible = this.hint.visible = this.hintFloor.visible = false;
         this.spotEntity.setValue(PlayerSpot, 'spot', this.world.visibilityState.peek() === VisibilityState.NonImmersive ? 'escritorio' : 'maqueta');
         this.spotEntity.setValue(PlayerSpot, 'scale', this.k);
-        this.placePanels(true);
+        this.world.globals.placedAt = performance.now(); // el panel vuelve junto a la maqueta
     }
 
     /** Tamaño de la maqueta (Nico ≈ 11, 16 o 21 cm), sin moverla del piso. */
@@ -260,26 +257,6 @@ export class PlacementSystem extends createSystem({
         }
     }
 
-    /** Los paneles se colocan frente al lector (el del cuento, un poco a la izquierda). */
-    placePanels(snapYaw) {
-        const head = this.world.camera;
-        head.getWorldPosition(this.v);
-        head.getWorldQuaternion(this.q);
-        this.e.setFromQuaternion(this.q);
-        if (snapYaw) this.panelYaw = this.e.y;
-        for (const ent of this.queries.panels.entities) {
-            const obj = ent.object3D;
-            if (!obj) continue;
-            const role = ent.getValue(StoryPanel, 'role');
-            const side = role === 'story' ? 0.42 : 0;
-            const yaw = this.panelYaw + side;
-            const dist = role === 'story' ? 0.85 : 0.95;
-            obj.position.set(this.v.x - Math.sin(yaw) * dist, this.v.y - (role === 'story' ? 0.22 : 0.08), this.v.z - Math.cos(yaw) * dist);
-            obj.rotation.set(-0.12, yaw, 0, 'YXZ');
-            obj.scale.setScalar(0.1 * (role === 'story' ? this.textScale : 1)); // los paneles se diseñan en mm
-        }
-    }
-
     update(delta) {
         const c = this.world.globals.cuento;
         if (!c) return;
@@ -300,20 +277,6 @@ export class PlacementSystem extends createSystem({
             this.updatePlacing();
             return;
         }
-
-        // panel perezoso: si el lector se gira mucho, el panel lo sigue con suavidad
-        this.world.camera.getWorldQuaternion(this.q);
-        this.e.setFromQuaternion(this.q);
-        let d = this.e.y - this.panelYaw;
-        d = Math.atan2(Math.sin(d), Math.cos(d));
-        if (Math.abs(d) > 0.9) this.followTo = this.e.y;
-        if (this.followTo !== undefined) {
-            let f = this.followTo - this.panelYaw;
-            f = Math.atan2(Math.sin(f), Math.cos(f));
-            this.panelYaw += f * Math.min(1, delta * 3);
-            if (Math.abs(f) < 0.02) this.followTo = undefined;
-        }
-        this.placePanels(false);
 
         if (!immersive) return;
         // A/X: volver a colocar · palanca: girar la maqueta (izq./der.) o cambiar su tamaño (arriba/abajo)

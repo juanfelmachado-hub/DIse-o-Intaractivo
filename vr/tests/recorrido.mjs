@@ -7,6 +7,9 @@
  *
  * Cada ejecución avanza ~95 s (límite del navegador gestionado) y continúa donde quedó.
  *
+ * La torre de bloques (que en el visor arma el lector) se salta con
+ * tower.skip(): se prueba aparte con tests/torre-manos.sh.
+ *
  * Recorre el cuento de principio a fin: portada → la sala (radar, ponerse a
  * salvo, tambor) → el pasillo (zapatos, camino, réplica, tortuga) → el patio
  * (zona segura) → cierre y vuelta a la portada. Los juegos se juegan por el
@@ -130,6 +133,13 @@ export default async function run({ page, frame }) {
             await sleep(250);
             if (story.mode === 'cover') { R.done = true; break; }
             if (story.mode !== 'reading' || c.turner.busy) continue;
+            // la torre que arma el lector con las manos (solo en el visor): aquí se deja a Nico
+            const tower = c.world.globals.tower;
+            if (tower?.active) {
+                note(`torre activa en ${where()} → «Que la termine Nico»`);
+                tower.skip();
+                continue;
+            }
             const act = story.activity;
             if (act) {
                 const id = story.page.beats[story.beat]?.instruction?.taskId;

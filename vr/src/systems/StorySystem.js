@@ -72,7 +72,10 @@ export class StorySystem extends createSystem({
         this.calm.intensity = quake.intensity;
         book.update(dt, t, this.calm, null);
         turner.update(dt);
+        // reacciones a las manos: se quitan antes del cuento y se vuelven a poner después
+        c.layers.undo();
         story.update(dt, t, quake);
+        c.layers.apply();
 
         const e = this.stateEntity;
         const page = story.page;

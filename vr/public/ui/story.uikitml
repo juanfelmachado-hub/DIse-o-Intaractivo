@@ -131,6 +131,12 @@
       </ButtonIcon>
       <ButtonLabel>Mover</ButtonLabel>
     </Button>
+    <Button id="btn-hide" variant="secondary">
+      <ButtonIcon>
+        <Minimize2></Minimize2>
+      </ButtonIcon>
+      <ButtonLabel>Ocultar</ButtonLabel>
+    </Button>
     <Button id="btn-menu" variant="secondary">
       <ButtonIcon>
         <Pause></Pause>

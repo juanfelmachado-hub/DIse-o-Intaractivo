@@ -50,6 +50,7 @@
   }
   .row {
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 12;
     padding-left: 28;
     padding-right: 28;
@@ -64,7 +65,7 @@
     <div id="eyebrow" class="eyebrow">CUENTO EN REALIDAD MIXTA</div>
     <div id="title" class="title">Nico y su guardián personal</div>
     <div id="intro" class="body">...</div>
-    <div id="help" class="help">El cuento es una maqueta sobre tu piso: camina a su alrededor y agáchate para verla de cerca. Apunta con el rayo y aprieta el gatillo (o junta índice y pulgar) para tocar; mantén para arrastrar. Palanca: girar (izq./der.) o cambiar el tamaño (arriba/abajo). A o X: mover el libro.</div>
+    <div id="help" class="help">El cuento es una maqueta sobre tu piso: camina a su alrededor y agáchate para verla de cerca. Con las manos: junta pulgar e índice sobre un objeto para agarrarlo y ábrelos para soltarlo; toca con el dedo. Con controles: botón lateral para agarrar, gatillo para tocar. Este panel se mueve tomándolo del asa de abajo. Palanca: girar o cambiar el tamaño de la maqueta. A o X: mover el libro.</div>
   </div>
   <div class="row">
     <Button id="btn-start">
@@ -86,6 +87,12 @@
         <Type></Type>
       </ButtonIcon>
       <ButtonLabel id="btn-text-label">Texto: normal</ButtonLabel>
+    </Button>
+    <Button id="btn-panel" variant="secondary">
+      <ButtonIcon>
+        <Undo2></Undo2>
+      </ButtonIcon>
+      <ButtonLabel>Panel a su lugar</ButtonLabel>
     </Button>
     <Button id="btn-restart" variant="secondary">
       <ButtonIcon>

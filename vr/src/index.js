@@ -15,15 +15,26 @@ import { StoryInputSystem } from './systems/StoryInputSystem.js';
 import { StoryUISystem } from './systems/StoryUISystem.js';
 import { SpatialAudioSystem } from './systems/SpatialAudioSystem.js';
 import { StoryFxSystem } from './systems/StoryFxSystem.js';
+import { HandInteractionSystem } from './systems/HandInteractionSystem.js';
+import { PanelSystem } from './systems/PanelSystem.js';
+import { TowerSystem } from './systems/TowerSystem.js';
+import { ReactionSystem } from './systems/ReactionSystem.js';
+import { GestureSystem } from './systems/GestureSystem.js';
 
 World.create(document.getElementById('scene-container'), projectOptions)
     .then(async (world) => {
+        // las manos primero (todo lo demás lee su estado de este cuadro)
+        world.registerSystem(HandInteractionSystem);
         world.registerSystem(StorySystem);
         world.registerSystem(StoryInputSystem);
         world.registerSystem(PlacementSystem);
         world.registerSystem(StoryUISystem);
         world.registerSystem(SpatialAudioSystem);
         world.registerSystem(StoryFxSystem);
+        world.registerSystem(PanelSystem);
+        world.registerSystem(TowerSystem);
+        world.registerSystem(ReactionSystem);
+        world.registerSystem(GestureSystem);
         world.globals.cuento = await createStory(world);
         window.cuento = world.globals.cuento; // útil para depurar desde la consola
     })
