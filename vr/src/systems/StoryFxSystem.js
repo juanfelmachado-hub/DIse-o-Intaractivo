@@ -92,7 +92,7 @@ export class StoryFxSystem extends createSystem({
         }
 
         // tambor (juego 2)
-        const drumOn = !c.ui.el.drum.hidden && c.ui.drumTarget;
+        const drumOn = !c.ui.el.drum.hidden && c.ui.drumTarget && !this.world.globals.heart?.active; // en el visor el corazón tiene su propio latido
         this.drum.visible = !!drumOn;
         if (drumOn) {
             c.ui.drumTarget.getWorldPosition(this.drum.position);

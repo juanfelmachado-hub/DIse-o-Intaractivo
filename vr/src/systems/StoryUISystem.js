@@ -69,7 +69,7 @@ export class StoryUISystem extends createSystem({
             talkBox: $s('talk-box'), speaker: $s('speaker'), dialog: $s('dialog'), narration: $s('narration'),
             next: $s('btn-next'), nextLabel: $s('btn-next-label'), turtle: $s('btn-turtle'),
             steps: $s('btn-steps'), stepsLabel: $s('btn-steps-label'),
-            near: $s('btn-near'), recenter: $s('btn-recenter'), menu: $s('btn-menu'), hide: $s('btn-hide'),
+            near: $s('btn-near'), recenter: $s('btn-recenter'), menu: $s('btn-menu'), hide: $s('btn-hide'), reset: $s('btn-reset'),
             title: $m('title'), intro: $m('intro'), start: $m('btn-start'), startLabel: $m('btn-start-label'),
             xr: $m('btn-xr'), exit: $m('btn-exit'), text: $m('btn-text'), textLabel: $m('btn-text-label'),
             restart: $m('btn-restart'), panel: $m('btn-panel'),
@@ -90,6 +90,8 @@ export class StoryUISystem extends createSystem({
             ui.el.next.click();
         });
         on(this.el.hide, () => this.world.globals.panel?.hide());
+        // «Reiniciar»: los objetos y personajes manipulables vuelven a su lugar (no la historia)
+        on(this.el.reset, () => this.world.globals.resetObjects?.());
         on(this.el.panel, () => { this.world.globals.panel?.reset(); this.setPaused(false); });
         on(this.el.turtle, () => ui.el.turtle.onclick?.());
         on(this.el.steps, () => ui.onStepsGo?.());
@@ -165,6 +167,7 @@ export class StoryUISystem extends createSystem({
         this.show(el.near, 'near', immersive);
         this.show(el.recenter, 'recenter', immersive);
         this.show(el.hide, 'hide', immersive);
+        this.show(el.reset, 'reset', immersive);
         this.set(el.textLabel, 'textLabel', 'text', TEXT_SIZES[this.textSize][1]);
         if (!this.sp.visible) return;
 

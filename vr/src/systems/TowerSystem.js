@@ -43,6 +43,8 @@ const BLOCK = 0.17; // lado del bloque en unidades del cuento (RoomScene)
 /** Espacio de físicas: unidades de la página × PHYS_SCALE, con origen lejos de la escena. */
 const PHYS_SCALE = 2;
 const PHYS_ORIGIN = new Vector3(0, 40, 0);
+/** Lado del piso de la habitación simulado (m reales). */
+const ROOM = 6;
 /** Inclinación máxima (rad) que se endereza sola al soltar un bloque. */
 const LEVEL_ASSIST = 0.44; // ~25°
 const AXES = [new Vector3(1, 0, 0), new Vector3(0, 1, 0), new Vector3(0, 0, 1)];
@@ -72,6 +74,7 @@ export class TowerSystem extends createSystem({}) {
             get active() { return sys.active; },
             get canSkip() { return sys.active && sys.elapsed > 40; },
             skip: () => this.skip(),
+            reset: () => this.resetBlocks(),
             get height() { return sys.height ?? 0; },
         };
         const sys = this;
@@ -153,19 +156,30 @@ export class TowerSystem extends createSystem({}) {
         const size = BLOCK * PHYS_SCALE;
         scene.group.updateMatrixWorld(true);
         this.readStage();
-        // piso: la hoja abierta (6,1 × 4 unidades), cara superior en y = 0 de la página
-        const floor = new Object3D();
-        floor.position.set(0, -0.5, 0).add(PHYS_ORIGIN);
-        this.addStatic(floor, [6.2 * PHYS_SCALE, 1, 4.1 * PHYS_SCALE]);
-        // Nico: una caja estática del tamaño de su tronco (0,3 × 0,9 × 0,25 unidades), de pie sobre la página
+        // el libro abierto (6,1 × 4 unidades): cara superior en y = 0 de la página
+        const book = new Object3D();
+        book.position.set(0, -0.5, 0).add(PHYS_ORIGIN);
+        this.addStatic(book, [6.2 * PHYS_SCALE, 1, 4.1 * PHYS_SCALE]);
+        // el piso real de la habitación: lo que cae fuera del libro se queda ahí
+        this.v.copy(c.book.stage.getWorldPosition(this.v)).setY(c.diorama.position.y);
+        c.book.stage.worldToLocal(this.v);
+        this.roomFloor = PHYS_ORIGIN.y + this.v.y * PHYS_SCALE; // cara superior (espacio de físicas)
+        const room = new Object3D();
+        room.position.set(0, this.roomFloor - 0.5, 0).add(this.w.set(PHYS_ORIGIN.x, 0, PHYS_ORIGIN.z));
+        const roomSize = (ROOM / k) * PHYS_SCALE;
+        this.addStatic(room, [roomSize, 1, roomSize]);
+        // Nico: una caja del tamaño de su tronco (0,3 × 0,9 × 0,25 unidades). Es cinemática:
+        // si el lector lo levanta o lo lleva a otro lado, su collider lo sigue
         const nico = scene.nico;
+        this.nicoBody = null;
         if (nico) {
             const o = new Object3D();
-            this.worldToPhys(nico.getWorldPosition(this.v), o.position);
-            o.position.y = PHYS_ORIGIN.y + 0.45 * PHYS_SCALE;
-            nico.getWorldQuaternion(this.q);
-            o.quaternion.copy(this.stageQi).multiply(this.q);
-            this.addStatic(o, [0.3 * PHYS_SCALE, 0.9 * PHYS_SCALE, 0.25 * PHYS_SCALE]);
+            this.placeNicoBody(nico, o);
+            const e = this.world.createTransformEntity(o);
+            e.addComponent(PhysicsShape, { shape: PhysicsShapeType.Box, dimensions: [0.3 * PHYS_SCALE, 0.9 * PHYS_SCALE, 0.25 * PHYS_SCALE], friction: 0.9, restitution: 0 });
+            e.addComponent(PhysicsBody, { state: PhysicsState.Kinematic });
+            this.statics.push(e);
+            this.nicoBody = { entity: e, obj: o, position: new Vector3(), quaternion: new Quaternion() };
         }
         // bloques dinámicos (desde donde se ven ahora)
         for (const block of scene.blocks) {
@@ -206,6 +220,14 @@ export class TowerSystem extends createSystem({}) {
         this.bodies = [];
         this.statics = [];
         this.buildPhysics(this.c, this.scene);
+    }
+
+    /** Pose del collider de Nico (espacio de físicas): de pie donde está, con el tronco a 0,45 unidades. */
+    placeNicoBody(nico, out) {
+        this.worldToPhys(nico.getWorldPosition(this.v), out.position);
+        out.position.y += 0.45 * PHYS_SCALE;
+        nico.getWorldQuaternion(this.q);
+        out.quaternion.copy(this.stageQi).multiply(this.q);
     }
 
     addStatic(obj, dims) {
@@ -383,11 +405,20 @@ export class TowerSystem extends createSystem({}) {
         }
         this.syncVisuals();
 
-        // bloques que se salieron del libro: vuelven a su lugar
+        // el collider de Nico va con él (el lector puede moverlo)
+        const nb = this.nicoBody;
+        if (nb && this.scene.nico) {
+            this.placeNicoBody(this.scene.nico, nb);
+            this.physics?.setBodyTransform(nb.entity, { position: nb.position, quaternion: nb.quaternion });
+        }
+
+        // los bloques pueden salir del libro y quedarse en el piso real. Solo como
+        // seguro: uno que atravesó el piso o quedó a más de ROOM/2 m vuelve a su lugar
+        const far = (ROOM / 2 / k) * PHYS_SCALE;
         for (const r of this.bodies) {
             if (r.held) continue;
             const p = r.obj.position;
-            if (p.y < PHYS_ORIGIN.y - PHYS_SCALE || Math.hypot(p.x - PHYS_ORIGIN.x, p.z - PHYS_ORIGIN.z) > 4 * PHYS_SCALE) {
+            if (p.y < this.roomFloor - PHYS_SCALE || Math.hypot(p.x - PHYS_ORIGIN.x, p.z - PHYS_ORIGIN.z) > far) {
                 this.physics?.setBodyTransform(r.entity, { position: r.home, quaternion: r.homeQ });
             }
         }
@@ -437,6 +468,28 @@ export class TowerSystem extends createSystem({}) {
         ui.say('nico', NICO_LINES.thanks);
         ui.setNext(true);
         this.completed = true;
+    }
+
+    /**
+     * Botón «Reiniciar objetos»: los bloques vuelven a donde estaban al empezar,
+     * quietos (posición, giro y velocidades en cero). Sus lugares iniciales no se
+     * tocan entre sí; si la mano tenía uno, se suelta. No cambia la historia.
+     */
+    resetBlocks() {
+        if (!this.active) return false;
+        for (const r of this.bodies) {
+            if (r.held && r.item) {
+                r.held = false;
+                r.item.busy = false;
+            }
+            r.throwPending = false;
+            this.physics?.setBodyTransform(r.entity, { position: r.home, quaternion: r.homeQ });
+        }
+        this.best = 0;
+        this.stable = 0;
+        this.idle = 0;
+        this.syncVisuals();
+        return true;
     }
 
     skip() {

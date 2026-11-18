@@ -21,7 +21,17 @@
  * de la mano (StoryInputSystem); con los controles el rayo sigue funcionando.
  *
  * Registro: world.globals.interact.add({ object, box, kind, onGrab, onHold,
- * onRelease, enabled? }) — `box` es la caja local de shapes.fitLocalBox.
+ * onRelease, enabled?, priority? }) — `box` es la caja local de shapes.fitLocalBox.
+ *
+ * Prioridades: si dos objetos están casi igual de cerca gana el de mayor
+ * `priority` (Nico 3, objetos de juego 3, panel 2, bloques 1, página 0,
+ * Guardián 0). Bloqueo: mientras una mano pasa una página
+ * (`globals.interactLock = 'page'`) o la hoja termina de girar, solo la página
+ * responde; así un mismo gesto nunca activa dos acciones incompatibles.
+ *
+ * Nico tiene su propio controlador (NicoSystem): se levanta en 3D. Los demás
+ * arrastrables de los juegos (zapatos…) usan el arrastre de aquí, sin límites
+ * artificiales: el juego decide si el lugar donde se suelta es válido.
  */
 import { createSystem, Mesh, MeshBasicMaterial, SphereGeometry, Vector3, VisibilityState } from '@iwsdk/core';
 import gsap from 'gsap';
@@ -33,10 +43,8 @@ export const GRAB_CFG = {
     GRAB_DIST: { hand: 0.022, controller: 0.04 },
     /** Cuánto pesa cada punto de prioridad al elegir entre objetos casi igual de cerca (m). */
     PRIORITY_MM: 0.004,
-    /** Nico y lo que se arrastra: altura máxima a la que se levanta (unidades del cuento). */
+    /** Lo que se arrastra en los juegos: altura máxima a la que se levanta (unidades del cuento). */
     MAX_LIFT: 0.9,
-    /** Velocidad de la mano a partir de la cual Nico se sorprende (m/s). */
-    FAST: 0.9,
 };
 
 class Registry {
@@ -59,6 +67,7 @@ export class HandInteractionSystem extends createSystem({}) {
         this.world.globals.hands = this.hands;
         this.world.globals.interact = this.registry;
         this.state = { left: { mode: 'idle', target: null }, right: { mode: 'idle', target: null } };
+        this.world.globals.handState = this.state;
         this.v = new Vector3();
         this.w = new Vector3();
         this.closest = new Vector3();
@@ -85,7 +94,9 @@ export class HandInteractionSystem extends createSystem({}) {
                 this.dragItems.delete(obj);
             }
         }
+        const nico = c.story.scene?.nico;
         for (const [obj, opts] of map) {
+            if (obj === nico) continue; // NicoSystem
             if (this.dragItems.has(obj)) continue;
             // prioridad alta: en un juego, lo que se arrastra va antes que el Guardián o el panel
             const it = this.registry.add({ object: obj, kind: 'drag', priority: 3, opts, lift: 0, ...this.dragHandlers(c) });
@@ -107,32 +118,18 @@ export class HandInteractionSystem extends createSystem({}) {
                 gsap.killTweensOf(this.layer);
                 c.pointer.drag = { object: this.object, opts: this.opts };
                 this.opts.onStart?.();
-                this.fastCool = 0;
             },
             onHold(hand, dt) {
                 const space = this.opts.space;
                 const p = sys.local(space, hand.point, sys.v);
-                // Nico y los objetos se quedan dentro del escenario
-                p.x = Math.max(-2.85, Math.min(2.85, p.x + this.offX));
-                p.z = Math.max(-1.85, Math.min(1.85, p.z + this.offZ));
+                // sin límites artificiales: el juego decide qué lugar vale al soltar
+                p.x += this.offX;
+                p.z += this.offZ;
                 this.last = { x: p.x, y: 0, z: p.z };
                 this.opts.onMove?.(sys.w.set(p.x, 0, p.z));
                 // se levanta con la mano (no atraviesa el piso)
                 const lift = Math.max(0, Math.min(GRAB_CFG.MAX_LIFT, p.y - this.handY0 + 0.15));
                 this.layer.y += (lift - this.layer.y) * Math.min(1, dt * 14);
-                // Nico: piernas que se balancean y sorpresa si se mueve rápido
-                const nico = c.story.scene?.nico;
-                if (nico === this.object && nico.currentPose === 'dangle') {
-                    const sp = Math.min(1, hand.speed / 1.2);
-                    nico.p.legRx = 0.28 + sp * 0.5 * Math.sin(performance.now() / 140);
-                    nico.p.legLx = -0.22 - sp * 0.5 * Math.sin(performance.now() / 140);
-                    this.fastCool -= dt;
-                    if (hand.speed > GRAB_CFG.FAST && this.fastCool <= 0) {
-                        this.fastCool = 1.5;
-                        nico.face('o');
-                        gsap.delayedCall(0.8, () => nico.face('smile'));
-                    }
-                }
             },
             onRelease() {
                 c.pointer.drag = null;
@@ -157,8 +154,10 @@ export class HandInteractionSystem extends createSystem({}) {
         const maxD = GRAB_CFG.HOVER_DIST[hand.kind] ?? 0.05;
         let bestD = maxD;
         let bestScore = Infinity;
+        const lock = this.world.globals.interactLock ?? (c.turner?.busy ? 'page' : null);
         for (const it of this.registry.items) {
             const o = it.object;
+            if (lock && it.kind !== lock) continue;
             if (!o.parent || !o.visible || (it.enabled && !it.enabled())) continue;
             if (it.busy) continue;
             // descarte rápido con la esfera envolvente
@@ -197,6 +196,13 @@ export class HandInteractionSystem extends createSystem({}) {
             const dot = this.dots[side];
             if (st.mode === 'grab') {
                 const it = st.target;
+                if (!it.busy) {
+                    // el objeto se soltó desde afuera (botón «Reiniciar»): sin onRelease, sin lanzarlo
+                    st.mode = 'idle';
+                    st.target = null;
+                    dot.visible = false;
+                    continue;
+                }
                 if (!hand.tracked || hand.grabEnd || !hand.grab || !it.object.parent || paused) {
                     st.mode = 'idle';
                     st.target = null;

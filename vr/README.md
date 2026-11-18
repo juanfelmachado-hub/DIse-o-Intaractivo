@@ -28,17 +28,19 @@ importa el código original de `../src` y los recursos de `../static`.
 | --- | --- | --- |
 | Colocar el libro en el piso | Apuntar al piso y apretar el gatillo | Apuntar y pellizcar (índice + pulgar) |
 | Tocar / elegir | Rayo + gatillo | Rayo de la mano + pellizco |
-| Agarrar algo de la maqueta (bloques, Nico, zapatos, el Guardián) | Acercar el control y apretar el botón lateral | Pellizcarlo con el pulgar y el índice (a menos de 2 cm); abrir los dedos para soltar |
+| Agarrar algo de la maqueta (bloques, Nico, zapatos, el Guardián) | Acercar el control y apretar el botón lateral | Pellizcarlo con el pulgar y el índice (a menos de 2 cm); abrir los dedos para soltar. Se puede llevar fuera del libro: al soltarlo cae al piso real |
+| Pasar la hoja | Apuntar al sello redondo de la esquina de la hoja y apretar el gatillo | Bajar el índice sobre el sello, o pellizcar el borde exterior de la hoja y llevarlo hacia el lomo |
 | Construir la torre (primera página) | Agarrar los bloques con el botón lateral y apilarlos | Pellizcar los bloques y apilarlos |
 | Arrastrar (Nico, zapatos) | Mantener el gatillo y mover el rayo, o agarrarlo de cerca | Agarrarlo con la mano (con la mano no se arrastra a distancia) |
 | Radar (juego 1) | Mover el rayo sobre la maqueta; el bip late más rápido cerca del peligro | Igual |
 | Ponerse a salvo | Tocar a Nico con el rayo (o el botón del panel) | Igual. En «¡Cúbrete!», poner las dos manos sobre la cabeza |
 | Mover el panel del cuento | Agarrar el asa (barra bajo el panel) con el botón lateral, de cerca o apuntándole | Pellizcar el asa; girar la muñeca lo gira |
 | Ocultar el panel | «Ocultar» en el panel; vuelve tocando el icono junto al libro (o apuntándole con el gatillo) | Igual, tocando el icono con el índice |
-| Tambor (juego 2) | Golpear el tambor dorado sobre Nico: tocarlo con el control, o apuntarle y apretar el gatillo al ritmo | Tocarlo con la mano, o apuntar y pellizcar |
+| Ritmo (juego 2) | Golpear el corazón 3D al ritmo del latido: tocarlo con el control, o apuntarle y apretar el gatillo | Golpearlo con el índice o la palma (hay que moverse hacia él; una mano quieta encima no cuenta) |
 | Girar la maqueta 30° | Palanca a la izquierda o la derecha | — |
 | Tamaño de la maqueta | Palanca arriba (más grande) o abajo (más pequeña), o «Tamaño» en el panel | «Tamaño» en el panel |
 | Mover el libro a otro lugar | Botón A o X, o «Mover» en el panel | «Mover» en el panel |
+| Devolver los objetos a su lugar (bloques, Nico, Guardián; reinicia la cuenta del corazón) sin cambiar la historia | «Reiniciar» en el panel | Igual |
 | Pausa, reinicio, tamaño del texto, salir | «Pausa» en el panel abre el menú | Igual |
 
 ## Desarrollo
@@ -116,13 +118,16 @@ Sistemas (`src/systems/`):
 - **PlacementSystem**: vista previa sobre el piso, colocación, giro y tamaño.
 - **HandInteractionSystem**: manos y controles → agarrar objetos de la maqueta (ver «Interacción con las manos»).
 - **PanelSystem**: panel fijo en la habitación, asa, ocultar e icono.
+- **NicoSystem**: Nico como juguete (agarrar en 3D, caer, volver cuando la historia lo necesita).
+- **PageSystem**: pasar la hoja con la mano (sello y borde de la hoja).
+- **HeartSystem**: el corazón 3D del juego de ritmo.
 - **TowerSystem**: la torre de bloques con físicas.
 - **ReactionSystem**: reacciones de Nico y del Guardián al tacto.
 - **GestureSystem**: el gesto de cubrirse la cabeza.
 - **StoryInputSystem**: rayo del control o de la mano y mouse → juegos originales, y toque físico del tambor.
 - **StoryUISystem**: paneles UIKitML (`public/ui/story.uikitml`, `public/ui/menu.uikitml`).
 - **SpatialAudioSystem**: oído del lector y orígenes de los efectos.
-- **StoryFxSystem**: anillos de radar, tambor y objetos tocables.
+- **StoryFxSystem**: anillos de radar, tambor (fuera del visor) y objetos tocables.
 
 ### Interacción con las manos
 
@@ -130,16 +135,29 @@ Todo pasa por un solo sistema (`HandInteractionSystem`) con un registro de objet
 agarrables (`world.globals.interact`). Cada mano, sea mano real o control, sigue
 esta máquina de estados: **IDLE → HOVER → GRABBING → (soltar) → IDLE**.
 
-- **Manos** (`src/interaction/hands.js`): se leen las articulaciones de WebXR (puntas del pulgar y del índice, palma y muñeca). La pinza se cierra a menos de **1,8 cm** entre las puntas y se abre a más de **4 cm** (histéresis: no parpadea). Mientras está cerrada, el punto de agarre queda anclado a la muñeca: al abrir los dedos el objeto no se arrastra ni sale disparado. Si la mano se deja de ver más de **0,25 s**, se suelta lo que tenía.
+- **Manos** (`src/interaction/hands.js`): se leen las articulaciones de WebXR (puntas del pulgar y del índice, palma y muñeca). El Quest entrega cada articulación ya en 3D, en metros (no es una estimación desde una cámara RGB), así que la profundidad es real y todo se mide en el mismo espacio del mundo que la maqueta.
+  - **Filtro One Euro** (`src/interaction/filters.js`) en cada articulación: con la mano quieta corta el temblor (1,6 Hz) y con la mano rápida casi no agrega retraso. La orientación se suaviza con el mismo criterio.
+  - **Umbrales adaptativos**: la pinza se cierra a menos de **1,8 cm** y se abre a más de **4 cm** para una mano de referencia (8,5 cm de la muñeca al nudillo del medio); los dos umbrales se escalan con el tamaño real de la mano.
+  - **Histéresis y confirmación temporal**: el cierre debe sostenerse **30 ms** y la apertura **50 ms**; un parpadeo del tracking no agarra ni suelta.
+  - Mientras la pinza está cerrada, el punto de agarre queda anclado a la muñeca: al abrir los dedos el objeto no se arrastra ni sale disparado.
+  - **Pérdida de tracking**: los puntos se congelan donde estaban (nada se teletransporta). Si la mano vuelve antes de **0,35 s**, se sigue sosteniendo y el punto vuelve suave al real (0,2 s). Si no vuelve, se suelta **sin velocidad**: el objeto cae recto. Cambiar de mano a control (o al revés) también suelta sin lanzar.
 - **Controles**: el punto de agarre está 5 cm delante de la empuñadura y el botón lateral es la pinza.
-- **Formas de interacción** (`src/interaction/shapes.js`): una caja ajustada a las mallas **visibles** de cada objeto (sin sprites, brillos ni las cajas de "hit" invisibles de la web). La distancia se mide en metros reales hasta la superficie de la caja. Se resalta a menos de **5 cm** (punto amarillo) y se agarra a menos de **2,2 cm** (punto verde mientras se sostiene). Si dos objetos están casi igual de cerca, ganan los del juego (Nico, zapatos) sobre el Guardián.
+- **Formas de interacción** (`src/interaction/shapes.js`): una caja ajustada a las mallas **visibles** de cada objeto (sin sprites, brillos ni las cajas de "hit" invisibles de la web). La distancia se mide en metros reales hasta la superficie de la caja. Se resalta a menos de **5 cm** (punto amarillo) y se agarra a menos de **2,2 cm** (punto verde mientras se sostiene).
+- **Prioridades**: si dos objetos están casi igual de cerca, gana el de mayor prioridad: Nico y los objetos de los juegos (3), bloques, Guardián y hoja (0). Mientras se pasa la hoja, solo la hoja responde (`interactLock`).
+- **Superficies sólidas** (`src/interaction/surfaces.js`): no hay límites invisibles. Lo sólido es lo que existe: la página, dentro del contorno del libro abierto, y el piso real de la habitación, afuera. Nada los atraviesa.
 - **Capas** (`src/interaction/layers.js`): levantar a Nico o empujar al Guardián se suma encima de la animación del cuento y se deshace exacta cada cuadro. Así no pelea con el código original.
-- **Nico como un juguete**: al levantarlo cuelga (postura `dangle`) y balancea las piernas; si se mueve rápido pone cara de sorpresa. No sale del escenario. Al soltarlo baja suave al piso, y si el lugar no vale, el juego lo devuelve a su última posición segura.
+- **Nico como un juguete** (`NicoSystem`): **LIBRE → AGARRADO → CAYENDO → EN EL PISO → VUELVE**.
+  - Se toma desde el punto donde se pellizcó (no salta al centro) y sigue a la mano en X, Y y Z con un suavizado exponencial, también fuera del libro.
+  - Se inclina según la velocidad, cuelga (postura `dangle`), balancea las piernas y pone cara de sorpresa si la mano va rápido. Nunca baja más que la superficie de abajo.
+  - Al soltarlo hereda la velocidad de la mano (tope 1,2 m/s) y cae con gravedad real (9,8 m/s²) sobre la página o el piso real; rebota un poco, frena con fricción y recupera el equilibrio.
+  - Se queda donde cayó. Solo vuelve (caminando, con un saltito) cuando la historia avanza y lo necesita en su lugar, o con «Reiniciar».
+  - En el radar el juego sigue decidiendo: al aterrizar se le pasa el lugar al juego, que lo acepta o lo devuelve a su última posición segura (mecánica narrativa).
 
 **La torre** (`TowerSystem`, primera página):
 
 - En la web la torre se armaba sola. En el visor Nico dice «¿Me ayudas a construir una torre con estos bloques?» y los 6 bloques quedan regados por la sala.
-- Usa las físicas de IWSDK (**Havok**, el motor que ya trae IWSDK; no se agregó otro). Cada bloque tiene gravedad, masa, fricción y rotación, y choca con la página, con Nico y con los otros bloques.
+- Usa las físicas de IWSDK (**Havok**, el motor que ya trae IWSDK; no se agregó otro). Cada bloque tiene gravedad, masa, fricción y rotación, y choca con la página, con Nico (un cuerpo cinemático que lo sigue aunque se lo lleve en la mano), con los otros bloques y con el **piso real** de la habitación: un bloque soltado fuera del libro cae al piso y se queda ahí.
+- Si un bloque se pierde (cae por debajo del piso o a más de 3 m), vuelve a su lugar: los objetos no desaparecen.
 - **Espacio de físicas**: un bloque mide ~3 cm en la maqueta, y Havok no sostiene cajas tan chicas (en el emulador se hundían en el piso). Por eso la simulación corre aparte, en las coordenadas de la página × 2, con la gravedad compensada: vista en la maqueta, un bloque cae a 9,8 m/s², como un juguete real.
 - Al soltar un bloque casi derecho (menos de 25° de inclinación) se endereza solo. Hereda la velocidad de la mano (con un tope).
 - **Validación**: 4 bloques en reposo, cada nivel a su altura y apoyado sobre el de abajo, quietos 2 s. Si la torre se cae, Nico se cubre y anima a intentarlo otra vez.
@@ -147,8 +165,9 @@ esta máquina de estados: **IDLE → HOVER → GRABBING → (soltar) → IDLE**.
 - Después de 40 s, «Siguiente» ofrece «Que la termine Nico».
 
 **Reacciones** (`ReactionSystem`): cada personaje tiene una máquina de estados
-**IDLE → OBSERVANDO → SORPRESA → REACCIÓN → RECUPERACIÓN → IDLE**, con tiempos de
-espera. Las reacciones no interrumpen los diálogos del cuento.
+**IDLE (autónomo) → OBSERVANDO → SORPRESA → REACCIÓN → RECUPERACIÓN → IDLE**, con
+tiempos de espera. El Guardián además: **AGARRADO (control del usuario) → LIBRE →
+VOLVIENDO → IDLE**. Las reacciones no interrumpen los diálogos del cuento.
 
 - **Clasificación del contacto:**
   - *toque*: contacto lento;
@@ -161,12 +180,37 @@ espera. Las reacciones no interrumpen los diálogos del cuento.
   - el golpe lo desplaza, lo hace girar y balancea la flor con inercia;
   - el empujón lo corre;
   - la caricia lo hace brillar;
-  - se puede agarrar: flota detrás de la mano y, al soltarlo, vuelve con un resorte amortiguado (si se lanza, más despacio);
-  - no sale de la maqueta.
+  - se puede agarrar y llevar a cualquier lado, también fuera del libro: un resorte persigue la mano (sin saltos);
+  - al soltarlo (o tras un golpe fuerte) queda LIBRE: flota donde quedó, frenado por el aire, durante 6 s (3 s tras un golpe). Después vuelve solo, despacio, junto a Nico (VOLVIENDO), porque es su guardián y la historia lo necesita cerca;
+  - nunca atraviesa la página ni el piso real, y no se atasca en el borde del libro: al salir del contorno, la superficie de abajo pasa a ser el piso.
 - **Nico**:
   - mira los bloques que se mueven;
   - se asusta si cae uno cerca;
   - una caricia en la cabeza lo hace sonreír y saltar.
+
+**Pasar la hoja con la mano** (`PageSystem`). Respeta el avance del cuento igual
+que la web (`story.canTurn`): durante un juego la hoja no se agarra y, si todavía
+no se puede pasar, la hoja cede apenas (0,16 rad) y vuelve.
+
+- **Método A, sello en la página**: un sello redondo con una flecha aparece en la esquina de la hoja (lado del lector) solo cuando la historia deja pasar (adelante) o volver (atrás), y late suave. Se presiona bajando el índice sobre él (un dedo quieto encima no lo presiona) o apuntándole con el rayo; se hunde y brilla al presionarlo.
+- **Método B, pellizcar el borde**: se pellizca la franja del borde exterior de la hoja. No gira hasta que la mano se mueve unos 3 cm hacia el lomo o hacia arriba (evita giros accidentales). Después la hoja se curva y sigue el ángulo de la mano alrededor del lomo. Al soltar, la misma lógica de la web decide: pasado el umbral (o con impulso) termina de girar; si no, vuelve. Funciona hacia adelante y hacia atrás. Mientras se sostiene, las demás interacciones quedan bloqueadas, y un gesto pasa una sola hoja.
+
+**El juego de ritmo con un corazón 3D** (`HeartSystem`). En el visor el tambor se
+reemplaza por un corazón que late flotando frente a Nico (Nico ya no es la
+superficie de golpe).
+
+- Late con el sonido del latido («pum… pum») y se contrae y expande con cada uno.
+- Primero hay una **demostración**: 3 latidos que solo se escuchan y se ven. Después aparece «¡Ahora tú! Golpéalo al ritmo».
+- **Golpe real**: cuenta solo cuando el índice o la palma entran al corazón moviéndose hacia él a más de **0,25 m/s**. Un roce lento o una mano quieta dentro no cuentan, y para volver a golpear hay que salir 3 cm.
+- La ventana de ritmo es la del juego original (±38 % del intervalo de 0,9 s, en `DrumActivity`). Un golpe a destiempo hace que el corazón se apague un instante y dice «Espera el pum… ¡y golpea!».
+- **Progreso**: un anillo de 12 puntos alrededor del corazón; cada acierto enciende uno con chispas.
+- «Reiniciar» vuelve la cuenta a 0 y repite la demostración, sin reiniciar la historia.
+- Los umbrales están en `HEART_CFG`.
+
+**Reiniciar** (botón del panel, `world.globals.resetObjects`): devuelve los bloques
+(si la torre está en juego), Nico y el Guardián a su lugar, con posición, rotación y
+velocidad en cero, y reinicia la cuenta del corazón. La historia no cambia. Una torre
+ya terminada no se deshace: es parte del cuento.
 
 **Gesto de protección** (`GestureSystem`):
 
@@ -183,18 +227,22 @@ espera. Las reacciones no interrumpen los diálogos del cuento.
 | Pinza (índice + pulgar) | Agarrar |
 | Abrir los dedos | Soltar |
 | Manos a la cabeza | Cubrirse |
-| Tocar con el índice | Icono del panel, tambor |
-| Golpe con la mano | Tambor, Guardián |
+| Tocar con el índice | Icono del panel, sello de la hoja |
+| Golpe con la mano | Corazón, Guardián |
+| Pinza en el borde de la hoja | Pasar la hoja |
 | Pinza en el asa | Mover el panel |
 | Mano abierta cerca de un objeto | Resaltado (punto amarillo) |
 
-Los umbrales están en `HAND_CFG`, `GRAB_CFG`, `REACT_CFG` y `GESTURE_CFG`.
+Los umbrales están en `HAND_CFG`, `GRAB_CFG`, `NICO_CFG`, `PAGE_CFG`, `HEART_CFG`, `REACT_CFG` y `GESTURE_CFG`.
 
 **Limitaciones conocidas:**
 
 - El Guardián no tiene expresiones faciales animables en su modelo. Por eso sus emociones se muestran con brillo, aplastamiento, giro y la flor.
-- Sus límites son los de la maqueta, no los muebles uno por uno.
+- Las superficies sólidas son la página y el piso real. No se reconocen los muebles de la habitación (una mesa o un sofá): un objeto soltado sobre una mesa real cae hasta el piso. Tampoco los muebles del cuento son sólidos: Nico y el Guardián se apoyan en la página, y los bloques chocan con la página, Nico, los otros bloques y el piso.
+- El piso real es la altura donde se colocó el libro (hit-test o `local-floor`).
 - La caja de Nico es una sola (no por partes del cuerpo).
+- La pinza sobre objetos de 3 cm depende de la precisión del tracking de manos del visor; los umbrales se ajustan con el tamaño de la mano, pero deben probarse en el Quest.
+- Si las manos se tapan entre sí o salen de la vista de las cámaras del visor, el Quest deja de entregar articulaciones: el objeto se suelta tras 0,35 s.
 - No se usan anclas espaciales.
 
 ### Rendimiento (objetivo 72 fps)
@@ -204,10 +252,11 @@ Los umbrales están en `HAND_CFG`, `GRAB_CFG`, `REACT_CFG` y `GESTURE_CFG`.
 - Foveación activa (la de IWSDK).
 - Sin asignaciones de memoria por cuadro en los sistemas. La UI se sincroniza a 10 Hz y solo cuando algo cambia.
 
-- Las físicas solo existen mientras se arma la torre (8 cuerpos, Havok en un worker a paso fijo; los cuerpos quietos duermen).
+- Las físicas solo existen mientras se arma la torre (9 cuerpos: 6 bloques, la página, el piso de la habitación y Nico; Havok en un worker a paso fijo; los cuerpos quietos duermen). Nico, el Guardián y la hoja usan dinámica propia, liviana (sin cuerpos de Havok).
+- El filtro One Euro y la máquina de la pinza no asignan memoria por cuadro.
 - Antes de medir la distancia exacta a la caja de un objeto, se descarta con una esfera envolvente.
 
-Medido en el emulador en la sala abierta: **370 llamadas de dibujo** (ambos ojos y sombra) y **269 mil triángulos**. La versión VR anterior tenía 446 llamadas. Con la torre en juego: 192 llamadas y 195 mil triángulos.
+Medido en el emulador en la sala abierta: **370 llamadas de dibujo** (ambos ojos y sombra) y **269 mil triángulos**. La versión VR anterior tenía 446 llamadas. Con la torre en juego: 192 llamadas y 195 mil triángulos. Con el corazón del juego de ritmo: 205 llamadas y 215 mil triángulos.
 
 ### Tipografía
 
@@ -257,12 +306,40 @@ Con la **mano emulada** de IWER (pellizco real de las articulaciones) y con el c
 - **panel**: moverlo pellizcando el asa, ocultarlo y devolverlo tocando el icono con el índice;
 - **Guardián**: el golpe lo desplaza y vuelve con el resorte; agarrarlo, llevarlo y soltarlo.
 
+**Interacción libre, hoja, corazón y tracking** (emulador, mano emulada; estado con
+`tests/objetos-estado.mjs`):
+
+| Prueba | Cómo | Resultado |
+| --- | --- | --- |
+| Nico sale del libro | Pellizcarlo, subirlo a 30 cm, llevarlo a x = 0,80 m (el libro termina en 0,54) y soltarlo | Lo sigue en X, Y y Z; cae al piso real (y = 0) y se queda ahí |
+| Nico en el radar | `tests/radar-listo.mjs`, llevarlo con la mano bajo la mesa | El juego se completa |
+| Guardián sale del libro | Pellizcarlo y llevarlo a x = 0,75 m | AGARRADO → LIBRE (se queda flotando) → VOLVIENDO → IDLE junto a Nico |
+| Guardián reacciona | Golpe rápido con el índice | Sale despedido fuera del libro (x = −1,15 m), queda sobre el piso real sin atravesarlo, LIBRE y luego vuelve |
+| Bloque fuera del libro | Soltar un bloque de la torre en x = −0,85 m | Cae al piso real (y = 0,014, la mitad de su altura) y se queda |
+| Los objetos no desaparecen | Los tres casos anteriores | Nico, el Guardián y el bloque siguen visibles donde cayeron |
+| Sello de la hoja (A) | Bajar el índice sobre el sello; y apuntarle con el rayo del control + gatillo | Las dos formas pasan la hoja (p0 → p1) |
+| Agarrar la hoja (B) | Pellizcar el borde y llevarlo al lomo | Con la historia bloqueada: cede hasta 0,16 rad y vuelve. Movimiento corto y soltar: vuelve. Movimiento largo: pasa la hoja adelante (p0 → p1) y atrás (p1 → p0). Durante un juego no se agarra |
+| Corazón: golpe real | `tests/hasta-corazon.mjs`; golpes con el índice | Acercamiento lento: rechazado. Mano quieta dentro 6 s: 0 golpes. Golpes reales: cuentan; uno a destiempo se marca como fallo. 12 aciertos completan el juego |
+| Corazón: reintentar | `tests/corazon-reintentar.mjs` | La cuenta vuelve a 0, repite la demostración y la historia sigue en el mismo momento |
+| Pérdida de tracking | Sostener a Nico en el aire y desconectar la mano (`xr set-connected`); cambiar de mano a control; `tests/muestrear-nico.mjs` registra cada cuadro | Se suelta sin velocidad y cae recto (x no cambia); la mano que reaparece lejos no lo mueve. Antes del arreglo, el cambio de fuente lo lanzaba 24 cm |
+| Reiniciar | Botón del panel con el rayo (`tests/reiniciar.mjs` llama la misma acción) | Bloques, Nico y Guardián vuelven a su lugar; la historia sigue en el mismo momento |
+| Filtro One Euro y pinza | `sh tests/torre-manos.sh` | Torre de 4 bloques con la mano, igual que antes |
+| Regresión | `tests/recorrido.mjs` | Los 5 juegos completos y el libro se cierra |
+
+El emulador mueve la mano a saltos (cada comando la ubica de una vez), no con el
+temblor ni la velocidad de una mano real. Por eso los tiempos de golpe, el
+filtrado y la pérdida de tracking solo están probados en su lógica.
+
 **Pendiente de verificar en un Quest 3 real:**
 
 - comodidad y precisión de la pinza sobre objetos de 3 cm con el tracking real de manos (los umbrales pueden necesitar ajuste);
 - estabilidad de la torre con el temblor natural de las manos;
 - el gesto de cubrirse con las manos reales (la palma real puede quedar más lejos o más cerca que en el emulador);
 - fps reales con las físicas activas;
+- el filtro One Euro y la confirmación de la pinza con el temblor real (que no se sienta retraso);
+- la velocidad mínima del golpe al corazón (0,25 m/s) con golpes reales;
+- pasar la hoja pellizcando el borde: comodidad del umbral de 3 cm;
+- que los personajes caídos al piso real se vean bien con el passthrough y la sombra;
 
 - hit-test real del piso y estabilidad de la maqueta al caminar;
 - fps reales;

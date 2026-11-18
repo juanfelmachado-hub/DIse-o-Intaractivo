@@ -30,7 +30,7 @@ export default async function run({ page, frame }) {
         for (const id of act.data.hazards) { const o = story.scene.hotspots[id]; pointer.onDown(evtTo(wp(o))); await sleep(60); pointer.onUp(evtTo(wp(o))); await sleep(500); }
         await until(() => pointer.draggables.size > 0, 8000);
         await sleep(600);
-        const item = [...g.interact.items].find((i) => i.kind === 'drag');
+        const item = [...g.interact.items].find((i) => i.kind === 'nico' || i.kind === 'drag');
         const r = (v) => ({ x: +v.x.toFixed(4), y: +v.y.toFixed(4), z: +v.z.toFixed(4) });
         const center = item ? item.box.getCenter(head().clone()) : null;
         if (center) item.object.localToWorld(center);

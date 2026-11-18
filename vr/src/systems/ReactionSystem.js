@@ -10,17 +10,22 @@
  *   golpe     contacto que llega más rápido que HIT_SPEED
  *   agarre    pinza cerca del cuerpo (lo maneja HandInteractionSystem)
  *
- * Guardián (procedural, sin físicas pesadas): un resorte amortiguado lo
- * desplaza y lo devuelve flotando a su sitio; squash & stretch en el cuerpo;
+ * Guardián (procedural, sin físicas pesadas): squash & stretch en el cuerpo;
  * la flor (el hueso de la cabeza) se balancea con inercia; se ilumina o gira
- * según la emoción. Se puede agarrar con la pinza, moverlo y lanzarlo
- * suavemente: frena solo y nunca sale de la maqueta.
+ * según la emoción. Se mueve LIBRE por la habitación, también fuera del libro:
+ *  - se agarra con la pinza y se lleva a cualquier lado (lo persigue un resorte);
+ *  - al soltarlo (o tras un golpe fuerte) flota donde quedó, frenado por el aire,
+ *    durante STAY s (estado LIBRE); después vuelve solo, despacio, junto a Nico
+ *    (VOLVIENDO), porque la historia lo necesita cerca;
+ *  - un toque o un empujón suave lo desplaza un poco y el resorte lo devuelve;
+ *  - nunca atraviesa la página ni el piso real (interaction/surfaces).
  *
  * Nico: sonríe y da un saltito con una caricia en la cabeza; se sorprende con
  * un toque o un golpe. Lo que pasa al levantarlo está en HandInteractionSystem.
  *
- * Máquina de estados por personaje: IDLE → OBSERVANDO → SORPRESA → REACCIÓN →
- * RECUPERACIÓN → IDLE, con tiempos de enfriamiento para no repetir la misma
+ * Máquina de estados por personaje: IDLE (movimiento autónomo) → OBSERVANDO
+ * (la mano se acerca) → SORPRESA → REACCIÓN → RECUPERACIÓN → IDLE; el
+ * Guardián además: AGARRADO (control del usuario) → LIBRE → VOLVIENDO → IDLE. Con tiempos de enfriamiento para no repetir la misma
  * reacción. Todo se suma como capa (interaction/layers): nunca cancela un
  * diálogo ni una animación de la historia.
  */
@@ -28,6 +33,7 @@ import { createSystem, Euler, Quaternion, Vector3, VisibilityState } from '@iwsd
 import gsap from 'gsap';
 import { OffsetLayer } from '../interaction/layers.js';
 import { boundRadius, distanceToBox, fitLocalBox } from '../interaction/shapes.js';
+import { groundAt } from '../interaction/surfaces.js';
 
 export const REACT_CFG = {
     CONTACT: 0.01, // dedo a menos de 1 cm de la superficie = contacto
@@ -41,12 +47,20 @@ export const REACT_CFG = {
     K: 38,
     DAMP: 6.5,
     K_THROWN: 9,
-    MAX_OFFSET: 0.28,
+    /** Guardián suelto: tiempo que se queda donde lo dejaron antes de volver (s). */
+    STAY: 6,
+    /** Resorte suave del regreso autónomo. */
+    K_HOME: 4,
+    DAMP_HOME: 4,
+    /** Freno del aire mientras flota libre (1/s). */
+    AIR: 1.6,
+    /** Distancia máxima a su sitio (m): solo para no perderlo en la habitación. */
+    FREE_MAX: 2.5,
 };
 
 /** Tamaño máximo creíble del Guardián (m): una medida mayor es un error de medición. */
 const GUARDIAN_MAX = 0.5;
-const STATES = ['IDLE', 'OBSERVANDO', 'SORPRESA', 'REACCION', 'RECUPERACION'];
+const STATES = ['IDLE', 'OBSERVANDO', 'AGARRADO', 'SORPRESA', 'REACCION', 'RECUPERACION', 'LIBRE', 'VOLVIENDO'];
 
 class Character {
     constructor(name) {
@@ -102,8 +116,9 @@ export class ReactionSystem extends createSystem({}) {
         this.prevBase = new Vector3();
         this.baseVel = new Vector3();
         this.thrown = 0;
+        this.free = 0; // tiempo que le queda suelto donde lo dejaron
         this.held = null;
-        this.world.globals.reactions = { guardian: this.gc, nico: this.nc, STATES };
+        this.world.globals.reactions = { guardian: this.gc, nico: this.nc, STATES, resetGuardian: () => this.resetGuardian() };
     }
 
     // ------------------------------------------------------------ personajes de la escena actual
@@ -118,6 +133,8 @@ export class ReactionSystem extends createSystem({}) {
             this.g = g;
             this.off.set(0, 0, 0);
             this.vel.set(0, 0, 0);
+            this.free = 0;
+            this.lastBase = null;
             this.gBox = null;
             if (g) {
                 this.gLayer = c.layers.add(new OffsetLayer(g));
@@ -180,7 +197,7 @@ export class ReactionSystem extends createSystem({}) {
     grabGuardian(hand) {
         this.held = hand;
         this.grabOff = this.w.copy(this.gWorld()).sub(hand.point).clone();
-        this.gc.set('OBSERVANDO', 0); // curiosidad mientras lo tienen
+        this.gc.set('AGARRADO', 0); // control del usuario: sigue a la mano
         this.g.glow = Math.max(this.g.glow, 1.4);
     }
 
@@ -192,9 +209,32 @@ export class ReactionSystem extends createSystem({}) {
     releaseGuardian(hand) {
         this.held = null;
         this.vel.copy(hand.vel).multiplyScalar(0.8);
-        if (this.vel.length() > 1.2) this.vel.setLength(1.2);
-        this.thrown = this.vel.length() > 0.25 ? 1.6 : 0.4;
-        this.gc.set('RECUPERACION', 1.2);
+        if (this.vel.length() > 1.5) this.vel.setLength(1.5);
+        // se queda flotando donde lo dejaron (o adonde lo lanzaron); después vuelve solo
+        this.free = REACT_CFG.STAY;
+        this.gc.set('LIBRE', 0);
+    }
+
+    /** Media altura del Guardián (m): su origen está en el centro del cuerpo. */
+    halfHeight(g) {
+        if (!this.gBox) return 0.04;
+        const s = g.getWorldScale(this.n).x;
+        return Math.max(0.01, -this.gBox.min.y * s);
+    }
+
+    /** Botón «Reiniciar»: vuelve a su sitio, quieto. */
+    resetGuardian() {
+        if (this.held && this.gItem) {
+            this.held = null;
+            this.gItem.busy = false; // la mano lo suelta (sin lanzarlo)
+        }
+        this.free = 0;
+        this.thrown = 0;
+        this.vel.set(0, 0, 0);
+        this.spinV = 0;
+        this.swayV.set(0, 0, 0);
+        gsap.to(this.off, { x: 0, y: 0, z: 0, duration: 0.6, ease: 'power2.inOut' });
+        this.gc.set('VOLVIENDO', 0);
     }
 
     gWorld() {
@@ -259,7 +299,9 @@ export class ReactionSystem extends createSystem({}) {
                     this.squashV -= 10;
                     this.swayV.x += p.vel.z * 9;
                     this.swayV.z -= p.vel.x * 9;
-                    this.thrown = 1.2;
+                    // golpe fuerte: sale despedido y flota un rato antes de volver
+                    if (p.speed > REACT_CFG.HIT_SPEED * 1.6) this.free = Math.max(this.free, REACT_CFG.STAY * 0.5);
+                    else this.thrown = 1.2;
                     g.glow = Math.max(g.glow, 2);
                     gc.set('SORPRESA', 0.35);
                 }
@@ -293,6 +335,8 @@ export class ReactionSystem extends createSystem({}) {
     nicoContacts(dt, c, hands) {
         const nico = this.nico;
         if (!nico?.visible || c.pointer.drag?.object === nico) return;
+        const nm = this.world.globals.nico?.mode;
+        if (nm === 'held' || nm === 'falling' || nm === 'returning') return; // NicoSystem lo tiene en la mano o en el aire
         this.nBoxAge -= dt;
         if (!this.nBox || this.nBoxAge <= 0) {
             this.nBox = fitLocalBox(nico, (m) => !m.isSprite);
@@ -347,6 +391,9 @@ export class ReactionSystem extends createSystem({}) {
         this.gLayer.undo();
         g.getWorldPosition(this.base);
         this.gLayer.apply();
+        // suelto, se queda quieto en la habitación aunque su sitio (junto a Nico) se mueva
+        if (this.lastBase && this.free > 0) this.off.sub(this.n.copy(this.base).sub(this.lastBase));
+        (this.lastBase ??= new Vector3()).copy(this.base);
 
         if (this.held) {
             // el resorte persigue la mano (rápido) y se estira un poco en la dirección del movimiento
@@ -354,30 +401,39 @@ export class ReactionSystem extends createSystem({}) {
             this.vel.copy(want).sub(this.off).multiplyScalar(14);
             this.off.lerp(want, Math.min(1, dt * 16));
             this.squash += ((-Math.min(0.2, this.held.speed * 0.25)) - this.squash) * Math.min(1, dt * 10);
+        } else if (this.free > 0) {
+            // LIBRE: flota donde quedó, frenado por el aire, con un vaivén suave
+            this.free -= dt;
+            // tras la reacción a un golpe fuerte, el estado pasa a LIBRE mientras flota
+            if (this.gc.state === 'IDLE' || this.gc.state === 'RECUPERACION') this.gc.set('LIBRE', 0);
+            this.vel.multiplyScalar(Math.max(0, 1 - REACT_CFG.AIR * dt));
+            this.vel.y += Math.sin(performance.now() / 600) * 0.02 * dt;
+            this.off.addScaledVector(this.vel, dt);
+            if (this.free <= 0) this.gc.set('VOLVIENDO', 0);
+            this.squashV += (-90 * this.squash - 9 * this.squashV) * dt;
+            this.squash += this.squashV * dt;
         } else {
-            const K = this.thrown > 0 ? REACT_CFG.K_THROWN : REACT_CFG.K;
-            const D = this.thrown > 0 ? 2.4 : REACT_CFG.DAMP;
+            const home = this.gc.state === 'VOLVIENDO';
+            const K = home ? REACT_CFG.K_HOME : this.thrown > 0 ? REACT_CFG.K_THROWN : REACT_CFG.K;
+            const D = home ? REACT_CFG.DAMP_HOME : this.thrown > 0 ? 2.4 : REACT_CFG.DAMP;
             this.vel.addScaledVector(this.off, -K * dt).multiplyScalar(Math.max(0, 1 - D * dt));
             this.off.addScaledVector(this.vel, dt);
+            if (home && this.off.length() < 0.01) this.gc.set('IDLE', 0);
             this.thrown = Math.max(0, this.thrown - dt);
             // squash & stretch: otro resorte
             this.squashV += (-90 * this.squash - 9 * this.squashV) * dt;
             this.squash += this.squashV * dt;
         }
-        if (this.off.length() > REACT_CFG.MAX_OFFSET * (this.held ? 2 : 1)) this.off.setLength(REACT_CFG.MAX_OFFSET * (this.held ? 2 : 1));
+        if (this.off.length() > REACT_CFG.FREE_MAX) this.off.setLength(REACT_CFG.FREE_MAX);
 
-        // nunca sale de la maqueta ni se mete bajo el piso de la página
-        const stage = c.book.stage;
+        // libre por la habitación, pero nunca atraviesa la página ni el piso real
         this.w.copy(this.base).add(this.off);
-        stage.worldToLocal(this.w);
-        const lx = Math.max(-2.9, Math.min(2.9, this.w.x));
-        const ly = Math.max(0.15, Math.min(2.4, this.w.y));
-        const lz = Math.max(-1.9, Math.min(1.95, this.w.z));
-        if (lx !== this.w.x || ly !== this.w.y || lz !== this.w.z) {
-            this.w.set(lx, ly, lz);
-            stage.localToWorld(this.w);
-            this.off.copy(this.w).sub(this.base);
-            this.vel.multiplyScalar(-0.3); // rebote suave contra el borde
+        const floor = groundAt(c, this.w) + this.halfHeight(g) + 0.005;
+        if (this.w.y < floor) {
+            this.off.y += floor - this.w.y;
+            if (this.vel.y < 0) this.vel.y = -this.vel.y * 0.3; // rebote suave
+            this.vel.x *= 0.85;
+            this.vel.z *= 0.85;
         }
 
         // giro por golpe

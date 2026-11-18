@@ -31,7 +31,10 @@ cuento: una maqueta sobre el piso real, vista con passthrough (WebXR immersive-a
 Immersive Web SDK de Meta). Reutiliza el código de `src/` y los recursos de
 `static/` sin copiarlos; la web no cambia. En el visor se juega también con las
 manos: agarrar con la pinza, construir la torre de bloques con físicas, llevar a
-Nico como un juguete, cubrirse la cabeza y un panel fijo en la habitación.
+Nico y al Guardián también fuera del libro (caen al piso real), pasar la hoja
+pellizcando su borde o con un sello en la página, el juego de ritmo con un
+corazón 3D que se golpea, cubrirse la cabeza, un botón «Reiniciar» para los
+objetos y un panel fijo en la habitación.
 Publicada en `dist/vr/`:
 https://juanfelmachado-hub.github.io/DIse-o-Intaractivo/dist/vr/
 

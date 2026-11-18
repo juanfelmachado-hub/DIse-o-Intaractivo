@@ -20,6 +20,9 @@ import { PanelSystem } from './systems/PanelSystem.js';
 import { TowerSystem } from './systems/TowerSystem.js';
 import { ReactionSystem } from './systems/ReactionSystem.js';
 import { GestureSystem } from './systems/GestureSystem.js';
+import { NicoSystem } from './systems/NicoSystem.js';
+import { PageSystem } from './systems/PageSystem.js';
+import { HeartSystem } from './systems/HeartSystem.js';
 
 World.create(document.getElementById('scene-container'), projectOptions)
     .then(async (world) => {
@@ -35,6 +38,17 @@ World.create(document.getElementById('scene-container'), projectOptions)
         world.registerSystem(TowerSystem);
         world.registerSystem(ReactionSystem);
         world.registerSystem(GestureSystem);
+        world.registerSystem(NicoSystem);
+        world.registerSystem(PageSystem);
+        world.registerSystem(HeartSystem);
+        // «Reiniciar» del panel: lo manipulable vuelve a su lugar; la historia y el progreso no cambian
+        world.globals.resetObjects = () => {
+            const g = world.globals;
+            const done = { bloques: !!g.tower?.reset(), nico: false, guardian: true, ritmo: !!g.heart?.retry() };
+            if (g.nico?.away || g.nico?.mode === 'held' || g.nico?.mode === 'falling') { g.nico.reset(); done.nico = true; }
+            g.reactions?.resetGuardian?.();
+            return done;
+        };
         world.globals.cuento = await createStory(world);
         window.cuento = world.globals.cuento; // útil para depurar desde la consola
     })

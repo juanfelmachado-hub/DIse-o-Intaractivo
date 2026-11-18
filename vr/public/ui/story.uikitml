@@ -79,6 +79,7 @@
   }
   .tools {
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 10;
     justify-content: space-between;
     padding-left: 26;
@@ -136,6 +137,12 @@
         <Minimize2></Minimize2>
       </ButtonIcon>
       <ButtonLabel>Ocultar</ButtonLabel>
+    </Button>
+    <Button id="btn-reset" variant="secondary">
+      <ButtonIcon>
+        <RotateCcw></RotateCcw>
+      </ButtonIcon>
+      <ButtonLabel>Reiniciar</ButtonLabel>
     </Button>
     <Button id="btn-menu" variant="secondary">
       <ButtonIcon>

@@ -153,7 +153,8 @@ export class StoryInputSystem extends createSystem({
         const immersive = this.world.visibilityState.peek() !== VisibilityState.NonImmersive;
         const { pointer, ui, story } = c;
 
-        if (immersive) this.drumTouch(c);
+        // el corazón del ritmo (HeartSystem) reemplaza al toque del tambor sobre Nico
+        if (immersive && !this.world.globals.heart?.active) this.drumTouch(c);
 
         // entradas de este cuadro
         let startHand = null;
@@ -173,8 +174,11 @@ export class StoryInputSystem extends createSystem({
 
         if (startHand) {
             const e = this.fill(startHand, c);
-            // icono del panel minimizado (rayo + gatillo)
-            if (this.world.globals.panel?.rayClick(this.ray)) startHand = null;
+            // icono del panel minimizado o sello de la página (rayo + gatillo)
+            if (this.world.globals.panel?.rayClick(this.ray) || this.world.globals.pages?.rayClick(this.ray)) startHand = null;
+            // una pinza junto a un objeto es un agarre (HandInteractionSystem), no un clic a distancia
+            const hs = this.world.globals.handState?.[startHand];
+            if (startHand && hs && hs.mode !== 'idle' && !this.input.xr.gamepads[startHand]) startHand = null;
         }
         if (startHand) {
             const e = this.evt;
@@ -198,7 +202,11 @@ export class StoryInputSystem extends createSystem({
                     ui.onStepsGo(); // «Ponerse a salvo»: tocar a Nico es el siguiente paso
                 } else {
                     this.active = startHand;
+                    // con la mano, la hoja se pasa agarrándola (PageSystem), no con el rayo
+                    const fallback = pointer.fallback;
+                    if (handOnly) pointer.fallback = null;
                     pointer.onDown(e);
+                    pointer.fallback = fallback;
                 }
             }
         }
