@@ -23,6 +23,7 @@ import { GestureSystem } from './systems/GestureSystem.js';
 import { NicoSystem } from './systems/NicoSystem.js';
 import { PageSystem } from './systems/PageSystem.js';
 import { HeartSystem } from './systems/HeartSystem.js';
+import { RadarTouchSystem } from './systems/RadarTouchSystem.js';
 
 World.create(document.getElementById('scene-container'), projectOptions)
     .then(async (world) => {
@@ -41,6 +42,7 @@ World.create(document.getElementById('scene-container'), projectOptions)
         world.registerSystem(NicoSystem);
         world.registerSystem(PageSystem);
         world.registerSystem(HeartSystem);
+        world.registerSystem(RadarTouchSystem);
         // «Reiniciar» del panel: lo manipulable vuelve a su lugar; la historia y el progreso no cambian
         world.globals.resetObjects = () => {
             const g = world.globals;

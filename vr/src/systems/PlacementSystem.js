@@ -6,10 +6,13 @@
  *
  *  1. Al entrar a la sesión inmersiva (passthrough) se muestra una vista previa
  *     semitransparente del área de la maqueta donde apunta el rayo.
- *  2. El piso se busca con el hit-test de WebXR (EnvironmentRaycastTarget de
- *     IWSDK): solo valen superficies horizontales a la altura del piso. Si el
- *     visor no da hit-test, se usa el piso del espacio de referencia
- *     `local-floor` (y = 0), que el Quest calibra con su límite de seguridad.
+ *  2. El piso se busca con el hit-test de WebXR, con una fuente por cada mano o
+ *     control que esté activo (se renueva al cambiar de controles a manos o al
+ *     revés). Solo valen superficies horizontales a la altura del piso: el piso
+ *     real se aprende con los puntos más bajos que devuelve el visor, así que
+ *     no depende de que `local-floor` (y = 0) esté bien calibrado; una mesa o
+ *     un sofá no cuentan. Si el visor todavía no dio ningún punto, se usa la
+ *     última altura del piso medida (al principio, y = 0 de `local-floor`).
  *  3. Gatillo o pellizco: el libro queda ahí, con su frente hacia el lector.
  *
  * Después: palanca izquierda/derecha gira la maqueta 30°, arriba/abajo cambia
@@ -17,8 +20,8 @@
  * cuento queda fijo junto a la maqueta (PanelSystem).
  */
 import {
-    createSystem, CanvasTexture, Color, DoubleSide, EdgesGeometry, EnvironmentRaycastTarget, Group, InputComponent, LineBasicMaterial,
-    LineSegments, Mesh, MeshBasicMaterial, Object3D, PlaneGeometry, CircleGeometry, Quaternion, Euler, RaycastSpace, Plane, Ray,
+    createSystem, CanvasTexture, Color, DoubleSide, EdgesGeometry, Group, InputComponent, LineBasicMaterial,
+    LineSegments, Mesh, MeshBasicMaterial, PlaneGeometry, CircleGeometry, Quaternion, Euler, Plane, Ray,
     Vector3, VisibilityState, SRGBColorSpace,
 } from '@iwsdk/core';
 import { PlayerSpot, StoryState } from '../story-components.js';
@@ -29,8 +32,16 @@ const SNAP = Math.PI / 6;
 /** Huella de la maqueta en unidades del cuento (libro abierto 6,1 × 4 + margen). */
 const FOOT_W = 7.2;
 const FOOT_D = 5.2;
-/** Un punto del hit-test cuenta como piso si está a menos de esto del y = 0 de local-floor. */
-const FLOOR_TOL = 0.25;
+export const FLOOR_CFG = {
+    /** Un punto del hit-test es "horizontal" si su normal apunta casi hacia arriba. */
+    MIN_UP: 0.9,
+    /** El piso está al menos esto por debajo de los ojos (m): descarta techos y repisas altas. */
+    BELOW_HEAD: 0.5,
+    /** Un punto más alto que el piso aprendido + esto es un mueble (mesa, sofá), no el piso (m). */
+    FURNITURE: 0.12,
+    /** Un punto mucho más bajo que el piso aprendido se toma como error del visor (m). */
+    OUTLIER: 0.6,
+};
 /** Posición de la maqueta en el navegador sin visor (la cámara de iwsdk.config.json la mira). */
 const DESK = { x: 0, y: 0, z: -0.8 };
 
@@ -76,15 +87,13 @@ export class PlacementSystem extends createSystem({
         this.previewYaw = 0;
         this.deskBg = new Color('#241d33');
 
-        // sondas de hit-test (una por mano): IWSDK las pone donde el rayo toca el mundo real
-        this.probes = {};
-        for (const hand of HANDS) {
-            const o = new Object3D();
-            o.visible = false;
-            const ent = this.world.createTransformEntity(o, { persistent: true });
-            ent.addComponent(EnvironmentRaycastTarget, { space: hand === 'right' ? RaycastSpace.Right : RaycastSpace.Left, maxDistance: 8 });
-            this.probes[hand] = o;
-        }
+        // hit-test propio: una fuente por cada fuente de entrada (mano o control) viva
+        this.hitSources = new Map(); // XRInputSource → { source, failed }
+        this.hitSession = null;
+        this.floorY = null; // altura del piso real aprendida del hit-test (m, mundo)
+        this.hitKind = { left: null, right: null }; // 'hit' | null por mano, este cuadro
+        this.hitPos = { left: new Vector3(), right: new Vector3() };
+        this.hq = new Quaternion();
 
         // vista previa: el área gris de la maqueta, su borde, el centro y la flecha del frente
         const preview = new Group();
@@ -102,14 +111,16 @@ export class PlacementSystem extends createSystem({
         arrow.rotation.set(-Math.PI / 2, 0, -Math.PI / 2); // apunta al lector (+z de la maqueta)
         arrow.position.y = 0.002;
         this.arrow = arrow;
-        this.hint = label(['Apunta al piso y aprieta el gatillo', 'o pellizca para colocar el libro']);
+        this.hint = label(['Piso encontrado: aprieta el gatillo', 'o pellizca para colocar el libro']);
+        this.hintGuess = label(['Apunta al piso y aprieta el gatillo', 'o pellizca (piso aproximado)']);
         this.hintFloor = label(['Buscando el piso…', 'apunta hacia abajo']);
         preview.add(this.footprint, dot, arrow);
         preview.visible = false;
         for (const o of [area, edge, dot, arrow]) o.renderOrder = 25;
         this.preview = preview;
         this.world.createTransformEntity(preview, { persistent: true });
-        for (const h of [this.hint, this.hintFloor]) {
+        this.hints = [this.hint, this.hintGuess, this.hintFloor];
+        for (const h of this.hints) {
             h.visible = false;
             this.world.createTransformEntity(h, { persistent: true });
         }
@@ -160,7 +171,7 @@ export class PlacementSystem extends createSystem({
         this.world.globals.dioramaScale = this.k;
         this.placing = false;
         this.world.globals.placing = false;
-        this.preview.visible = this.hint.visible = this.hintFloor.visible = false;
+        this.preview.visible = this.hint.visible = this.hintGuess.visible = this.hintFloor.visible = false;
         this.spotEntity.setValue(PlayerSpot, 'spot', this.world.visibilityState.peek() === VisibilityState.NonImmersive ? 'escritorio' : 'maqueta');
         this.spotEntity.setValue(PlayerSpot, 'scale', this.k);
         this.world.globals.placedAt = performance.now(); // el panel vuelve junto a la maqueta
@@ -194,13 +205,9 @@ export class PlacementSystem extends createSystem({
      * Devuelve 'hit', 'floor' o null.
      */
     floorPoint(hand) {
-        const probe = this.probes[hand];
-        if (probe.visible) {
-            this.v.set(0, 1, 0).applyQuaternion(probe.quaternion);
-            if (this.v.y > 0.9 && Math.abs(probe.position.y) < FLOOR_TOL) {
-                this.hit.copy(probe.position);
-                return 'hit';
-            }
+        if (this.hitKind[hand]) {
+            this.hit.copy(this.hitPos[hand]);
+            return 'hit';
         }
         const space = this.player.raySpaces[hand];
         if (!space || !this.input.xr.gamepads[hand] && !this.input.xr.getSelectState(hand)) return null;
@@ -213,7 +220,69 @@ export class PlacementSystem extends createSystem({
         return 'floor';
     }
 
+    /**
+     * Hit-test de WebXR por fuente de entrada. IWSDK ata su fuente a la mano o
+     * control que existía al entrar; si después se cambia de controles a manos,
+     * esa fuente deja de dar puntos. Aquí se pide una por cada fuente viva.
+     */
+    updateHitTest() {
+        this.hitKind.left = this.hitKind.right = null;
+        const xr = this.world.renderer.xr;
+        const session = xr.getSession?.();
+        const frame = xr.getFrame?.();
+        const ref = xr.getReferenceSpace?.();
+        if (!session || !frame || !ref || !session.requestHitTestSource) return;
+        if (session !== this.hitSession) {
+            this.hitSources.clear();
+            this.hitSession = session;
+        }
+        const sources = session.inputSources;
+        // fuentes que ya no existen: se cancelan
+        for (const [src, e] of this.hitSources) {
+            let alive = false;
+            for (let i = 0; i < sources.length; i++) if (sources[i] === src) { alive = true; break; }
+            if (!alive) {
+                try { e.source?.cancel(); } catch { /* ya cancelada */ }
+                this.hitSources.delete(src);
+            }
+        }
+        this.world.camera.getWorldPosition(this.w);
+        for (let i = 0; i < sources.length; i++) {
+            const src = sources[i];
+            const hand = src.handedness;
+            if (hand !== 'left' && hand !== 'right' || !src.targetRaySpace) continue;
+            let e = this.hitSources.get(src);
+            if (!e) {
+                e = { source: null, failed: false };
+                this.hitSources.set(src, e);
+                session.requestHitTestSource({ space: src.targetRaySpace })
+                    .then((hs) => { if (this.hitSources.get(src) === e) e.source = hs; else hs.cancel(); })
+                    .catch(() => { e.failed = true; }); // sin hit-test (p. ej. el emulador): piso aproximado
+            }
+            if (!e.source) continue;
+            const results = frame.getHitTestResults(e.source);
+            for (let j = 0; j < results.length; j++) {
+                const pose = results[j].getPose(ref);
+                if (!pose) continue;
+                const o = pose.transform.orientation;
+                this.hq.set(o.x, o.y, o.z, o.w);
+                this.v.set(0, 1, 0).applyQuaternion(this.hq);
+                const y = pose.transform.position.y;
+                if (this.v.y < FLOOR_CFG.MIN_UP || y > this.w.y - FLOOR_CFG.BELOW_HEAD) continue;
+                // el piso real es lo más bajo que se ve; lo que está más alto es un mueble
+                if (this.floorY === null || (y < this.floorY && y > this.floorY - FLOOR_CFG.OUTLIER)) this.floorY = y;
+                if (y > this.floorY + FLOOR_CFG.FURNITURE) continue;
+                const p = pose.transform.position;
+                this.hitPos[hand].set(p.x, this.floorY, p.z);
+                this.hitKind[hand] = 'hit';
+                break;
+            }
+        }
+        if (this.floorY !== null) this.floor.constant = -this.floorY; // el piso aproximado también usa la altura medida
+    }
+
     updatePlacing() {
+        this.updateHitTest();
         // la mano que se usó por última vez manda; si no tiene rayo, la otra
         let kind = null;
         let hand = null;
@@ -231,10 +300,8 @@ export class PlacementSystem extends createSystem({
             this.preview.rotation.set(0, this.previewYaw, 0);
         }
         // indicación flotando frente al lector, un poco abajo
-        const hint = kind ? this.hint : this.hintFloor;
-        const other = kind ? this.hintFloor : this.hint;
-        other.visible = false;
-        hint.visible = true;
+        const hint = kind === 'hit' ? this.hint : kind ? this.hintGuess : this.hintFloor;
+        for (const h of this.hints) h.visible = h === hint;
         head.getWorldQuaternion(this.q);
         this.e.setFromQuaternion(this.q);
         const yaw = this.e.y;

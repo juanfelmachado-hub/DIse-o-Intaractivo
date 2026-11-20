@@ -1,7 +1,8 @@
 /**
  * StoryFxSystem — lo que en la web eran adornos HTML sobre la escena, en 3D:
  *  - anillos de los objetos tocables (StoryMarker), siempre mirando al lector;
- *  - el radar del juego 1: un anillo en la mira del rayo que late con el bip;
+ *  - el radar del juego 1: un anillo que late con el bip, en la punta del
+ *    índice en el visor (en el navegador, en la mira del mouse);
  *  - el círculo dorado del juego 2 sobre el caparazón de Nico, que late con el
  *    "pum" y cambia de color con cada golpe (lee la misma clase y el mismo
  *    color que la UI original le pone al botón del tambor).
@@ -76,11 +77,14 @@ export class StoryFxSystem extends createSystem({
         }
 
         // radar (juego 1)
-        const radarOn = !c.ui.el.radar.hidden;
+        // en el visor el radar va en la punta del índice (RadarTouchSystem); sin mano visible, no se dibuja
+        const touch = this.world.globals.radarTouch;
+        const onFinger = !!touch?.active;
+        const radarOn = !c.ui.el.radar.hidden && (!onFinger || touch.hasTip);
         this.radar.visible = radarOn;
         this.radarPing.visible = radarOn && this.radarBeat > 0.01;
         if (radarOn) {
-            const aim = this.world.globals.cuentoAim;
+            const aim = onFinger ? touch.tip : this.world.globals.cuentoAim;
             if (aim) {
                 this.radar.position.copy(aim);
                 this.radarPing.position.copy(aim);

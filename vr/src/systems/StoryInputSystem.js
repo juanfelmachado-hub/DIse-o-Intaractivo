@@ -12,6 +12,9 @@
  *  - Tambor (juego 2): el tambor es el caparazón de Nico con su anillo dorado.
  *    Se golpea apuntándole y apretando el gatillo/pellizco, o tocándolo con
  *    el control o la mano (al acercarla a menos de ~6 cm).
+ *  - Radar (juego 1): en el visor se juega con la punta del índice
+ *    (RadarTouchSystem); el rayo ya no lleva el radar. Con el control, el
+ *    gatillo sobre un peligro sigue valiendo.
  *  - Ponerse a salvo: además del botón del panel, tocar a Nico le da el
  *    siguiente paso (agacharse, cubrirse, agarrarse).
  */
@@ -185,11 +188,13 @@ export class StoryInputSystem extends createSystem({
             // con la MANO (sin control) lo manipulable no se arrastra a distancia: se agarra con los dedos
             const handOnly = startHand !== 'mouse' && !this.input.xr.gamepads[startHand];
             let farDrag = false;
+            // radar en el visor: los peligros se tocan con la punta del índice (RadarTouchSystem), no con el rayo de la mano
+            const radarTouch = handOnly && this.world.globals.radarTouch?.active;
             if (handOnly && pointer.draggables.size) {
                 pointer.setNdc(e);
                 farDrag = !!pointer.pick(pointer.draggables);
             }
-            if (!this.onPanel() && !farDrag) {
+            if (!this.onPanel() && !farDrag && !radarTouch) {
                 story.scene?.skipReveal(); // como tocar el lienzo en la web
                 const drum = ui.el.drum;
                 const k = this.world.globals.dioramaScale ?? 0.17;
@@ -216,7 +221,7 @@ export class StoryInputSystem extends createSystem({
                 pointer.onUp(e);
                 this.active = null;
             } else pointer.onMove(e);
-        } else if (pointer.tracker) {
+        } else if (pointer.tracker && !(immersive && this.world.globals.radarTouch?.active)) {
             // radar: sigue al rayo aunque no se presione (como el dedo/mouse en la web)
             const hand = immersive ? (this.input.xr.gamepads.right || !this.input.xr.gamepads.left ? 'right' : 'left') : this.mouse.has ? 'mouse' : null;
             if (hand) {

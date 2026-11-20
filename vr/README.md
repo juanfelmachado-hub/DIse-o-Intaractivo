@@ -32,7 +32,7 @@ importa el código original de `../src` y los recursos de `../static`.
 | Pasar la hoja | Apuntar al sello redondo de la esquina de la hoja y apretar el gatillo | Bajar el índice sobre el sello, o pellizcar el borde exterior de la hoja y llevarlo hacia el lomo |
 | Construir la torre (primera página) | Agarrar los bloques con el botón lateral y apilarlos | Pellizcar los bloques y apilarlos |
 | Arrastrar (Nico, zapatos) | Mantener el gatillo y mover el rayo, o agarrarlo de cerca | Agarrarlo con la mano (con la mano no se arrastra a distancia) |
-| Radar (juego 1) | Mover el rayo sobre la maqueta; el bip late más rápido cerca del peligro | Igual |
+| Radar (juego 1) | Acercar la punta del control a los objetos: el anillo del radar va en la punta y el bip late más rápido cerca del peligro; tocar el peligro con la punta (o apuntarle y apretar el gatillo) | Acercar la punta del índice: el anillo del radar va en el dedo; hay que tocar el peligro con la punta del índice |
 | Ponerse a salvo | Tocar a Nico con el rayo (o el botón del panel) | Igual. En «¡Cúbrete!», poner las dos manos sobre la cabeza |
 | Mover el panel del cuento | Agarrar el asa (barra bajo el panel) con el botón lateral, de cerca o apuntándole | Pellizcar el asa; girar la muñeca lo gira |
 | Ocultar el panel | «Ocultar» en el panel; vuelve tocando el icono junto al libro (o apuntándole con el gatillo) | Igual, tocando el icono con el índice |
@@ -95,9 +95,9 @@ pantalla:
 
 ### Piso y colocación
 
-- El piso se busca con el **hit-test** de WebXR (`EnvironmentRaycastTarget` de IWSDK, una sonda por mano).
-- Solo vale un punto horizontal a menos de 25 cm del piso del espacio `local-floor`.
-- Si el visor no da hit-test, se usa el piso de `local-floor` (y = 0). El Quest lo calibra con el límite de seguridad (Guardian), así que esa colocación manual funciona igual.
+- El piso se busca con el **hit-test** de WebXR, con una fuente por cada mano o control activo. La fuente se renueva al cambiar de controles a manos (o al revés); antes se usaba la sonda de IWSDK, que queda atada a la fuente que existía al entrar y deja de encontrar el piso si después se cambia a las manos.
+- Solo valen puntos horizontales al menos 50 cm por debajo de los ojos. El piso real se **aprende** con los puntos más bajos que devuelve el visor, así que el libro queda a ras del piso aunque el `local-floor` (y = 0) del Quest esté mal calibrado. Un punto más de 12 cm por encima del piso aprendido es un mueble (mesa, sofá) y no cuenta (`FLOOR_CFG`).
+- Mientras el visor no da ningún punto, se usa la última altura del piso medida (al principio, y = 0 de `local-floor`). El aviso lo dice: «Piso encontrado» o «piso aproximado».
 - La maqueta queda **fija en la habitación**. El jugador de IWSDK no se mueve ni se escala.
 - El panel del cuento también queda **fijo en la habitación**, a la izquierda de la maqueta y a la altura de una mesa. No sigue la cabeza, así que no tapa la maqueta. Al volver a colocar el libro, vuelve a su lugar inicial (o con «Panel a su lugar» en el menú).
 - No se usan anclas espaciales (`XRAnchor`). Si el visor recalibra el piso o se pierde el seguimiento, la maqueta se puede volver a colocar con A/X o «Mover».
@@ -121,6 +121,7 @@ Sistemas (`src/systems/`):
 - **NicoSystem**: Nico como juguete (agarrar en 3D, caer, volver cuando la historia lo necesita).
 - **PageSystem**: pasar la hoja con la mano (sello y borde de la hoja).
 - **HeartSystem**: el corazón 3D del juego de ritmo.
+- **RadarTouchSystem**: el radar del juego 1 en la punta del índice.
 - **TowerSystem**: la torre de bloques con físicas.
 - **ReactionSystem**: reacciones de Nico y del Guardián al tacto.
 - **GestureSystem**: el gesto de cubrirse la cabeza.
@@ -206,6 +207,16 @@ superficie de golpe).
 - **Progreso**: un anillo de 12 puntos alrededor del corazón; cada acierto enciende uno con chispas.
 - «Reiniciar» vuelve la cuenta a 0 y repite la demostración, sin reiniciar la historia.
 - Los umbrales están en `HEART_CFG`.
+
+**Radar con la punta del índice** (`RadarTouchSystem`). En el visor el radar ya
+no sigue al rayo ni a la mirada: el anillo que late está en la punta del índice (o
+del control), y la cercanía se mide en 3D, en metros, desde esa punta hasta la
+superficie de cada peligro (la misma curva de bip de la web, con un alcance de
+unos 44 cm a escala 0,17). Un peligro se descubre **tocándolo** con la punta del
+dedo (a menos de 1,2 cm); para volver a tocar el mismo objeto hay que alejar el
+dedo 3 cm. Lo seguro (sofá, planta) responde como en la web. El pellizco a
+distancia ya no descubre peligros (con el control, el gatillo apuntando sigue
+valiendo). Umbrales en `RADAR_CFG`.
 
 **Reiniciar** (botón del panel, `world.globals.resetObjects`): devuelve los bloques
 (si la torre está en juego), Nico y el Guardián a su lugar, con posición, rotación y
@@ -324,6 +335,8 @@ Con la **mano emulada** de IWER (pellizco real de las articulaciones) y con el c
 | Pérdida de tracking | Sostener a Nico en el aire y desconectar la mano (`xr set-connected`); cambiar de mano a control; `tests/muestrear-nico.mjs` registra cada cuadro | Se suelta sin velocidad y cae recto (x no cambia); la mano que reaparece lejos no lo mueve. Antes del arreglo, el cambio de fuente lo lanzaba 24 cm |
 | Reiniciar | Botón del panel con el rayo (`tests/reiniciar.mjs` llama la misma acción) | Bloques, Nico y Guardián vuelven a su lugar; la historia sigue en el mismo momento |
 | Filtro One Euro y pinza | `sh tests/torre-manos.sh` | Torre de 4 bloques con la mano, igual que antes |
+| Radar con el dedo | `tests/radar-dedo.mjs`, luego la punta del índice hacia cada objeto (`tests/radar-estado.mjs`) | La cercanía sube al acercarse (0,69 → 0,82 → 0,93) sin descubrir nada; al tocar, se descubre cada peligro; la planta (segura) no cuenta; con los 4, el radar se apaga y sigue llevar a Nico. El anillo se dibuja en la punta del dedo |
+| Colocar el libro | Entrar, cambiar a manos, apuntar con la mano al piso y pellizcar | Se coloca. El emulador no tiene hit-test, así que solo prueba el piso aproximado |
 | Regresión | `tests/recorrido.mjs` | Los 5 juegos completos y el libro se cierra |
 
 El emulador mueve la mano a saltos (cada comando la ubica de una vez), no con el
@@ -341,7 +354,8 @@ filtrado y la pérdida de tracking solo están probados en su lógica.
 - pasar la hoja pellizcando el borde: comodidad del umbral de 3 cm;
 - que los personajes caídos al piso real se vean bien con el passthrough y la sombra;
 
-- hit-test real del piso y estabilidad de la maqueta al caminar;
+- hit-test real del piso: que el libro quede a ras del piso (con controles y con manos) y estabilidad de la maqueta al caminar;
+- radar con el dedo: alcance del bip y que tocar los objetos de la pared sea cómodo;
 - fps reales;
 - legibilidad de los paneles;
 - si los objetos de 16 cm se pueden tocar cómodamente con el rayo;
