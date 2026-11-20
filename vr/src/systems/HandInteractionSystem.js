@@ -29,22 +29,23 @@
  * (`globals.interactLock = 'page'`) o la hoja termina de girar, solo la página
  * responde; así un mismo gesto nunca activa dos acciones incompatibles.
  *
- * Nico tiene su propio controlador (NicoSystem): se levanta en 3D. Los demás
- * arrastrables de los juegos (zapatos…) usan el arrastre de aquí, sin límites
- * artificiales: el juego decide si el lugar donde se suelta es válido.
+ * Nico (NicoSystem) y los demás arrastrables de los juegos usan el mismo agarre
+ * 3D (interaction/carry.js): posición y giro relativos a la mano, caída con
+ * gravedad al soltar, sin límites artificiales; el juego decide si el lugar
+ * donde aterriza es válido.
  */
-import { createSystem, Mesh, MeshBasicMaterial, SphereGeometry, Vector3, VisibilityState } from '@iwsdk/core';
+import { createSystem, Mesh, MeshBasicMaterial, Quaternion, SphereGeometry, Vector3, VisibilityState } from '@iwsdk/core';
 import gsap from 'gsap';
 import { Hands } from '../interaction/hands.js';
 import { boundRadius, boxCenter, distanceToBox, fitLocalBox } from '../interaction/shapes.js';
+import { Carry } from '../interaction/carry.js';
+import { OffsetLayer } from '../interaction/layers.js';
 
 export const GRAB_CFG = {
     HOVER_DIST: { hand: 0.05, controller: 0.06 },
     GRAB_DIST: { hand: 0.022, controller: 0.04 },
     /** Cuánto pesa cada punto de prioridad al elegir entre objetos casi igual de cerca (m). */
     PRIORITY_MM: 0.004,
-    /** Lo que se arrastra en los juegos: altura máxima a la que se levanta (unidades del cuento). */
-    MAX_LIFT: 0.9,
 };
 
 class Registry {
@@ -73,6 +74,8 @@ export class HandInteractionSystem extends createSystem({}) {
         this.closest = new Vector3();
         this.center = new Vector3();
         this.dragItems = new Map(); // objeto arrastrable del juego → item del registro
+        this.falling = new Set(); // arrastrables soltados que todavía caen
+        this.qi = new Quaternion();
         this.dots = {};
         for (const side of ['left', 'right']) {
             const dot = new Mesh(new SphereGeometry(0.006, 12, 8), new MeshBasicMaterial({ color: '#ffd84d', transparent: true, opacity: 0.9, depthTest: false, fog: false }));
@@ -90,6 +93,13 @@ export class HandInteractionSystem extends createSystem({}) {
         const map = c.pointer.draggables;
         for (const [obj, it] of this.dragItems) {
             if (!map.has(obj) || !obj.parent) {
+                // el juego ya no lo deja mover: se quita su capa al terminar de asentarse
+                if (it.layer && !this.falling.has(it)) {
+                    const L = it.layer;
+                    gsap.to(L.pos, { x: 0, y: 0, z: 0, duration: 0.3, onComplete: () => c.layers.remove(L) });
+                    L.rot.identity();
+                }
+                this.falling.delete(it);
                 this.registry.remove(it);
                 this.dragItems.delete(obj);
             }
@@ -99,47 +109,64 @@ export class HandInteractionSystem extends createSystem({}) {
             if (obj === nico) continue; // NicoSystem
             if (this.dragItems.has(obj)) continue;
             // prioridad alta: en un juego, lo que se arrastra va antes que el Guardián o el panel
-            const it = this.registry.add({ object: obj, kind: 'drag', priority: 3, opts, lift: 0, ...this.dragHandlers(c) });
+            const it = this.registry.add({ object: obj, kind: 'drag', priority: 3, opts, ...this.dragHandlers(c) });
             this.dragItems.set(obj, it);
         }
     }
 
+    /**
+     * Agarre 3D de lo que se arrastra en los juegos (interaction/carry.js, el mismo
+     * que usa Nico): sigue a la mano en X, Y y Z, gira con ella y al soltarlo cae
+     * con gravedad. Mientras se lleva, el juego recibe la posición (onMove); al
+     * aterrizar, el juego decide si el lugar vale (onDrop) o lo devuelve.
+     */
     dragHandlers(c) {
         const sys = this;
         return {
             onGrab(hand) {
-                const space = this.opts.space;
-                // desde donde se tomó: sin saltos
-                sys.local(space, hand.point, sys.v);
-                this.offX = this.object.position.x - sys.v.x;
-                this.offZ = this.object.position.z - sys.v.z;
-                this.handY0 = sys.local(space, hand.point, sys.w).y;
-                this.layer = c.layers.add(new LiftLayer(this.object));
-                gsap.killTweensOf(this.layer);
+                if (this.carry?.mode === 'falling') sys.falling.delete(this);
+                if (!this.layer) this.layer = c.layers.add(new OffsetLayer(this.object));
+                gsap.killTweensOf(this.layer.pos);
+                this.carry ??= new Carry(this.object, this.layer);
+                this.carry.begin(hand);
                 c.pointer.drag = { object: this.object, opts: this.opts };
                 this.opts.onStart?.();
             },
             onHold(hand, dt) {
-                const space = this.opts.space;
-                const p = sys.local(space, hand.point, sys.v);
-                // sin límites artificiales: el juego decide qué lugar vale al soltar
-                p.x += this.offX;
-                p.z += this.offZ;
-                this.last = { x: p.x, y: 0, z: p.z };
+                this.carry.hold(c, hand, dt);
+                const p = sys.local(this.opts.space, this.carry.pos, sys.v);
                 this.opts.onMove?.(sys.w.set(p.x, 0, p.z));
-                // se levanta con la mano (no atraviesa el piso)
-                const lift = Math.max(0, Math.min(GRAB_CFG.MAX_LIFT, p.y - this.handY0 + 0.15));
-                this.layer.y += (lift - this.layer.y) * Math.min(1, dt * 14);
+                this.carry.sync();
             },
-            onRelease() {
-                c.pointer.drag = null;
-                const at = this.last ?? { x: this.object.position.x, y: 0, z: this.object.position.z };
-                // baja suavemente al piso; el juego decide si el lugar es válido
-                // (si no, lo regresa solo a su última posición segura)
-                gsap.to(this.layer, { y: 0, duration: 0.3, ease: 'power2.out', onComplete: () => c.layers.remove(this.layer) });
-                this.opts.onDrop?.(sys.w.set(at.x, 0, at.z), false);
+            onRelease(hand) {
+                this.carry.release(hand);
+                sys.falling.add(this);
             },
         };
+    }
+
+    /** Lo que se soltó cae; al quedar quieto, el juego decide si el lugar vale. */
+    updateFalling(c, dt) {
+        for (const it of this.falling) {
+            const o = it.object;
+            if (!o.parent) { this.falling.delete(it); continue; }
+            if (!it.carry.fall(c, dt)) { it.carry.sync(); continue; }
+            this.falling.delete(it);
+            it.carry.sync();
+            c.pointer.drag = null;
+            // la posición en el piso pasa al juego; la altura y el giro que quedan se deshacen suave
+            const L = it.layer;
+            L.undo();
+            const p = this.local(it.opts.space, it.carry.pos, this.v);
+            o.position.x = p.x;
+            o.position.z = p.z;
+            L.pos.x = L.pos.z = 0;
+            const from = L.rot.clone();
+            const k = { t: 0 };
+            gsap.to(L.pos, { y: 0, duration: 0.35, ease: 'power2.inOut' });
+            gsap.to(k, { t: 1, duration: 0.35, ease: 'power2.inOut', onUpdate: () => L.rot.slerpQuaternions(from, this.qi, k.t) });
+            it.opts.onDrop?.(this.w.set(p.x, 0, p.z), false);
+        }
     }
 
     /** Punto del mundo en el sistema de `space` (sin modificar la entrada). */
@@ -189,6 +216,7 @@ export class HandInteractionSystem extends createSystem({}) {
         }
         const paused = !!this.world.globals.cuentoPaused;
         this.syncDraggables(c);
+        if (!paused) this.updateFalling(c, dt);
 
         for (const side of ['left', 'right']) {
             const hand = this.hands.h[side];
@@ -238,15 +266,4 @@ export class HandInteractionSystem extends createSystem({}) {
             }
         }
     }
-}
-
-/** Levantar un objeto del juego (Nico, zapatos) sin pelear con el código que lo mueve. */
-class LiftLayer {
-    constructor(object) {
-        this.object = object;
-        this.y = 0;
-        this._y = 0;
-    }
-    undo() { this.object.position.y -= this._y; this._y = 0; }
-    apply() { this._y = this.y; this.object.position.y += this._y; }
 }

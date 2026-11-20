@@ -87,8 +87,28 @@ export default async function run({ page, frame }) {
             },
             async 'juego-pasillo'(act) {
                 const s = story.scene;
-                await until(() => pointer.draggables.has(s.shoes), 20000);
-                await drag(s.shoes, wp(s.nico));
+                const g = c.world.globals;
+                await until(() => pointer.draggables.has(s.shoes) || g.shoes?.active, 20000);
+                if (g.shoes?.active) {
+                    // en el visor: cada zapato se lleva con una "mano" (los mismos onGrab/onHold/onRelease que usa la pinza)
+                    for (const rec of [...g.shoes.list]) {
+                        const hand = { point: wp(rec.shoe), quat: s.group.quaternion.clone().identity(), vel: wp(rec.shoe).set(0, 0, 0), speed: 0 };
+                        rec.item.busy = true;
+                        rec.item.onGrab(hand);
+                        const goal = wp(rec.shoe); const q = hand.quat.clone();
+                        g.shoes.footTarget(rec.side, goal, q);
+                        const from = hand.point.clone();
+                        for (let i = 1; i <= 30 && !rec.placed; i++) {
+                            hand.point.lerpVectors(from, goal, Math.min(1, i / 20));
+                            rec.item.onHold(hand, 0.016);
+                            await sleep(16);
+                        }
+                        if (!rec.placed) { rec.item.busy = false; rec.item.onRelease(hand); }
+                        await sleep(400);
+                    }
+                    await until(() => !g.shoes.list.length, 3000);
+                    note(`pasillo: zapatos con la mano ${g.shoes.placed.length === 0 && !g.shoes.active ? 'puestos' : 'NO'}`);
+                } else await drag(s.shoes, wp(s.nico));
                 await until(() => !s.shoes.visible, 3000);
                 note(`pasillo: zapatos ${s.shoes.visible ? 'NO' : 'puestos'}`);
                 await until(() => pointer.draggables.has(s.nico), 8000);

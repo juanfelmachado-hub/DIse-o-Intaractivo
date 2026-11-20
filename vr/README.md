@@ -31,12 +31,13 @@ importa el código original de `../src` y los recursos de `../static`.
 | Agarrar algo de la maqueta (bloques, Nico, zapatos, el Guardián) | Acercar el control y apretar el botón lateral | Pellizcarlo con el pulgar y el índice (a menos de 2 cm); abrir los dedos para soltar. Se puede llevar fuera del libro: al soltarlo cae al piso real |
 | Pasar la hoja | Apuntar al sello redondo de la esquina de la hoja y apretar el gatillo | Bajar el índice sobre el sello, o pellizcar el borde exterior de la hoja y llevarlo hacia el lomo |
 | Construir la torre (primera página) | Agarrar los bloques con el botón lateral y apilarlos | Pellizcar los bloques y apilarlos |
-| Arrastrar (Nico, zapatos) | Mantener el gatillo y mover el rayo, o agarrarlo de cerca | Agarrarlo con la mano (con la mano no se arrastra a distancia) |
+| Arrastrar (Nico en los juegos) | Mantener el gatillo y mover el rayo, o agarrarlo de cerca con el botón lateral | Agarrarlo con la mano (con la mano no se arrastra a distancia) |
+| Zapatos (juego 3) | Agarrar cada zapato con el botón lateral y llevarlo a su pie; o tocar el par con el rayo y el gatillo | Pellizcar un zapato, llevarlo al pie que corresponde (aro verde) y soltarlo; cerca del pie se acomoda solo |
 | Radar (juego 1) | Acercar la punta del control a los objetos: el anillo del radar va en la punta y el bip late más rápido cerca del peligro; tocar el peligro con la punta (o apuntarle y apretar el gatillo) | Acercar la punta del índice: el anillo del radar va en el dedo; hay que tocar el peligro con la punta del índice |
 | Ponerse a salvo | Tocar a Nico con el rayo (o el botón del panel) | Igual. En «¡Cúbrete!», poner las dos manos sobre la cabeza |
 | Mover el panel del cuento | Agarrar el asa (barra bajo el panel) con el botón lateral, de cerca o apuntándole | Pellizcar el asa; girar la muñeca lo gira |
 | Ocultar el panel | «Ocultar» en el panel; vuelve tocando el icono junto al libro (o apuntándole con el gatillo) | Igual, tocando el icono con el índice |
-| Ritmo (juego 2) | Golpear el corazón 3D al ritmo del latido: tocarlo con el control, o apuntarle y apretar el gatillo | Golpearlo con el índice o la palma (hay que moverse hacia él; una mano quieta encima no cuenta) |
+| Ritmo (juego 2) | Golpear el corazón 3D al ritmo del latido: tocarlo con el control, o apuntarle y apretar el gatillo | Golpearlo con el índice o la palma (hay que moverse hacia él; una mano quieta encima no cuenta). La pinza no golpea |
 | Girar la maqueta 30° | Palanca a la izquierda o la derecha | — |
 | Tamaño de la maqueta | Palanca arriba (más grande) o abajo (más pequeña), o «Tamaño» en el panel | «Tamaño» en el panel |
 | Mover el libro a otro lugar | Botón A o X, o «Mover» en el panel | «Mover» en el panel |
@@ -122,6 +123,7 @@ Sistemas (`src/systems/`):
 - **PageSystem**: pasar la hoja con la mano (sello y borde de la hoja).
 - **HeartSystem**: el corazón 3D del juego de ritmo.
 - **RadarTouchSystem**: el radar del juego 1 en la punta del índice.
+- **ShoesSystem**: los dos zapatos del juego 3, cada uno a su pie.
 - **TowerSystem**: la torre de bloques con físicas.
 - **ReactionSystem**: reacciones de Nico y del Guardián al tacto.
 - **GestureSystem**: el gesto de cubrirse la cabeza.
@@ -146,13 +148,23 @@ esta máquina de estados: **IDLE → HOVER → GRABBING → (soltar) → IDLE**.
 - **Formas de interacción** (`src/interaction/shapes.js`): una caja ajustada a las mallas **visibles** de cada objeto (sin sprites, brillos ni las cajas de "hit" invisibles de la web). La distancia se mide en metros reales hasta la superficie de la caja. Se resalta a menos de **5 cm** (punto amarillo) y se agarra a menos de **2,2 cm** (punto verde mientras se sostiene).
 - **Prioridades**: si dos objetos están casi igual de cerca, gana el de mayor prioridad: Nico y los objetos de los juegos (3), bloques, Guardián y hoja (0). Mientras se pasa la hoja, solo la hoja responde (`interactLock`).
 - **Superficies sólidas** (`src/interaction/surfaces.js`): no hay límites invisibles. Lo sólido es lo que existe: la página, dentro del contorno del libro abierto, y el piso real de la habitación, afuera. Nada los atraviesa.
+- **Manipulación 3D común** (`src/interaction/carry.js`): Nico, los zapatos y lo que se arrastra en los juegos usan el MISMO agarre. Se toma desde el punto pellizcado (posición y giro relativos a la mano), sigue a la mano en X, Y y Z y gira con ella en los tres ejes con suavizado exponencial, nunca baja más que la superficie de abajo, y al soltarlo hereda la velocidad (tope 1,2 m/s), cae con gravedad, rebota, frena y se endereza conservando hacia dónde mira.
 - **Capas** (`src/interaction/layers.js`): levantar a Nico o empujar al Guardián se suma encima de la animación del cuento y se deshace exacta cada cuadro. Así no pelea con el código original.
 - **Nico como un juguete** (`NicoSystem`): **LIBRE → AGARRADO → CAYENDO → EN EL PISO → VUELVE**.
   - Se toma desde el punto donde se pellizcó (no salta al centro) y sigue a la mano en X, Y y Z con un suavizado exponencial, también fuera del libro.
-  - Se inclina según la velocidad, cuelga (postura `dangle`), balancea las piernas y pone cara de sorpresa si la mano va rápido. Nunca baja más que la superficie de abajo.
+  - Se puede tomar durante TODA la historia, también en los juegos (radar, pasillo, patio, zapatos, corazón); solo no mientras pasa la hoja o mientras vuelve a su lugar. Gira con la mano en los tres ejes.
+  - Cuelga (postura `dangle`), balancea las piernas y pone cara de sorpresa si la mano va rápido. Nunca baja más que la superficie de abajo.
   - Al soltarlo hereda la velocidad de la mano (tope 1,2 m/s) y cae con gravedad real (9,8 m/s²) sobre la página o el piso real; rebota un poco, frena con fricción y recupera el equilibrio.
   - Se queda donde cayó. Solo vuelve (caminando, con un saltito) cuando la historia avanza y lo necesita en su lugar, o con «Reiniciar».
-  - En el radar el juego sigue decidiendo: al aterrizar se le pasa el lugar al juego, que lo acepta o lo devuelve a su última posición segura (mecánica narrativa).
+  - En los juegos que mueven a Nico (radar, camino del pasillo, patio) el juego recibe dónde está mientras se lo lleva (el camino avanza llevándolo con la mano) y, al aterrizar, decide si el lugar vale o lo devuelve (mecánica narrativa).
+
+**Los zapatos con las manos** (`ShoesSystem`, juego 3). En el visor el par se separa en dos zapatos, cada uno con su pie:
+
+- Cada zapato se agarra con la pinza y se mueve y gira libre en 3D (el mismo agarre que Nico). Si se suelta lejos, cae y se queda donde cayó: se puede volver a tomar.
+- **Zona del pie**: a menos de 5,8 cm (0,34 unidades del cuento) del pie que le corresponde, mirando más o menos hacia donde mira Nico (margen de 80°), aparece un **aro verde** en el pie y un **imán suave** lo acerca. Cerca del otro pie el aro es **naranja** y el Guardián dice «Ese zapato es del otro pie».
+- Al soltarlo en la zona (o al llegar a menos de 1,7 cm) se acomoda con una transición corta, queda **pegado al pie** (sigue a Nico aunque se lo lleve en la mano) y se bloquea; suena «clac» y salen chispas.
+- Con los dos puestos el juego sigue igual que en la web (zapatos del modelo, saltito, el camino).
+- Umbrales en `SHOES_CFG`. «Reiniciar» devuelve a su lugar los zapatos que no están puestos.
 
 **La torre** (`TowerSystem`, primera página):
 
@@ -203,7 +215,8 @@ superficie de golpe).
 - Late con el sonido del latido («pum… pum») y se contrae y expande con cada uno.
 - Primero hay una **demostración**: 3 latidos que solo se escuchan y se ven. Después aparece «¡Ahora tú! Golpéalo al ritmo».
 - **Golpe real**: cuenta solo cuando el índice o la palma entran al corazón moviéndose hacia él a más de **0,25 m/s**. Un roce lento o una mano quieta dentro no cuentan, y para volver a golpear hay que salir 3 cm.
-- La ventana de ritmo es la del juego original (±38 % del intervalo de 0,9 s, en `DrumActivity`). Un golpe a destiempo hace que el corazón se apague un instante y dice «Espera el pum… ¡y golpea!».
+- **Nunca con la pinza**: pellizcar (o apuntar con el rayo de la mano y pellizcar) no golpea el corazón. Con el control, el gatillo apuntando sigue valiendo.
+- **Calificación de cada golpe**: «¡Perfecto!» a menos del 12 % del intervalo del latido (más chispas, doradas), «Correcto» hasta el 38 % (la ventana del juego original, en `DrumActivity`), y «Fuera de ritmo» más allá: el corazón se apaga un instante.
 - **Progreso**: un anillo de 12 puntos alrededor del corazón; cada acierto enciende uno con chispas.
 - «Reiniciar» vuelve la cuenta a 0 y repite la demostración, sin reiniciar la historia.
 - Los umbrales están en `HEART_CFG`.
@@ -214,13 +227,13 @@ del control), y la cercanía se mide en 3D, en metros, desde esa punta hasta la
 superficie de cada peligro (la misma curva de bip de la web, con un alcance de
 unos 44 cm a escala 0,17). Un peligro se descubre **tocándolo** con la punta del
 dedo (a menos de 1,2 cm); para volver a tocar el mismo objeto hay que alejar el
-dedo 3 cm. Lo seguro (sofá, planta) responde como en la web. El pellizco a
+dedo 3 cm y esperar 0,6 s (vale para las dos manos: un toque se registra una vez). Lo seguro (sofá, planta) responde como en la web. El pellizco a
 distancia ya no descubre peligros (con el control, el gatillo apuntando sigue
 valiendo). Umbrales en `RADAR_CFG`.
 
 **Reiniciar** (botón del panel, `world.globals.resetObjects`): devuelve los bloques
 (si la torre está en juego), Nico y el Guardián a su lugar, con posición, rotación y
-velocidad en cero, y reinicia la cuenta del corazón. La historia no cambia. Una torre
+velocidad en cero, reinicia la cuenta del corazón y devuelve los zapatos que no están puestos. La historia no cambia. Una torre
 ya terminada no se deshace: es parte del cuento.
 
 **Gesto de protección** (`GestureSystem`):
@@ -337,7 +350,13 @@ Con la **mano emulada** de IWER (pellizco real de las articulaciones) y con el c
 | Filtro One Euro y pinza | `sh tests/torre-manos.sh` | Torre de 4 bloques con la mano, igual que antes |
 | Radar con el dedo | `tests/radar-dedo.mjs`, luego la punta del índice hacia cada objeto (`tests/radar-estado.mjs`) | La cercanía sube al acercarse (0,69 → 0,82 → 0,93) sin descubrir nada; al tocar, se descubre cada peligro; la planta (segura) no cuenta; con los 4, el radar se apaga y sigue llevar a Nico. El anillo se dibuja en la punta del dedo |
 | Colocar el libro | Entrar, cambiar a manos, apuntar con la mano al piso y pellizcar | Se coloca. El emulador no tiene hit-test, así que solo prueba el piso aproximado |
-| Regresión | `tests/recorrido.mjs` | Los 5 juegos completos y el libro se cierra |
+| Zapatos con la mano | `bash tests/ir-zapatos.sh`, luego `bash tests/zapatos-manos.sh` (estado: `tests/zapatos-estado.mjs`) | Cada zapato se agarra (`grab:shoe`); junto al otro pie se marca «pie equivocado» (aro naranja); junto a su pie, imán y se pone solo (se bloquea pegado al pie); con los dos, Nico queda con zapatos y empieza el camino |
+| Nico en el camino del pasillo | `bash tests/pasillo-manos.sh` | Llevándolo con la mano el camino avanza (u 0 → 0,30); sigue la posición y el giro de la mano mientras el juego lo hace caminar |
+| Nico en el patio | `tests/_ir-patio.mjs` + `tests/patio-estado.mjs`, llevarlo con la mano | Soltado en el poste (no seguro): el juego lo devuelve. En el centro: el juego se completa |
+| Nico gira con la mano | Agarrarlo y girar la mano 60° en X, en Y y en Z | El giro de Nico cambia en los tres ejes; al soltarlo cae, se endereza y conserva hacia dónde mira |
+| Corazón sin pinza | `bash tests/corazon-manos.sh` (antes `tests/hasta-corazon.mjs`) | 3 pinzas apuntando desde 30 cm y 4 pinzas con la mano quieta dentro: 0 golpes. Golpes con el índice: «¡Perfecto!», «Correcto» y «Fuera de ritmo» según el momento. Con el control, el gatillo apuntando sigue contando (3 de 3) |
+| Radar sin pinza | Pinza apuntando a la lámpara desde 30 cm; luego tocarla con el índice | La pinza no descubre nada; el toque sí. Tocar el sofá, alejarse 30 cm y volver a tocar: cuenta otra vez |
+| Regresión | `bash tests/recorrido.sh` (repite `tests/recorrido.mjs`) | Los 5 juegos completos (los zapatos con la "mano" de ShoesSystem) y el libro se cierra, sin errores |
 
 El emulador mueve la mano a saltos (cada comando la ubica de una vez), no con el
 temblor ni la velocidad de una mano real. Por eso los tiempos de golpe, el
@@ -356,6 +375,9 @@ filtrado y la pérdida de tracking solo están probados en su lógica.
 
 - hit-test real del piso: que el libro quede a ras del piso (con controles y con manos) y estabilidad de la maqueta al caminar;
 - radar con el dedo: alcance del bip y que tocar los objetos de la pared sea cómodo;
+- la espera de 0,6 s entre toques del radar (en el emulador cada comando tarda ~1 s, así que no se puede probar un doble toque rápido);
+- los zapatos: tamaño de la zona del pie (5,8 cm) y el margen de orientación (80°) con manos reales; que el zapato quede bien apoyado en el pie del modelo;
+- «Reiniciar» durante el juego de los zapatos (implementado, no probado en el emulador);
 - fps reales;
 - legibilidad de los paneles;
 - si los objetos de 16 cm se pueden tocar cómodamente con el rayo;

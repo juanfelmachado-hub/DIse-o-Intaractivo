@@ -30,10 +30,12 @@ La carpeta [`vr/`](vr/README.md) contiene la versión de realidad mixta del mism
 cuento: una maqueta sobre el piso real, vista con passthrough (WebXR immersive-ar +
 Immersive Web SDK de Meta). Reutiliza el código de `src/` y los recursos de
 `static/` sin copiarlos; la web no cambia. En el visor se juega también con las
-manos: agarrar con la pinza, construir la torre de bloques con físicas, llevar a
-Nico y al Guardián también fuera del libro (caen al piso real), pasar la hoja
-pellizcando su borde o con un sello en la página, el juego de ritmo con un
-corazón 3D que se golpea, cubrirse la cabeza, un botón «Reiniciar» para los
+manos: agarrar con la pinza (el mismo agarre 3D en toda la historia, también en
+los juegos), construir la torre de bloques con físicas, llevar a Nico y al
+Guardián también fuera del libro (caen al piso real), ponerle a Nico cada zapato
+en su pie, el radar con la punta del índice, pasar la hoja pellizcando su borde
+o con un sello en la página, el juego de ritmo con un corazón 3D que se golpea
+(con calificación Perfecto / Correcto / Fuera de ritmo), cubrirse la cabeza, un botón «Reiniciar» para los
 objetos y un panel fijo en la habitación.
 Publicada en `dist/vr/`:
 https://juanfelmachado-hub.github.io/DIse-o-Intaractivo/dist/vr/

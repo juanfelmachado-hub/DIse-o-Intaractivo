@@ -47,6 +47,8 @@ export const HEART_CFG = {
     REARM: 0.03,
     /** Tiempo mínimo entre dos golpes (s). */
     MIN_GAP: 0.18,
+    /** «¡Perfecto!»: a menos de esta fracción del intervalo del latido (más allá de 0,38 es fuera de ritmo). */
+    PERFECT: 0.12,
     /** Tamaño del corazón (unidades del cuento) y altura sobre la página. */
     SIZE: 0.5,
     HEIGHT: 0.75,
@@ -103,7 +105,7 @@ export class HeartSystem extends createSystem({}) {
             get stats() { return sys.stats; },
             retry: () => this.retry(),
         };
-        this.stats = { contacts: 0, soft: 0, ok: 0, offbeat: 0 };
+        this.stats = { contacts: 0, soft: 0, ok: 0, perfect: 0, offbeat: 0 };
         // en el visor el juego 2 usa el corazón: se engancha a DrumActivity
         const begin = DrumActivity.prototype.begin;
         const cleanup = DrumActivity.prototype.cleanup;
@@ -135,7 +137,7 @@ export class HeartSystem extends createSystem({}) {
         const c = this.world.globals.cuento;
         const scene = act.scene;
         this.act = act;
-        this.stats = { contacts: 0, soft: 0, ok: 0, offbeat: 0 };
+        this.stats = { contacts: 0, soft: 0, ok: 0, perfect: 0, offbeat: 0 };
         this.phase = 'demo';
         this.beats = 0;
         this.armed.left = this.armed.right = true;
@@ -196,7 +198,7 @@ export class HeartSystem extends createSystem({}) {
         act.taps = 0;
         act.missed = 0;
         act.report?.(0);
-        this.stats = { contacts: 0, soft: 0, ok: 0, offbeat: 0 };
+        this.stats = { contacts: 0, soft: 0, ok: 0, perfect: 0, offbeat: 0 };
         this.phase = 'demo';
         this.beats = 0;
         for (const d of this.dots) d.material.color.set('#5b5068');
@@ -237,6 +239,9 @@ export class HeartSystem extends createSystem({}) {
     hit(c) {
         const act = this.act;
         const before = act.taps;
+        // qué tan cerca del latido fue (misma medida que el juego: fracción del intervalo)
+        const since = performance.now() / 1000 - act.lastBeat;
+        const off = Math.min(since, Math.abs(act.interval - since)) / act.interval;
         act.tap();
         const scene = act.scene;
         if (act.taps > before) {
@@ -245,13 +250,15 @@ export class HeartSystem extends createSystem({}) {
             this.ok = 1;
             const d = this.dots[act.taps - 1];
             if (d) d.material.color.setHSL(((act.taps * 32) % 360) / 360, 0.85, 0.62);
-            sparkle(scene.group, this.heart.position.clone(), { color: '#ffd1dc', count: 6, radius: 0.35 });
-            if (act.taps === 1) this.say('');
+            const perfect = off < HEART_CFG.PERFECT;
+            if (perfect) this.stats.perfect++;
+            sparkle(scene.group, this.heart.position.clone(), { color: perfect ? '#fff3a0' : '#ffd1dc', count: perfect ? 10 : 6, radius: perfect ? 0.45 : 0.35 });
+            this.say(perfect ? '¡Perfecto!' : 'Correcto');
         } else {
             // fuera de ritmo: se encoge apenas y se apaga un instante
             this.stats.offbeat++;
             this.bad = 1;
-            this.say('Espera el pum… ¡y golpea!');
+            this.say('Fuera de ritmo: espera el pum… ¡y golpea!');
         }
     }
 

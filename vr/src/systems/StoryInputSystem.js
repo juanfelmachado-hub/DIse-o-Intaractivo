@@ -65,6 +65,13 @@ export class StoryInputSystem extends createSystem({
         });
     }
 
+    /**
+     * ¿Es una mano (tracking de manos) y no un control? Con el tracking de manos
+     * IWSDK también crea un "gamepad" por mano, así que `gamepads[lado]` no sirve
+     * para distinguirlos: se usa la fuente real (interaction/hands.js).
+     */
+    isHand(side) { return this.world.globals.hands?.h[side]?.kind === 'hand'; }
+
     /** Estado del "seleccionar" de una mano: control (gatillo) o mano (pellizco). Sin asignaciones. */
     select(hand) {
         const pad = this.input.xr.gamepads[hand];
@@ -181,28 +188,33 @@ export class StoryInputSystem extends createSystem({
             if (this.world.globals.panel?.rayClick(this.ray) || this.world.globals.pages?.rayClick(this.ray)) startHand = null;
             // una pinza junto a un objeto es un agarre (HandInteractionSystem), no un clic a distancia
             const hs = this.world.globals.handState?.[startHand];
-            if (startHand && hs && hs.mode !== 'idle' && !this.input.xr.gamepads[startHand]) startHand = null;
+            if (startHand && hs && hs.mode !== 'idle' && this.isHand(startHand)) startHand = null;
         }
         if (startHand) {
             const e = this.evt;
             // con la MANO (sin control) lo manipulable no se arrastra a distancia: se agarra con los dedos
-            const handOnly = startHand !== 'mouse' && !this.input.xr.gamepads[startHand];
+            const handOnly = startHand !== 'mouse' && this.isHand(startHand);
             let farDrag = false;
             // radar en el visor: los peligros se tocan con la punta del índice (RadarTouchSystem), no con el rayo de la mano
             const radarTouch = handOnly && this.world.globals.radarTouch?.active;
+            // zapatos: se toman con los dedos (ShoesSystem), la pinza a distancia no los pone
+            const shoesHand = handOnly && this.world.globals.shoes?.active;
+            // corazón: se golpea con la mano (contacto + velocidad), NUNCA con la pinza ni el rayo de la mano
+            const heartHand = handOnly && this.world.globals.heart?.active;
             if (handOnly && pointer.draggables.size) {
                 pointer.setNdc(e);
                 farDrag = !!pointer.pick(pointer.draggables);
             }
-            if (!this.onPanel() && !farDrag && !radarTouch) {
+            if (!this.onPanel() && !farDrag && !radarTouch && !shoesHand) {
                 story.scene?.skipReveal(); // como tocar el lienzo en la web
                 const drum = ui.el.drum;
                 const k = this.world.globals.dioramaScale ?? 0.17;
                 const nico = story.scene?.nico;
                 if (!drum.hidden && drum.onclick) {
+                    if (heartHand) { /* la pinza no golpea el corazón */ }
                     // juego 2: el golpe al ritmo, apuntando al tambor de la maqueta
-                    if (ui.drumTarget) ui.drumTarget.getWorldPosition(this.drumPos);
-                    if (!ui.drumTarget || this.rayNear(this.drumPos, 0.05 + 0.35 * k)) drum.onclick();
+                    else if (ui.drumTarget) ui.drumTarget.getWorldPosition(this.drumPos);
+                    if (!heartHand && (!ui.drumTarget || this.rayNear(this.drumPos, 0.05 + 0.35 * k))) drum.onclick();
                 } else if (ui.onStepsGo && ui.vrSteps && nico && this.rayNear(nico.getWorldPosition(this.drumPos).addScaledVector(this.up, 0.5 * k), 0.04 + 0.5 * k)) {
                     ui.onStepsGo(); // «Ponerse a salvo»: tocar a Nico es el siguiente paso
                 } else {

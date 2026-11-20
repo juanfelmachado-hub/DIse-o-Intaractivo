@@ -2,24 +2,25 @@
  * NicoSystem — Nico como un juguete de verdad (controlador del personaje).
  *
  * Con la pinza (o el botón lateral del control) Nico se levanta desde el punto
- * donde se tomó y sigue a la mano en X, Y y Z, también fuera del libro:
+ * donde se tomó, sigue a la mano en X, Y y Z y gira con ella en los tres ejes,
+ * también fuera del libro. Es el MISMO agarre en toda la historia, también
+ * durante los juegos (interaction/carry.js, igual que los zapatos):
  *
  *   LIBRE → AGARRADO → CAYENDO → EN EL PISO → (la historia lo necesita) VUELVE
  *
- *  - AGARRADO: la posición persigue a la mano con un suavizado exponencial
- *    (sin saltos al tomarlo ni movimiento robótico); se inclina con la
- *    velocidad, cuelga (`dangle`) y balancea las piernas; si la mano va muy
- *    rápido pone cara de sorpresa. Nunca baja más que la superficie de abajo.
- *  - CAYENDO: al abrir los dedos hereda la velocidad de la mano (con tope) y cae
- *    con gravedad real (9,8 m/s²) sobre lo que haya debajo: la página si está
- *    sobre el libro, el piso real si está afuera. Rebota un poco, frena con
- *    fricción y recupera el equilibrio (saltito) al aterrizar.
+ *  - AGARRADO: posición y giro relativos a la mano (no salta al centro de la
+ *    mano), con suavizado exponencial; cuelga (`dangle`) y balancea las
+ *    piernas; si la mano va muy rápido pone cara de sorpresa. Nunca baja más
+ *    que la superficie de abajo.
+ *  - CAYENDO: al abrir los dedos hereda la velocidad de la mano (con tope), cae
+ *    con gravedad real (9,8 m/s²) sobre la página o el piso real, rebota un
+ *    poco, frena y se endereza mirando hacia donde lo dejaron.
  *  - Se queda donde cayó. Cuando la historia avanza (otro momento u otra
- *    página) y necesita a Nico en su lugar, vuelve caminando con un saltito.
+ *    página) y necesita a Nico en su lugar, vuelve caminando.
  *
- * En el radar (llevarlo bajo la mesa) el juego sigue decidiendo: cuando Nico
- * aterriza, se le pasa el lugar al juego, que lo da por bueno o lo devuelve a
- * su última posición segura (mecánica narrativa).
+ * En los juegos que mueven a Nico (radar, pasillo, patio) el juego sigue
+ * recibiendo dónde está mientras se lo lleva, y al aterrizar decide si el lugar
+ * vale (bajo la mesa, el camino, la zona segura) o lo devuelve.
  *
  * El desplazamiento se suma como capa (interaction/layers) sobre la posición
  * que anima el cuento: nunca pelea con una animación de la historia.
@@ -28,41 +29,23 @@ import { createSystem, Quaternion, Vector3, VisibilityState } from '@iwsdk/core'
 import gsap from 'gsap';
 import { OffsetLayer } from '../interaction/layers.js';
 import { fitLocalBox } from '../interaction/shapes.js';
-import { groundAt } from '../interaction/surfaces.js';
+import { Carry } from '../interaction/carry.js';
 
 export const NICO_CFG = {
-    /** Qué tan rápido persigue a la mano (1/s): alto = pegado, bajo = flotante. */
-    FOLLOW: 24,
-    GRAVITY: 9.8,
-    /** Velocidad máxima heredada de la mano al soltarlo (m/s). */
-    MAX_THROW: 1.2,
-    /** Rebote al caer (0 = ninguno). */
-    BOUNCE: 0.22,
-    /** Fricción horizontal sobre el piso (1/s). */
-    FRICTION: 9,
-    /** Inclinación máxima por la velocidad (rad). */
-    LEAN: 0.45,
     /** Velocidad de la mano que lo sorprende (m/s). */
     FAST: 0.9,
     /** Tiempo para volver a su lugar cuando la historia lo necesita (s). */
     RETURN_TIME: 0.9,
 };
+// el seguimiento, la caída y el giro están en CARRY_CFG (interaction/carry.js)
 
 export class NicoSystem extends createSystem({}) {
     init() {
         this.v = new Vector3();
         this.w = new Vector3();
-        this.base = new Vector3();
-        this.cur = new Vector3(); // posición deseada de Nico (mundo)
-        this.vel = new Vector3();
-        this.off = new Vector3();
-        this.lv = new Vector3();
-        this.q = new Quaternion();
-        this.lean = new Vector3();
-        this.ax = new Vector3(1, 0, 0);
-        this.az = new Vector3(0, 0, 1);
         this.qa = new Quaternion();
-        this.qb = new Quaternion();
+        this.rotBack = { t: 0 };
+        this.carry = null;
         this.mode = 'idle'; // idle | held | falling | rest | returning
         this.nico = null;
         this.layer = null;
@@ -72,11 +55,12 @@ export class NicoSystem extends createSystem({}) {
         this.world.globals.nico = {
             get mode() { return sys.mode; },
             get away() { return !!sys.layer && !sys.layer.idle; },
+            /** Para las pruebas: la pose deseada y la capa. */
+            get carry() { return sys.carry; },
+            get layer() { return sys.layer; },
             reset: () => this.reset(true),
         };
     }
-
-    groundAt(c, p) { return groundAt(c, p); }
 
     // ------------------------------------------------------------ registro
     attach(c) {
@@ -86,6 +70,7 @@ export class NicoSystem extends createSystem({}) {
         this.nico = nico;
         if (!nico) return;
         this.layer = c.layers.add(new OffsetLayer(nico));
+        this.carry = new Carry(nico, this.layer);
         this.item = this.world.globals.interact.add({
             object: nico,
             box: fitLocalBox(nico, (m) => !m.isSprite),
@@ -109,32 +94,23 @@ export class NicoSystem extends createSystem({}) {
 
     storyKey(c) { return `${c.story.index}:${c.story.beat}`; }
 
-    /** Se puede tomar si no hay un juego que lo use de otra forma (o si el juego lo deja arrastrar). */
+    /**
+     * Se puede tomar durante toda la historia, también en los juegos (el mismo
+     * agarre en todas partes). Solo no se puede mientras pasa la hoja, mientras
+     * vuelve a su lugar o si la escena lo esconde.
+     */
     canGrab(c) {
         const n = this.nico;
         if (!n?.visible || c.story.mode !== 'reading' || c.turner.busy) return false;
-        if (this.mode === 'returning') return false;
-        const act = c.story.activity;
-        if (!act) return true;
-        if (c.pointer.draggables.has(n)) return true; // radar: llevarlo bajo la mesa
-        return !!this.world.globals.tower?.active; // torre: se puede mover (su collider lo sigue)
-    }
-
-    /** Posición base (la que anima el cuento, sin la capa) en el mundo. */
-    baseWorld(out) {
-        const n = this.nico;
-        out.copy(n.position);
-        if (this.layer.applied) out.sub(this.layer._pos);
-        return n.parent.localToWorld(out);
+        return this.mode !== 'returning';
     }
 
     // ------------------------------------------------------------ agarrar
     grab(c, hand) {
         const n = this.nico;
         gsap.killTweensOf(this.layer.pos);
-        n.getWorldPosition(this.cur);
-        this.grabOff = (this.grabOff ?? new Vector3()).copy(this.cur).sub(hand.point);
-        this.vel.set(0, 0, 0);
+        gsap.killTweensOf(this.rotBack);
+        this.carry.begin(hand);
         this.mode = 'held';
         this.fastCool = 0;
         this.game = c.pointer.draggables.get(n) ?? null;
@@ -149,14 +125,13 @@ export class NicoSystem extends createSystem({}) {
 
     hold(c, hand, dt) {
         const n = this.nico;
-        // la mano manda; el cuerpo la persigue con suavidad (sin saltos)
-        this.v.copy(hand.point).add(this.grabOff);
-        const floor = this.groundAt(c, this.v);
-        if (this.v.y < floor) this.v.y = floor; // no atraviesa la página ni el piso
-        const a = 1 - Math.exp(-NICO_CFG.FOLLOW * dt);
-        this.w.copy(this.cur);
-        this.cur.lerp(this.v, a);
-        if (dt > 0) this.vel.copy(this.cur).sub(this.w).divideScalar(dt);
+        // la mano manda (posición y giro); el cuerpo la persigue con suavidad
+        this.carry.hold(c, hand, dt);
+        // en un juego (radar, pasillo, patio) el juego sigue recibiendo dónde está Nico
+        if (this.game?.onMove && this.game.space) {
+            this.game.space.worldToLocal(this.v.copy(this.carry.pos));
+            this.game.onMove(this.w.set(this.v.x, 0, this.v.z));
+        }
         // piernas que se balancean y sorpresa si se mueve rápido
         if (n.p && n.currentPose === 'dangle') {
             const sp = Math.min(1, hand.speed / 1.2);
@@ -174,51 +149,29 @@ export class NicoSystem extends createSystem({}) {
 
     release(c, hand) {
         if (this.mode !== 'held') return;
-        this.vel.copy(hand.vel);
-        if (this.vel.length() > NICO_CFG.MAX_THROW) this.vel.setLength(NICO_CFG.MAX_THROW);
+        this.carry.release(hand);
         this.mode = 'falling';
-        this.fallFrom = this.cur.y;
     }
 
     // ------------------------------------------------------------ caer y aterrizar
-    fall(c, dt) {
-        this.vel.y -= NICO_CFG.GRAVITY * dt;
-        this.vel.multiplyScalar(Math.max(0, 1 - 0.4 * dt)); // aire
-        this.cur.addScaledVector(this.vel, dt);
-        const floor = this.groundAt(c, this.cur);
-        if (this.cur.y > floor) return;
-        this.cur.y = floor;
-        if (this.vel.y < -0.5) {
-            this.vel.y = -this.vel.y * NICO_CFG.BOUNCE; // rebote
-            this.vel.x *= 0.6;
-            this.vel.z *= 0.6;
-            return;
-        }
-        this.vel.y = 0;
-        const f = Math.max(0, 1 - NICO_CFG.FRICTION * dt);
-        this.vel.x *= f;
-        this.vel.z *= f;
-        if (Math.hypot(this.vel.x, this.vel.z) < 0.02) this.land(c);
-    }
-
     land(c) {
         const n = this.nico;
-        this.vel.set(0, 0, 0);
         this.mode = 'rest';
-        const high = (this.fallFrom ?? this.cur.y) - this.cur.y > 0.12;
-        this.syncLayer(c, 0);
+        const high = this.carry.dropHeight > 0.12;
+        this.carry.sync();
         if (this.game) {
-            // el juego decide si el lugar vale (bajo la mesa) o lo devuelve a su sitio
+            // el juego decide si el lugar vale (bajo la mesa, zona segura) o lo devuelve
             const opts = this.game;
             this.game = null;
             c.pointer.drag = null;
             this.layer.undo();
-            n.parent.worldToLocal(this.v.copy(this.cur));
+            n.parent.worldToLocal(this.v.copy(this.carry.pos));
             n.position.x = this.v.x;
             n.position.z = this.v.z;
-            this.layer.pos.set(0, 0, 0);
-            this.layer.rot.identity();
+            // lo que queda (altura y giro) se deshace suave: el juego manda desde aquí
+            this.layer.pos.set(0, this.layer.pos.y, 0);
             this.mode = 'idle';
+            this.settleLayer(0.35);
             opts.onDrop?.(this.w.set(this.v.x, 0, this.v.z), false);
             return;
         }
@@ -234,26 +187,17 @@ export class NicoSystem extends createSystem({}) {
         this.beatKey = this.storyKey(c);
     }
 
-    /** La capa = posición deseada − posición base (en el sistema del padre); inclinación por la velocidad. */
-    syncLayer(c, dt) {
-        const n = this.nico;
-        this.baseWorld(this.base);
-        n.parent.worldToLocal(this.v.copy(this.cur));
-        n.parent.worldToLocal(this.w.copy(this.base));
-        this.layer.pos.copy(this.v).sub(this.w);
-        // inclinación según la velocidad, en el sistema de Nico
-        const target = this.mode === 'held' || this.mode === 'falling' ? 1 : 0;
-        n.getWorldQuaternion(this.q).invert();
-        this.lv.copy(this.vel).applyQuaternion(this.q);
-        const L = NICO_CFG.LEAN;
-        const tx = target * Math.max(-L, Math.min(L, this.lv.z * 0.9));
-        const tz = target * Math.max(-L, Math.min(L, -this.lv.x * 0.9));
-        const a = dt > 0 ? 1 - Math.exp(-10 * dt) : 1;
-        this.lean.x += (tx - this.lean.x) * a;
-        this.lean.z += (tz - this.lean.z) * a;
-        this.qa.setFromAxisAngle(this.ax, this.lean.x);
-        this.qb.setFromAxisAngle(this.az, this.lean.z);
-        this.layer.rot.copy(this.qa).multiply(this.qb);
+    /** Lleva la capa a cero (posición y giro) en `duration` s. */
+    settleLayer(duration, onComplete) {
+        const L = this.layer;
+        const from = L.rot.clone();
+        this.rotBack.t = 0;
+        gsap.killTweensOf(this.rotBack);
+        gsap.to(this.rotBack, {
+            t: 1, duration, ease: 'power2.inOut',
+            onUpdate: () => L.rot.slerpQuaternions(from, this.qa.identity(), this.rotBack.t),
+        });
+        gsap.to(L.pos, { x: 0, y: 0, z: 0, duration, ease: 'power2.inOut', onComplete });
     }
 
     // ------------------------------------------------------------ volver
@@ -261,29 +205,17 @@ export class NicoSystem extends createSystem({}) {
     reset(now = false) {
         const c = this.world.globals.cuento;
         if (!this.layer || !c) return;
-        if (this.mode === 'held') {
-            const it = this.item;
-            // se suelta primero (sin lanzarlo)
-            this.mode = 'rest';
-            it.busy = false;
-        }
+        if (this.mode === 'held') this.item.busy = false; // se suelta primero (sin lanzarlo)
         const n = this.nico;
         this.mode = 'returning';
         this.game = null;
         gsap.killTweensOf(this.layer.pos);
-        this.lean.set(0, 0, 0);
-        this.layer.rot.identity();
         n.pose('run', 0.25);
-        gsap.to(this.layer.pos, {
-            x: 0, y: 0, z: 0,
-            duration: now ? 0.5 : NICO_CFG.RETURN_TIME,
-            ease: 'power2.inOut',
-            onComplete: () => {
-                if (this.nico !== n) return;
-                this.mode = 'idle';
-                n.pose('idle', 0.4);
-                n.face('smile');
-            },
+        this.settleLayer(now ? 0.5 : NICO_CFG.RETURN_TIME, () => {
+            if (this.nico !== n) return;
+            this.mode = 'idle';
+            n.pose('idle', 0.4);
+            n.face('smile');
         });
     }
 
@@ -296,8 +228,8 @@ export class NicoSystem extends createSystem({}) {
         if (!immersive) return;
         if (this.world.globals.cuentoPaused || this.world.globals.placing) return;
         const dt = Math.min(Math.max(delta, 0), 0.05);
-        if (this.mode === 'falling') this.fall(c, dt);
-        if (this.mode === 'held' || this.mode === 'falling' || this.mode === 'rest') this.syncLayer(c, dt);
+        if (this.mode === 'falling' && this.carry.fall(c, dt)) this.land(c);
+        if (this.mode === 'held' || this.mode === 'falling' || this.mode === 'rest') this.carry.sync();
         if (this.mode === 'rest') {
             // la historia avanzó y necesita a Nico en su lugar
             const key = this.storyKey(c);

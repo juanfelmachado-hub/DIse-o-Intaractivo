@@ -10,7 +10,7 @@
  *    pulsa más seguido (la misma curva que la web).
  *  - Para descubrir un peligro hay que TOCARLO con la punta del dedo (a menos de
  *    TOUCH de su superficie). Para volver a tocar el mismo objeto hay que
- *    alejar el dedo REARM. Lo seguro (sofá, planta) responde igual que en la web.
+ *    alejar el dedo REARM y esperar COOLDOWN (vale para las dos manos). Lo seguro (sofá, planta) responde igual que en la web.
  *  - Se usa la mano cuyo índice está más cerca de un peligro sin descubrir.
  *
  * Se engancha a RadarActivity (como el corazón a DrumActivity): fuera del visor
@@ -28,6 +28,8 @@ export const RADAR_CFG = {
     TOUCH: 0.012,
     /** Distancia extra para que el mismo objeto se pueda volver a tocar (m). */
     REARM: 0.03,
+    /** Tiempo mínimo entre dos toques del mismo objeto (s). */
+    COOLDOWN: 0.6,
     /** Cada cuánto se vuelve a medir la forma de los objetos (s). */
     REFIT: 1,
 };
@@ -42,6 +44,7 @@ export class RadarTouchSystem extends createSystem({}) {
         this.hasTip = false;
         this.armed = { left: {}, right: {} };
         this.refit = 0;
+        this.lastTouch = {}; // id → instante del último toque (s)
         const sys = this;
         this.world.globals.radarTouch = {
             /** El radar táctil está en juego (todavía faltan peligros). */
@@ -92,6 +95,7 @@ export class RadarTouchSystem extends createSystem({}) {
         const safe = { sofa: scene.hotspots.sofa, planta: scene.plant };
         for (const id in safe) if (safe[id]) this.targets.push({ id, obj: safe[id], box: fitLocalBox(safe[id]), hazard: false });
         for (const side in this.armed) for (const id in this.armed[side]) delete this.armed[side][id];
+        for (const id in this.lastTouch) delete this.lastTouch[id];
         this.refit = 0;
         this.hasTip = false;
         act.say?.('Toca los peligros con la punta del dedo');
@@ -131,8 +135,10 @@ export class RadarTouchSystem extends createSystem({}) {
                 const d = distanceToBox(t.obj, t.box, hand.index);
                 if (t.hazard) near = Math.min(near, d);
                 if (d < RADAR_CFG.TOUCH) {
-                    if (armed[t.id] !== false) {
+                    const now = performance.now() / 1000;
+                    if (armed[t.id] !== false && now - (this.lastTouch[t.id] ?? -9) > RADAR_CFG.COOLDOWN) {
                         armed[t.id] = false;
+                        this.lastTouch[t.id] = now; // una vez por toque, aunque las dos manos lo toquen
                         act.played();
                         if (t.hazard) act.tap(t.id);
                         else act.safeTap(t.id, t.obj);

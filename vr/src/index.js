@@ -24,6 +24,7 @@ import { NicoSystem } from './systems/NicoSystem.js';
 import { PageSystem } from './systems/PageSystem.js';
 import { HeartSystem } from './systems/HeartSystem.js';
 import { RadarTouchSystem } from './systems/RadarTouchSystem.js';
+import { ShoesSystem } from './systems/ShoesSystem.js';
 
 World.create(document.getElementById('scene-container'), projectOptions)
     .then(async (world) => {
@@ -43,10 +44,11 @@ World.create(document.getElementById('scene-container'), projectOptions)
         world.registerSystem(PageSystem);
         world.registerSystem(HeartSystem);
         world.registerSystem(RadarTouchSystem);
+        world.registerSystem(ShoesSystem);
         // «Reiniciar» del panel: lo manipulable vuelve a su lugar; la historia y el progreso no cambian
         world.globals.resetObjects = () => {
             const g = world.globals;
-            const done = { bloques: !!g.tower?.reset(), nico: false, guardian: true, ritmo: !!g.heart?.retry() };
+            const done = { bloques: !!g.tower?.reset(), nico: false, guardian: true, ritmo: !!g.heart?.retry(), zapatos: !!g.shoes?.reset() };
             if (g.nico?.away || g.nico?.mode === 'held' || g.nico?.mode === 'falling') { g.nico.reset(); done.nico = true; }
             g.reactions?.resetGuardian?.();
             return done;

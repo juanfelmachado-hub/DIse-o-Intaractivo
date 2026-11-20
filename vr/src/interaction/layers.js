@@ -37,7 +37,7 @@ export class OffsetLayer {
         const o = this.object;
         o.position.sub(this._pos);
         o.scale.divide(this._scale);
-        o.quaternion.multiply(this._inv.copy(this._rot).invert());
+        o.quaternion.multiply(this._inv.copy(this._rot).invert()).normalize();
         this.applied = false;
     }
     apply() {
@@ -45,10 +45,11 @@ export class OffsetLayer {
         const o = this.object;
         this._pos.copy(this.pos);
         this._scale.copy(this.scale);
-        this._rot.copy(this.rot);
+        // siempre unitario: deshacer usa el conjugado, que solo es el inverso de un giro unitario
+        this._rot.copy(this.rot).normalize();
         o.position.add(this._pos);
         o.scale.multiply(this._scale);
-        o.quaternion.multiply(this._rot);
+        o.quaternion.multiply(this._rot).normalize();
         this.applied = true;
     }
     get idle() {
