@@ -47,6 +47,8 @@ export class Carry {
         this.mode = 'idle'; // idle | held | falling | rest
         this.lift = 0; // altura del origen del objeto sobre su base (m): no atraviesa la superficie
         this.fallFrom = 0;
+        /** Si se fija, el giro sigue a este (mundo) en vez de a la mano (p. ej. mirar a la puerta). */
+        this.aim = null;
         this._t = new Vector3();
         this._p = new Vector3();
         this._b = new Vector3();
@@ -75,7 +77,8 @@ export class Carry {
         this._p.copy(this.pos);
         this.pos.lerp(this._t, a);
         if (dt > 0) this.vel.copy(this.pos).sub(this._p).divideScalar(dt);
-        _q.copy(hand.quat).multiply(this.offQ);
+        if (this.aim) _q.copy(this.aim);
+        else _q.copy(hand.quat).multiply(this.offQ);
         this.quat.slerp(_q, 1 - Math.exp(-CARRY_CFG.ROT_FOLLOW * dt));
     }
 

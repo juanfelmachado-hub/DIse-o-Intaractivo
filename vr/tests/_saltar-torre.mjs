@@ -1,0 +1,1 @@
+export default async function run({page,frame}){return (frame??page).evaluate(async()=>{const g=window.cuento.world.globals;if(g.tower?.active)g.tower.skip();await new Promise(r=>setTimeout(r,4000));return 1})}

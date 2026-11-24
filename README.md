@@ -164,3 +164,10 @@ static/models/naturaleza.glb  pinos y rocas de arbolito.blend
 - **Sonido** (`audio/sfx.js`): sin voces ni narración. `playSfx(nombre)` está conectado
   a los eventos de la guía y no suena hasta que se llene la tabla `SFX`.
 - Atajo de desarrollo: `?pagina=sala`, `?pagina=pasillo` o `?pagina=patio`.
+
+## Trabajar en el proyecto (equipo)
+
+Las reglas para trabajar y publicar están en [`CLAUDE.md`](CLAUDE.md) (Claude las lee
+solo). En resumen: `git pull` antes de empezar; `npm install` en la raíz y en `vr/`;
+para publicar, `npm run publicar` y luego commit y `git push` a `main`. Nunca borrar
+archivos de `dist/`.

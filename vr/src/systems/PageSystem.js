@@ -6,12 +6,14 @@
  * resistencia si la página todavía no se puede pasar). Solo cambia de dónde
  * sale el ángulo: en la web, del cursor en pantalla; aquí, de la mano en 3D.
  *
- * MÉTODO A — Botón en la página: un sello redondo con una flecha, impreso en
- * la esquina de la hoja (no flota delante del texto). Aparece cuando la
- * historia deja pasar la página (todas las tareas hechas). Se presiona con el
- * índice (hay que bajar el dedo sobre él; se rearma al alejarlo) o con el rayo
- * del control + gatillo. Se hunde, brilla y la hoja pasa con la animación de
- * siempre. En la hoja izquierda, otro sello para volver atrás.
+ * MÉTODO A — Botón «Continuar» en la página: un botón ancho impreso en el
+ * margen de abajo de la hoja derecha (no flota delante del texto). Hace lo
+ * mismo que «Siguiente» del panel: avanza el cuento y, con la página lista,
+ * la pasa. Aparece cuando se puede avanzar (no durante un juego ni con una
+ * tarea pendiente). Se presiona con el índice (hay que bajar el dedo sobre él;
+ * se rearma al alejarlo) o con el rayo del control + gatillo. Se hunde, brilla
+ * y la hoja pasa con la animación de siempre. En la hoja izquierda, «Volver»
+ * para regresar a la página anterior.
  *
  * MÉTODO B — Agarrar la hoja:
  *  1. La mano se acerca al borde exterior de la hoja (franja de PAGE_EDGE
@@ -29,7 +31,7 @@
  * Mientras una hoja está tomada o girando, nada más se puede agarrar
  * (`globals.interactLock`), y un gesto pasa una sola hoja.
  */
-import { CanvasTexture, CircleGeometry, createSystem, Group, Mesh, MeshBasicMaterial, Object3D, SRGBColorSpace, Vector3, VisibilityState, Box3 } from '@iwsdk/core';
+import { CanvasTexture, createSystem, Plane, PlaneGeometry, Group, Mesh, MeshBasicMaterial, Object3D, SRGBColorSpace, Vector3, VisibilityState, Box3 } from '@iwsdk/core';
 import { BOOK } from '../../../src/book/Book.js';
 
 export const PAGE_CFG = {
@@ -39,48 +41,56 @@ export const PAGE_CFG = {
     START: 0.18,
     /** Cuánto cede la hoja cuando todavía no se puede pasar (rad), como en la web. */
     LOCK_MAX: 0.16,
-    /** Botón: radio (unidades del cuento), altura del dedo para presionarlo y distancia para rearmarlo (m). */
-    BUTTON_R: 0.24,
+    /** Botones: ancho y alto (unidades del cuento), altura del dedo para presionarlo y distancia para rearmarlo (m). */
+    BUTTON_W: { 1: 1.9, '-1': 1.2 },
+    BUTTON_H: 0.34,
     PRESS_H: 0.012,
     REARM: 0.035,
 };
 
-function sealTexture(dir) {
+function buttonTexture(text, dir, w, h) {
     const c = document.createElement('canvas');
-    c.width = c.height = 256;
+    const H = 160;
+    const W = Math.round((H * w) / h);
+    c.width = W;
+    c.height = H;
     const g = c.getContext('2d');
-    g.fillStyle = '#fff3d6';
+    const r = H / 2 - 8;
+    g.fillStyle = dir > 0 ? '#ffb347' : '#fff3d6';
     g.beginPath();
-    g.arc(128, 128, 118, 0, Math.PI * 2);
+    g.roundRect(8, 8, W - 16, H - 16, r);
     g.fill();
-    g.lineWidth = 12;
-    g.strokeStyle = '#f2a541';
+    g.lineWidth = 8;
+    g.strokeStyle = dir > 0 ? '#e0892b' : '#f2a541';
     g.stroke();
-    g.setLineDash([10, 12]);
-    g.lineWidth = 4;
-    g.strokeStyle = '#c98a3a';
-    g.beginPath();
-    g.arc(128, 128, 96, 0, Math.PI * 2);
-    g.stroke();
-    g.setLineDash([]);
-    // flecha
-    g.save();
-    g.translate(128, 128);
-    if (dir < 0) g.scale(-1, 1);
     g.fillStyle = '#2a2238';
+    g.font = `800 ${Math.round(H * 0.56)}px "Baloo 2", "Nunito", system-ui, sans-serif`;
+    g.textBaseline = 'middle';
+    g.textAlign = 'center';
+    // flecha + texto
+    const tw = g.measureText(text).width;
+    const aw = H * 0.4;
+    const gap = H * 0.14;
+    const x0 = W / 2 - (tw + aw + gap) / 2;
+    const ax = dir > 0 ? x0 + tw + gap : x0;
+    g.fillText(text, dir > 0 ? x0 + tw / 2 : x0 + aw + gap + tw / 2, H / 2 + 4);
+    g.save();
+    g.translate(ax + aw / 2, H / 2);
+    if (dir < 0) g.scale(-1, 1);
     g.beginPath();
-    g.moveTo(-46, -18);
-    g.lineTo(6, -18);
-    g.lineTo(6, -46);
-    g.lineTo(56, 0);
-    g.lineTo(6, 46);
-    g.lineTo(6, 18);
-    g.lineTo(-46, 18);
+    g.moveTo(-aw / 2, -aw * 0.18);
+    g.lineTo(0, -aw * 0.18);
+    g.lineTo(0, -aw * 0.45);
+    g.lineTo(aw / 2, 0);
+    g.lineTo(0, aw * 0.45);
+    g.lineTo(0, aw * 0.18);
+    g.lineTo(-aw / 2, aw * 0.18);
     g.closePath();
     g.fill();
     g.restore();
     const t = new CanvasTexture(c);
     t.colorSpace = SRGBColorSpace;
+    t.anisotropy = 4;
     return t;
 }
 
@@ -88,6 +98,8 @@ export class PageSystem extends createSystem({}) {
     init() {
         this.v = new Vector3();
         this.w = new Vector3();
+        this.up = new Vector3(0, 1, 0);
+        this.plane = new Plane();
         this.hold = null; // { dir, kind, allow, start: Vector3, dragging }
         this.items = [];
         this.buttons = [];
@@ -126,16 +138,19 @@ export class PageSystem extends createSystem({}) {
             });
             this.items.push(item);
 
-            // botón impreso en la esquina de la hoja, del lado del lector
+            // botón impreso en el margen de abajo de la hoja, del lado del lector
+            const bw = PAGE_CFG.BUTTON_W[dir];
+            const bh = PAGE_CFG.BUTTON_H;
             const btn = new Group();
-            const face = new Mesh(new CircleGeometry(PAGE_CFG.BUTTON_R, 40), new MeshBasicMaterial({ map: sealTexture(dir), transparent: true, depthWrite: false }));
+            const face = new Mesh(new PlaneGeometry(bw, bh), new MeshBasicMaterial({ map: buttonTexture(dir > 0 ? 'Continuar' : 'Volver', dir, bw, bh), transparent: true, depthWrite: false }));
             face.rotation.x = -Math.PI / 2;
             face.renderOrder = 3;
-            const glow = new Mesh(new CircleGeometry(PAGE_CFG.BUTTON_R * 1.35, 40), new MeshBasicMaterial({ color: '#ffd84d', transparent: true, opacity: 0, depthWrite: false }));
+            const glow = new Mesh(new PlaneGeometry(bw + 0.14, bh + 0.14), new MeshBasicMaterial({ color: '#ffd84d', transparent: true, opacity: 0, depthWrite: false }));
             glow.rotation.x = -Math.PI / 2;
             glow.position.y = -0.002;
             btn.add(glow, face);
-            btn.position.set(dir * (PW - 0.42), 0.012, PD / 2 - 0.42);
+            btn.position.set(dir * (PW / 2 + (dir > 0 ? 0.05 : 0.3)), 0.012, PD / 2 - 0.2);
+            btn.userData.size = { w: bw, h: bh };
             btn.visible = false;
             btn.userData.noInteract = true;
             book.inner.add(btn);
@@ -152,10 +167,13 @@ export class PageSystem extends createSystem({}) {
         return c.story.canTurn(this.kindFor(c, dir), dir) !== 'none';
     }
 
-    /** El botón aparece solo cuando la historia deja pasar (adelante) o volver (atrás). */
+    /**
+     * «Continuar» aparece cuando «Siguiente» del panel avanza (otro momento o pasar
+     * la página); «Volver», cuando la historia deja volver a la página anterior.
+     */
     canPress(c, dir) {
         if (c.story.mode !== 'reading' || c.turner.busy || this.hold || c.story.activity) return false;
-        if (dir > 0) return !!c.ui.ready && c.ui.el.next.dataset.role === 'turn';
+        if (dir > 0) return c.ui.el.next.dataset.role === 'next' || (!!c.ui.ready && c.ui.el.next.dataset.role === 'turn');
         return c.story.canTurn('page', -1) === 'ok';
     }
 
@@ -212,7 +230,7 @@ export class PageSystem extends createSystem({}) {
         b.press = 1;
         b.flash = 1;
         b.armed = false;
-        if (b.dir > 0) c.story.tryTurnPage();
+        if (b.dir > 0) c.ui.el.next.click(); // lo mismo que «Siguiente»
         else c.turner.auto('page', -1);
     }
 
@@ -221,9 +239,11 @@ export class PageSystem extends createSystem({}) {
         if (!c) return false;
         for (const b of this.buttons) {
             if (!b.group.visible) continue;
+            // dónde corta el rayo el plano del botón, en el sistema del botón
             b.group.getWorldPosition(this.v);
-            const r = PAGE_CFG.BUTTON_R * c.diorama.scale.x;
-            if (ray.distanceSqToPoint(this.v) < (r * 1.3) ** 2) {
+            this.plane.set(this.up, -this.v.y);
+            if (!ray.intersectPlane(this.plane, this.w)) continue;
+            if (this.inside(b, b.group.worldToLocal(this.w), 1.15)) {
                 this.press(c, b);
                 return true;
             }
@@ -231,9 +251,13 @@ export class PageSystem extends createSystem({}) {
         return false;
     }
 
+    /** ¿El punto (sistema del botón) cae sobre el botón? `pad` agranda un poco la zona. */
+    inside(b, p, pad = 1) {
+        const { w, h } = b.group.userData.size;
+        return Math.abs(p.x) < (w / 2) * pad && Math.abs(p.z) < (h / 2) * pad + 0.05;
+    }
+
     buttonsUpdate(c, hands, dt) {
-        const k = c.diorama.scale.x;
-        const r = PAGE_CFG.BUTTON_R * k;
         for (const b of this.buttons) {
             const on = this.canPress(c, b.dir);
             b.group.visible = on || b.press > 0.05;
@@ -249,13 +273,13 @@ export class PageSystem extends createSystem({}) {
             for (const hand of hands.list) {
                 if (!hand.tracked) continue;
                 const tip = hand.index;
-                const dxz = Math.hypot(tip.x - this.v.x, tip.z - this.v.z);
                 const dy = tip.y - this.v.y;
-                if (dxz < r * 1.15 && dy < PAGE_CFG.PRESS_H && dy > -0.03) {
+                const local = b.group.worldToLocal(this.w.copy(tip));
+                if (this.inside(b, local, 1.1) && dy < PAGE_CFG.PRESS_H && dy > -0.03) {
                     near = true;
-                    // hay que bajar el dedo sobre el sello: un dedo quieto encima no lo presiona
+                    // hay que bajar el dedo sobre el botón: un dedo quieto encima no lo presiona
                     if (b.armed && hand.indexVel.y < -0.03) this.press(c, b);
-                } else if (hand.index.distanceTo(this.v) < PAGE_CFG.REARM + r) near = true;
+                } else if (dy < PAGE_CFG.REARM && this.inside(b, local, 1.4)) near = true;
             }
             if (!near) b.armed = true;
         }

@@ -149,13 +149,17 @@ esta máquina de estados: **IDLE → HOVER → GRABBING → (soltar) → IDLE**.
 - **Prioridades**: si dos objetos están casi igual de cerca, gana el de mayor prioridad: Nico y los objetos de los juegos (3), bloques, Guardián y hoja (0). Mientras se pasa la hoja, solo la hoja responde (`interactLock`).
 - **Superficies sólidas** (`src/interaction/surfaces.js`): no hay límites invisibles. Lo sólido es lo que existe: la página, dentro del contorno del libro abierto, y el piso real de la habitación, afuera. Nada los atraviesa.
 - **Manipulación 3D común** (`src/interaction/carry.js`): Nico, los zapatos y lo que se arrastra en los juegos usan el MISMO agarre. Se toma desde el punto pellizcado (posición y giro relativos a la mano), sigue a la mano en X, Y y Z y gira con ella en los tres ejes con suavizado exponencial, nunca baja más que la superficie de abajo, y al soltarlo hereda la velocidad (tope 1,2 m/s), cae con gravedad, rebota, frena y se endereza conservando hacia dónde mira.
-- **Capas** (`src/interaction/layers.js`): levantar a Nico o empujar al Guardián se suma encima de la animación del cuento y se deshace exacta cada cuadro. Así no pelea con el código original.
+- **Capas** (`src/interaction/layers.js`): al deshacer una capa se devuelve el giro original exacto (los mismos ángulos), no uno reconstruido: reconstruirlo convertía un giro de 180° en x = π, z = π y el código del cuento, que anima `rotation.y`, dejaba a Nico mirando al revés.
+- **Capas**: levantar a Nico o empujar al Guardián se suma encima de la animación del cuento y se deshace exacta cada cuadro. Así no pelea con el código original.
 - **Nico como un juguete** (`NicoSystem`): **LIBRE → AGARRADO → CAYENDO → EN EL PISO → VUELVE**.
   - Se toma desde el punto donde se pellizcó (no salta al centro) y sigue a la mano en X, Y y Z con un suavizado exponencial, también fuera del libro.
   - Se puede tomar durante TODA la historia, también en los juegos (radar, pasillo, patio, zapatos, corazón); solo no mientras pasa la hoja o mientras vuelve a su lugar. Gira con la mano en los tres ejes.
   - Cuelga (postura `dangle`), balancea las piernas y pone cara de sorpresa si la mano va rápido. Nunca baja más que la superficie de abajo.
   - Al soltarlo hereda la velocidad de la mano (tope 1,2 m/s) y cae con gravedad real (9,8 m/s²) sobre la página o el piso real; rebota un poco, frena con fricción y recupera el equilibrio.
   - Se queda donde cayó. Solo vuelve (caminando, con un saltito) cuando la historia avanza y lo necesita en su lugar, o con «Reiniciar».
+  - Si un juego lo "levanta" dentro del modelo al empezar a arrastrarlo (radar, patio), con la mano ese levantamiento se anula: Nico queda en la pinza.
+  - **Debajo de la mesa** (juego 1) se queda sentado en el piso, mirando al lector (en la web sigue agachado).
+  - **Camino del pasillo**: mientras camina y mientras se lo lleva en la mano, mira hacia la puerta.
   - En los juegos que mueven a Nico (radar, camino del pasillo, patio) el juego recibe dónde está mientras se lo lleva (el camino avanza llevándolo con la mano) y, al aterrizar, decide si el lugar vale o lo devuelve (mecánica narrativa).
 
 **Los zapatos con las manos** (`ShoesSystem`, juego 3). En el visor el par se separa en dos zapatos, cada uno con su pie:
@@ -205,7 +209,7 @@ VOLVIENDO → IDLE**. Las reacciones no interrumpen los diálogos del cuento.
 que la web (`story.canTurn`): durante un juego la hoja no se agarra y, si todavía
 no se puede pasar, la hoja cede apenas (0,16 rad) y vuelve.
 
-- **Método A, sello en la página**: un sello redondo con una flecha aparece en la esquina de la hoja (lado del lector) solo cuando la historia deja pasar (adelante) o volver (atrás), y late suave. Se presiona bajando el índice sobre él (un dedo quieto encima no lo presiona) o apuntándole con el rayo; se hunde y brilla al presionarlo.
+- **Método A, botón «Continuar» en la página**: un botón ancho impreso en el margen de abajo de la hoja derecha. Hace lo mismo que «Siguiente» del panel: avanza el cuento y, con la página lista, la pasa. Aparece cuando se puede avanzar (no durante un juego ni con una tarea pendiente) y late suave. En la hoja izquierda, «Volver» regresa a la página anterior. Se presiona bajando el índice sobre él (un dedo quieto encima no lo presiona) o apuntándole con el rayo; se hunde y brilla al presionarlo.
 - **Método B, pellizcar el borde**: se pellizca la franja del borde exterior de la hoja. No gira hasta que la mano se mueve unos 3 cm hacia el lomo o hacia arriba (evita giros accidentales). Después la hoja se curva y sigue el ángulo de la mano alrededor del lomo. Al soltar, la misma lógica de la web decide: pasado el umbral (o con impulso) termina de girar; si no, vuelve. Funciona hacia adelante y hacia atrás. Mientras se sostiene, las demás interacciones quedan bloqueadas, y un gesto pasa una sola hoja.
 
 **El juego de ritmo con un corazón 3D** (`HeartSystem`). En el visor el tambor se
@@ -356,6 +360,9 @@ Con la **mano emulada** de IWER (pellizco real de las articulaciones) y con el c
 | Nico gira con la mano | Agarrarlo y girar la mano 60° en X, en Y y en Z | El giro de Nico cambia en los tres ejes; al soltarlo cae, se endereza y conserva hacia dónde mira |
 | Corazón sin pinza | `bash tests/corazon-manos.sh` (antes `tests/hasta-corazon.mjs`) | 3 pinzas apuntando desde 30 cm y 4 pinzas con la mano quieta dentro: 0 golpes. Golpes con el índice: «¡Perfecto!», «Correcto» y «Fuera de ritmo» según el momento. Con el control, el gatillo apuntando sigue contando (3 de 3) |
 | Radar sin pinza | Pinza apuntando a la lámpara desde 30 cm; luego tocarla con el índice | La pinza no descubre nada; el toque sí. Tocar el sofá, alejarse 30 cm y volver a tocar: cuenta otra vez |
+| Botón «Continuar» | `tests/boton-continuar.mjs`; bajar el índice sobre el botón | Cada toque avanza el cuento (b0 → b1 → b2); el dedo quieto encima no lo presiona |
+| Nico bajo la mesa | Llevarlo con la mano bajo la mesa (`tests/radar-listo.mjs`, `tests/nico-mesa.mjs`) | Queda sentado (`sit`) bajo la mesa, mirando al lector |
+| Nico mira la puerta | `bash tests/pasillo-manos.sh` (usa `tests/nico-puerta.mjs`) | Llevándolo por el camino: 0° entre su frente y la puerta; al soltarlo sigue mirándola |
 | Regresión | `bash tests/recorrido.sh` (repite `tests/recorrido.mjs`) | Los 5 juegos completos (los zapatos con la "mano" de ShoesSystem) y el libro se cierra, sin errores |
 
 El emulador mueve la mano a saltos (cada comando la ubica de una vez), no con el

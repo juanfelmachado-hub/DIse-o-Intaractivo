@@ -22,11 +22,19 @@
  * recibiendo dónde está mientras se lo lleva, y al aterrizar decide si el lugar
  * vale (bajo la mesa, el camino, la zona segura) o lo devuelve.
  *
+ * En el visor además:
+ *  - en el camino del pasillo (llevar a Nico despacito) Nico mira hacia la
+ *    puerta, tanto cuando camina solo como cuando se lo lleva en la mano;
+ *  - al llegar debajo de la mesa (juego 1) se queda SENTADO en el piso, no
+ *    agachado hacia adelante.
+ *
  * El desplazamiento se suma como capa (interaction/layers) sobre la posición
  * que anima el cuento: nunca pelea con una animación de la historia.
  */
-import { createSystem, Quaternion, Vector3, VisibilityState } from '@iwsdk/core';
+import { createSystem, Euler, Quaternion, Vector3, VisibilityState } from '@iwsdk/core';
 import gsap from 'gsap';
+import { HallwayActivity } from '../../../src/activities/HallwayActivity.js';
+import { RoomScene } from '../../../src/scenes/RoomScene.js';
 import { OffsetLayer } from '../interaction/layers.js';
 import { fitLocalBox } from '../interaction/shapes.js';
 import { Carry } from '../interaction/carry.js';
@@ -36,6 +44,8 @@ export const NICO_CFG = {
     FAST: 0.9,
     /** Tiempo para volver a su lugar cuando la historia lo necesita (s). */
     RETURN_TIME: 0.9,
+    /** Qué tan rápido gira hacia la puerta en el camino del pasillo (1/s). */
+    FACE_DOOR: 7,
 };
 // el seguimiento, la caída y el giro están en CARRY_CFG (interaction/carry.js)
 
@@ -51,7 +61,10 @@ export class NicoSystem extends createSystem({}) {
         this.layer = null;
         this.item = null;
         this.boxAge = 0;
+        this.e = new Euler(0, 0, 0, 'YXZ');
+        this.aimQ = new Quaternion();
         const sys = this;
+        this.patchStory();
         this.world.globals.nico = {
             get mode() { return sys.mode; },
             get away() { return !!sys.layer && !sys.layer.idle; },
@@ -60,6 +73,55 @@ export class NicoSystem extends createSystem({}) {
             get layer() { return sys.layer; },
             reset: () => this.reset(true),
         };
+    }
+
+    immersive() { return this.world.visibilityState.peek() !== VisibilityState.NonImmersive; }
+
+    /** Cambios del visor sobre el código compartido del cuento (la web no cambia). */
+    patchStory() {
+        const sys = this;
+        // debajo de la mesa: sentado en el piso en vez de agachado hacia adelante
+        const wrapSit = (fn) => function sitVR() {
+            if (!sys.immersive()) return fn.call(this);
+            const n = this.nico;
+            const pose = n.pose;
+            n.pose = (name, ...rest) => pose.call(n, name === 'crouch' ? 'sit' : name, ...rest);
+            try { return fn.call(this); } finally { n.pose = pose; }
+        };
+        const settle = RoomScene.prototype.settleUnderTable;
+        const hide = RoomScene.prototype.hideUnderTable;
+        RoomScene.prototype.settleUnderTable = wrapSit(settle);
+        RoomScene.prototype.hideUnderTable = wrapSit(hide);
+        // camino del pasillo: al caminar mira hacia la puerta (no hacia cada tramo del camino)
+        const upd = HallwayActivity.prototype.update;
+        HallwayActivity.prototype.update = function updateVR(dt) {
+            const n = this.scene?.nico;
+            const door = this.scene?.anchors?.door;
+            const walking = sys.immersive() && n && door && this.goal && !this.tripping && this.ctx.pointer.draggables.has(n);
+            const ry = n ? n.rotation.y : 0;
+            upd.call(this, dt);
+            if (!walking || !dt) return;
+            const yaw = Math.atan2(door.x - n.position.x, door.z - n.position.z);
+            const d = Math.atan2(Math.sin(yaw - ry), Math.cos(yaw - ry));
+            n.rotation.y = ry + d * Math.min(1, dt * NICO_CFG.FACE_DOOR);
+        };
+        this.cleanupFuncs.push(() => {
+            RoomScene.prototype.settleUnderTable = settle;
+            RoomScene.prototype.hideUnderTable = hide;
+            HallwayActivity.prototype.update = upd;
+        });
+    }
+
+    /** En el camino del pasillo, el giro de Nico en la mano: mirando hacia la puerta. */
+    doorAim(c) {
+        const door = c.story.scene?.anchors?.door;
+        if (!door || !(c.story.activity instanceof HallwayActivity) || !this.game) return null;
+        c.story.scene.group.localToWorld(this.v.copy(door));
+        const yaw = Math.atan2(this.v.x - this.carry.pos.x, this.v.z - this.carry.pos.z);
+        // el frente de Nico (+z) en el mundo, sin inclinar: la escena solo gira en Y
+        c.story.scene.group.getWorldQuaternion(this.qa);
+        this.e.setFromQuaternion(this.qa);
+        return this.aimQ.setFromEuler(this.e.set(0, yaw, 0, 'YXZ'));
     }
 
     // ------------------------------------------------------------ registro
@@ -117,6 +179,10 @@ export class NicoSystem extends createSystem({}) {
         if (this.game) {
             c.pointer.drag = { object: n, opts: this.game };
             this.game.onStart?.();
+            // el juego de la web lo "levanta" dentro del modelo (lift): con la mano ya está
+            // levantado, así que queda en la pinza en vez de flotar lejos de los dedos
+            gsap.killTweensOf(n.p, 'lift');
+            n.p.lift = 0;
         }
         n.pose('dangle', 0.3);
         n.face('o');
@@ -125,7 +191,9 @@ export class NicoSystem extends createSystem({}) {
 
     hold(c, hand, dt) {
         const n = this.nico;
-        // la mano manda (posición y giro); el cuerpo la persigue con suavidad
+        // la mano manda (posición y giro); el cuerpo la persigue con suavidad.
+        // En el camino del pasillo el giro apunta a la puerta.
+        this.carry.aim = this.doorAim(c);
         this.carry.hold(c, hand, dt);
         // en un juego (radar, pasillo, patio) el juego sigue recibiendo dónde está Nico
         if (this.game?.onMove && this.game.space) {

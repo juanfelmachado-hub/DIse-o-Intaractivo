@@ -7,7 +7,7 @@
  * cuento y las vuelve a poner después. Así una reacción nunca rompe una
  * animación narrativa, y al terminar desaparece sin dejar rastro.
  */
-import { Quaternion, Vector3 } from '@iwsdk/core';
+import { Euler, Quaternion, Vector3 } from '@iwsdk/core';
 
 export class Layers {
     constructor() {
@@ -30,6 +30,12 @@ export class OffsetLayer {
         this._scale = new Vector3(1, 1, 1);
         this._rot = new Quaternion();
         this._inv = new Quaternion();
+        // giro de la base antes de aplicar: al deshacer se devuelve EXACTO (mismos ángulos de
+        // Euler), no reconstruido desde el cuaternión. Reconstruirlo cambia la forma de los
+        // ángulos (un giro de 180° pasa a ser x = π, y = 0, z = π) y el código del cuento, que
+        // anima rotation.y, terminaba girando a Nico al revés.
+        this._baseQ = new Quaternion();
+        this._baseE = new Euler();
         this.applied = false;
     }
     undo() {
@@ -38,11 +44,15 @@ export class OffsetLayer {
         o.position.sub(this._pos);
         o.scale.divide(this._scale);
         o.quaternion.multiply(this._inv.copy(this._rot).invert()).normalize();
+        // si nadie tocó el giro mientras la capa estaba puesta, se devuelve el original exacto
+        if (o.quaternion.angleTo(this._baseQ) < 1e-4) o.rotation.copy(this._baseE);
         this.applied = false;
     }
     apply() {
         if (this.applied) return;
         const o = this.object;
+        this._baseQ.copy(o.quaternion);
+        this._baseE.copy(o.rotation);
         this._pos.copy(this.pos);
         this._scale.copy(this.scale);
         // siempre unitario: deshacer usa el conjugado, que solo es el inverso de un giro unitario

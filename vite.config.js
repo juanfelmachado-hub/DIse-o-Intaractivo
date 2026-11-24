@@ -12,7 +12,10 @@ export default {
     build:
     {
         outDir: '../dist', // Output in the dist/ folder
-        emptyOutDir: true, // Empty the folder first
+        // NO se vacía dist/: ahí también vive la versión del visor (dist/vr/) y los
+        // paquetes .js anteriores. GitHub Pages guarda index.html 10 min en caché: si se
+        // borra el .js viejo, quien tenga la página abierta ve el cuento roto.
+        emptyOutDir: false,
         sourcemap: true // Add sourcemap
     },
     plugins:
