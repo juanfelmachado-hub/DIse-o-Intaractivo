@@ -37,7 +37,8 @@ importa el código original de `../src` y los recursos de `../static`.
 | Ponerse a salvo | Tocar a Nico con el rayo (o el botón del panel) | Igual. En «¡Cúbrete!», poner las dos manos sobre la cabeza |
 | Mover el panel del cuento | Agarrar el asa (barra bajo el panel) con el botón lateral, de cerca o apuntándole | Pellizcar el asa; girar la muñeca lo gira |
 | Ocultar el panel | «Ocultar» en el panel; vuelve tocando el icono junto al libro (o apuntándole con el gatillo) | Igual, tocando el icono con el índice |
-| Ritmo (juego 2) | Golpear el corazón 3D al ritmo del latido: tocarlo con el control, o apuntarle y apretar el gatillo | Golpearlo con el índice o la palma (hay que moverse hacia él; una mano quieta encima no cuenta). La pinza no golpea |
+| Ritmo (juego 2) | El corazón está acostado delante de la mesa, como un tambor. Un anillo dorado se cierra hacia él y, cuando llega, el corazón late: ese es el momento. Tocarlo con el control, o apuntarle y apretar el gatillo | Golpearlo desde arriba con el índice o la palma, con cualquier mano (un golpe por contacto; una mano apoyada no cuenta). La pinza no golpea. A tiempo: destello verde; fuera de ritmo: se apaga apenas |
+| «Continuar» (abajo a la derecha de la hoja) | Rayo + gatillo | Bajar la punta del índice sobre el botón (sin pinza). Siempre está en la hoja; si falta terminar un juego o la misión, se ve apagado con un candado y al tocarlo dice qué falta |
 | Girar la maqueta 30° | Palanca a la izquierda o la derecha | — |
 | Tamaño de la maqueta | Palanca arriba (más grande) o abajo (más pequeña), o «Tamaño» en el panel | «Tamaño» en el panel |
 | Mover el libro a otro lugar | Botón A o X, o «Mover» en el panel | «Mover» en el panel |
@@ -82,7 +83,7 @@ pantalla:
 | Luces y sombra del cuento | Dentro de la maqueta (giran y se escalan con ella). La sombra cae sobre el piso real en un plano invisible que solo recibe sombra. |
 | Mouse / dedo (`Pointer`) | El mismo `Pointer`, alimentado por el rayo del control o de la mano (`VRPointer`). |
 | Marcadores HTML (`Hotspots`) | Anillos 3D a escala de la maqueta. |
-| Círculo HTML del tambor | Anillo dorado sobre el caparazón de Nico, que se toca con el control o la mano. |
+| Círculo HTML del tambor | Corazón 3D acostado delante de la mesa, con anillo de anticipación y onda en cada latido; se golpea con la mano o el control. |
 | Interfaz HTML (`UI`) | La misma clase `UI` decide qué mostrar; los paneles **UIKitML** lo dibujan. |
 | Onomatopeyas HTML | Palabras 3D dentro de la maqueta. |
 | Audio estéreo | Los mismos audios, con efectos ubicados en el espacio (HRTF). |
@@ -252,6 +253,7 @@ ya terminada no se deshace: es parte del cuento.
 
 | Gesto | Uso |
 | --- | --- |
+| Manos reales | Con hand tracking no se dibuja ninguna mano: se ve la mano real (passthrough) por delante de lo virtual que está detrás de ella (`HandOcclusionSystem`) |
 | Pinza (índice + pulgar) | Agarrar |
 | Abrir los dedos | Soltar |
 | Manos a la cabeza | Cubrirse |
@@ -347,7 +349,11 @@ Con la **mano emulada** de IWER (pellizco real de las articulaciones) y con el c
 | Los objetos no desaparecen | Los tres casos anteriores | Nico, el Guardián y el bloque siguen visibles donde cayeron |
 | Sello de la hoja (A) | Bajar el índice sobre el sello; y apuntarle con el rayo del control + gatillo | Las dos formas pasan la hoja (p0 → p1) |
 | Agarrar la hoja (B) | Pellizcar el borde y llevarlo al lomo | Con la historia bloqueada: cede hasta 0,16 rad y vuelve. Movimiento corto y soltar: vuelve. Movimiento largo: pasa la hoja adelante (p0 → p1) y atrás (p1 → p0). Durante un juego no se agarra |
-| Corazón: golpe real | `tests/hasta-corazon.mjs`; golpes con el índice | Acercamiento lento: rechazado. Mano quieta dentro 6 s: 0 golpes. Golpes reales: cuentan; uno a destiempo se marca como fallo. 12 aciertos completan el juego |
+| Corazón: 12 aciertos | `bash tests/recorrido.sh` | El juego se completa con 12 golpes a tiempo |
+| Manos reales (oclusión) | Modo manos, `tests/manos-oclusion.mjs`; captura con la mano sobre el libro y bajo la mesa | Las dos manos usan el oclusor (`occluder: true`, `colorWrite: false`, sin contorno). La mano recorta lo virtual de atrás; la tapa de la mesa sigue tapando la mano que está debajo |
+| «Continuar» con el dedo | `bash tests/boton-dedo.sh` (estado: `tests/boton-continuar.mjs`) | Bloqueado (torre, juegos): visible con candado, el toque se rechaza y muestra el aviso. Libre: un toque avanza un solo momento (b0 → b1) |
+| Corazón: ritmo | `bash tests/ir-corazon.sh`, luego `tests/corazon-ritmo.mjs` | Golpes cuando el anillo llega (faltan < 40 ms): cuentan y son «perfecto». A mitad del intervalo: fuera de ritmo |
+| Corazón: golpes desde arriba | `bash tests/corazon-manos.sh` | 3 pinzas: 0 golpes. 4 golpes con cada mano: 4 contactos cada una. Dedo apoyado 2 s: un solo contacto |
 | Corazón: reintentar | `tests/corazon-reintentar.mjs` | La cuenta vuelve a 0, repite la demostración y la historia sigue en el mismo momento |
 | Pérdida de tracking | Sostener a Nico en el aire y desconectar la mano (`xr set-connected`); cambiar de mano a control; `tests/muestrear-nico.mjs` registra cada cuadro | Se suelta sin velocidad y cae recto (x no cambia); la mano que reaparece lejos no lo mueve. Antes del arreglo, el cambio de fuente lo lanzaba 24 cm |
 | Reiniciar | Botón del panel con el rayo (`tests/reiniciar.mjs` llama la misma acción) | Bloques, Nico y Guardián vuelven a su lugar; la historia sigue en el mismo momento |

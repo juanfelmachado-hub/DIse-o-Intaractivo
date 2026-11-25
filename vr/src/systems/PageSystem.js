@@ -9,11 +9,15 @@
  * MÉTODO A — Botón «Continuar» en la página: un botón ancho impreso en el
  * margen de abajo de la hoja derecha (no flota delante del texto). Hace lo
  * mismo que «Siguiente» del panel: avanza el cuento y, con la página lista,
- * la pasa. Aparece cuando se puede avanzar (no durante un juego ni con una
- * tarea pendiente). Se presiona con el índice (hay que bajar el dedo sobre él;
- * se rearma al alejarlo) o con el rayo del control + gatillo. Se hunde, brilla
- * y la hoja pasa con la animación de siempre. En la hoja izquierda, «Volver»
- * para regresar a la página anterior.
+ * la pasa. Está SIEMPRE en la hoja mientras se lee (también durante los
+ * juegos): cuando todavía no se puede avanzar se ve BLOQUEADO (apagado, con un
+ * candado) y al tocarlo se sacude, suena un «tuc» grave y dice qué falta
+ * («Primero termina el juego»). Se presiona con la punta del índice, sin
+ * pinza (hay que bajar el dedo sobre él; se rearma al alejarlo), o con el rayo
+ * del control + gatillo. Al presionarlo se hunde, brilla, suena un «tic» y la
+ * hoja pasa con la animación de siempre. Un enfriamiento (COOLDOWN) y el
+ * rearme impiden avanzar dos veces con un mismo toque. En la hoja izquierda,
+ * «Volver» para regresar a la página anterior (solo aparece cuando se puede).
  *
  * MÉTODO B — Agarrar la hoja:
  *  1. La mano se acerca al borde exterior de la hoja (franja de PAGE_EDGE
@@ -33,6 +37,7 @@
  */
 import { CanvasTexture, createSystem, Plane, PlaneGeometry, Group, Mesh, MeshBasicMaterial, Object3D, SRGBColorSpace, Vector3, VisibilityState, Box3 } from '@iwsdk/core';
 import { BOOK } from '../../../src/book/Book.js';
+import { tone } from '../interaction/tones.js';
 
 export const PAGE_CFG = {
     /** Ancho de la franja del borde exterior que se puede agarrar (unidades del cuento). */
@@ -46,9 +51,14 @@ export const PAGE_CFG = {
     BUTTON_H: 0.34,
     PRESS_H: 0.012,
     REARM: 0.035,
+    /** Tiempo mínimo entre dos toques del botón (s): un toque nunca avanza dos veces. */
+    COOLDOWN: 0.8,
+    /** Cuánto dura el aviso «Primero termina el juego» (s). */
+    NOTE_TIME: 2.2,
 };
 
-function buttonTexture(text, dir, w, h) {
+/** Textura del botón. `locked`: mismo botón, apagado y con un candado en lugar de la flecha. */
+function buttonTexture(text, dir, w, h, locked = false) {
     const c = document.createElement('canvas');
     const H = 160;
     const W = Math.round((H * w) / h);
@@ -56,18 +66,18 @@ function buttonTexture(text, dir, w, h) {
     c.height = H;
     const g = c.getContext('2d');
     const r = H / 2 - 8;
-    g.fillStyle = dir > 0 ? '#ffb347' : '#fff3d6';
+    g.fillStyle = locked ? '#eadfcb' : dir > 0 ? '#ffb347' : '#fff3d6';
     g.beginPath();
     g.roundRect(8, 8, W - 16, H - 16, r);
     g.fill();
     g.lineWidth = 8;
-    g.strokeStyle = dir > 0 ? '#e0892b' : '#f2a541';
+    g.strokeStyle = locked ? '#c8b89c' : dir > 0 ? '#e0892b' : '#f2a541';
     g.stroke();
-    g.fillStyle = '#2a2238';
+    g.fillStyle = locked ? '#8d8296' : '#2a2238';
     g.font = `800 ${Math.round(H * 0.56)}px "Baloo 2", "Nunito", system-ui, sans-serif`;
     g.textBaseline = 'middle';
     g.textAlign = 'center';
-    // flecha + texto
+    // flecha (o candado) + texto
     const tw = g.measureText(text).width;
     const aw = H * 0.4;
     const gap = H * 0.14;
@@ -76,6 +86,22 @@ function buttonTexture(text, dir, w, h) {
     g.fillText(text, dir > 0 ? x0 + tw / 2 : x0 + aw + gap + tw / 2, H / 2 + 4);
     g.save();
     g.translate(ax + aw / 2, H / 2);
+    if (locked) {
+        // candado: arco y cuerpo
+        g.lineWidth = aw * 0.16;
+        g.strokeStyle = g.fillStyle;
+        g.beginPath();
+        g.arc(0, -aw * 0.12, aw * 0.26, Math.PI, 0);
+        g.lineTo(aw * 0.26, aw * 0.02);
+        g.moveTo(-aw * 0.26, -aw * 0.12);
+        g.lineTo(-aw * 0.26, aw * 0.02);
+        g.stroke();
+        g.beginPath();
+        g.roundRect(-aw * 0.42, 0, aw * 0.84, aw * 0.62, aw * 0.12);
+        g.fill();
+        g.restore();
+        return canvasTexture(c);
+    }
     if (dir < 0) g.scale(-1, 1);
     g.beginPath();
     g.moveTo(-aw / 2, -aw * 0.18);
@@ -88,10 +114,32 @@ function buttonTexture(text, dir, w, h) {
     g.closePath();
     g.fill();
     g.restore();
+    return canvasTexture(c);
+}
+
+function canvasTexture(c) {
     const t = new CanvasTexture(c);
     t.colorSpace = SRGBColorSpace;
     t.anisotropy = 4;
     return t;
+}
+
+/** Aviso corto sobre el botón bloqueado («Primero termina el juego»). */
+function noteTexture(text) {
+    const c = document.createElement('canvas');
+    c.width = 1024;
+    c.height = 160;
+    const g = c.getContext('2d');
+    g.fillStyle = 'rgba(42, 34, 56, 0.88)';
+    g.beginPath();
+    g.roundRect(8, 8, 1008, 144, 72);
+    g.fill();
+    g.fillStyle = '#fff8e8';
+    g.font = '700 72px "Baloo 2", "Nunito", system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(text, 512, 84);
+    return canvasTexture(c);
 }
 
 export class PageSystem extends createSystem({}) {
@@ -142,19 +190,28 @@ export class PageSystem extends createSystem({}) {
             const bw = PAGE_CFG.BUTTON_W[dir];
             const bh = PAGE_CFG.BUTTON_H;
             const btn = new Group();
-            const face = new Mesh(new PlaneGeometry(bw, bh), new MeshBasicMaterial({ map: buttonTexture(dir > 0 ? 'Continuar' : 'Volver', dir, bw, bh), transparent: true, depthWrite: false }));
+            const label = dir > 0 ? 'Continuar' : 'Volver';
+            const maps = { on: buttonTexture(label, dir, bw, bh), off: buttonTexture(label, dir, bw, bh, true) };
+            const face = new Mesh(new PlaneGeometry(bw, bh), new MeshBasicMaterial({ map: maps.on, transparent: true, depthWrite: false }));
             face.rotation.x = -Math.PI / 2;
             face.renderOrder = 3;
             const glow = new Mesh(new PlaneGeometry(bw + 0.14, bh + 0.14), new MeshBasicMaterial({ color: '#ffd84d', transparent: true, opacity: 0, depthWrite: false }));
             glow.rotation.x = -Math.PI / 2;
             glow.position.y = -0.002;
             btn.add(glow, face);
+            // aviso de bloqueo: aparece sobre el botón, del lado del texto de la hoja
+            const note = new Mesh(new PlaneGeometry(2.0, 0.31), new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false }));
+            note.rotation.x = -Math.PI / 2;
+            note.position.set(0, 0.01, -bh / 2 - 0.24);
+            note.renderOrder = 4;
+            note.visible = false;
+            btn.add(note);
             btn.position.set(dir * (PW / 2 + (dir > 0 ? 0.05 : 0.3)), 0.012, PD / 2 - 0.2);
             btn.userData.size = { w: bw, h: bh };
             btn.visible = false;
             btn.userData.noInteract = true;
             book.inner.add(btn);
-            this.buttons.push({ dir, group: btn, face, glow, armed: true, press: 0, flash: 0 });
+            this.buttons.push({ dir, group: btn, face, glow, note, maps, notes: {}, locked: false, armed: true, press: 0, flash: 0, shake: 0, noteT: 0, cool: 0, presses: 0, denied: 0 });
         }
     }
 
@@ -175,6 +232,14 @@ export class PageSystem extends createSystem({}) {
         if (c.story.mode !== 'reading' || c.turner.busy || this.hold || c.story.activity) return false;
         if (dir > 0) return c.ui.el.next.dataset.role === 'next' || (!!c.ui.ready && c.ui.el.next.dataset.role === 'turn');
         return c.story.canTurn('page', -1) === 'ok';
+    }
+
+    /** ¿Por qué «Continuar» está bloqueado? Texto para el aviso (null: espera breve, sin aviso). */
+    lockReason(c) {
+        if (c.story.activity && !c.story.activity.done) return 'Primero termina el juego';
+        if (c.turner.busy || this.hold) return null;
+        if (c.ui.el.next.dataset.role === 'off' || c.ui.el.next.dataset.role === 'turn') return 'Primero completa la misión';
+        return null;
     }
 
     // ------------------------------------------------------------ MÉTODO B: agarrar la hoja
@@ -227,16 +292,35 @@ export class PageSystem extends createSystem({}) {
 
     // ------------------------------------------------------------ MÉTODO A: el botón de la hoja
     press(c, b) {
+        b.armed = false;
+        if (b.cool > 0) return; // el mismo toque no avanza dos veces
+        b.cool = PAGE_CFG.COOLDOWN;
+        if (b.locked) return this.deny(c, b);
         b.press = 1;
         b.flash = 1;
-        b.armed = false;
+        b.presses++;
+        tone('tap');
         if (b.dir > 0) c.ui.el.next.click(); // lo mismo que «Siguiente»
         else c.turner.auto('page', -1);
     }
 
+    /** Toque al botón bloqueado: se sacude, «tuc» grave y aviso de qué falta. */
+    deny(c, b) {
+        b.shake = 1;
+        b.denied++;
+        tone('locked');
+        const why = this.lockReason(c);
+        if (!why) return;
+        b.notes[why] ??= noteTexture(why);
+        b.note.material.map = b.notes[why];
+        b.note.material.needsUpdate = true;
+        b.noteT = PAGE_CFG.NOTE_TIME;
+        if (c.ui.el.next.dataset.role !== 'next' && !c.story.activity) c.ui.denyTurn?.(); // el cuadro de la misión se sacude
+    }
+
     rayClick(ray) {
         const c = this.world.globals.cuento;
-        if (!c) return false;
+        if (!c || this.world.globals.placing) return false;
         for (const b of this.buttons) {
             if (!b.group.visible) continue;
             // dónde corta el rayo el plano del botón, en el sistema del botón
@@ -258,20 +342,34 @@ export class PageSystem extends createSystem({}) {
     }
 
     buttonsUpdate(c, hands, dt) {
+        const reading = c.story.mode === 'reading';
         for (const b of this.buttons) {
             const on = this.canPress(c, b.dir);
-            b.group.visible = on || b.press > 0.05;
+            // «Continuar» se queda en la hoja todo el tiempo que se lee; «Volver», solo cuando se puede
+            b.group.visible = b.dir > 0 ? reading : on || b.press > 0.05;
+            const locked = !on && b.press < 0.05;
+            if (locked !== b.locked) {
+                b.locked = locked;
+                b.face.material.map = locked ? b.maps.off : b.maps.on;
+                b.face.material.needsUpdate = true;
+            }
             b.press = Math.max(0, b.press - dt * 4);
             b.flash = Math.max(0, b.flash - dt * 2);
+            b.shake = Math.max(0, b.shake - dt * 2.5);
+            b.cool = Math.max(0, b.cool - dt);
+            b.noteT = Math.max(0, b.noteT - dt);
+            b.note.visible = b.noteT > 0 && b.group.visible;
+            b.note.material.opacity = Math.min(1, b.noteT * 3);
             const breathe = on ? 0.5 + 0.5 * Math.sin(performance.now() / 380) : 0;
             b.glow.material.opacity = Math.max(b.flash * 0.9, breathe * 0.35);
             b.face.position.y = -b.press * 0.01;
+            b.face.position.x = Math.sin(b.shake * 26) * b.shake * 0.05; // «no» suave
             b.face.scale.setScalar(1 - b.press * 0.12);
-            if (!on || !hands) continue;
+            if (!b.group.visible || !hands) continue;
             b.group.getWorldPosition(this.v);
             let near = false;
             for (const hand of hands.list) {
-                if (!hand.tracked) continue;
+                if (!hand.tracked || hand.lostFor > 0) continue; // mano congelada (seguimiento perdido): no presiona
                 const tip = hand.index;
                 const dy = tip.y - this.v.y;
                 const local = b.group.worldToLocal(this.w.copy(tip));

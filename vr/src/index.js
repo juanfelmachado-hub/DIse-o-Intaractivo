@@ -25,6 +25,7 @@ import { PageSystem } from './systems/PageSystem.js';
 import { HeartSystem } from './systems/HeartSystem.js';
 import { RadarTouchSystem } from './systems/RadarTouchSystem.js';
 import { ShoesSystem } from './systems/ShoesSystem.js';
+import { HandOcclusionSystem } from './systems/HandOcclusionSystem.js';
 
 World.create(document.getElementById('scene-container'), projectOptions)
     .then(async (world) => {
@@ -45,6 +46,8 @@ World.create(document.getElementById('scene-container'), projectOptions)
         world.registerSystem(HeartSystem);
         world.registerSystem(RadarTouchSystem);
         world.registerSystem(ShoesSystem);
+        // las manos reales se ven (passthrough) por delante de lo virtual: sin contornos dibujados
+        world.registerSystem(HandOcclusionSystem);
         // «Reiniciar» del panel: lo manipulable vuelve a su lugar; la historia y el progreso no cambian
         world.globals.resetObjects = () => {
             const g = world.globals;
