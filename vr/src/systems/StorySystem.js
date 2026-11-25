@@ -60,6 +60,12 @@ export class StorySystem extends createSystem({
         const t = this.clock;
         const { quake, env, book, turner, story } = c;
 
+        // reacciones a las manos: se quitan ANTES de GSAP y del cuento, y se vuelven a
+        // poner después. GSAP también anima a los personajes (p. ej. el giro de Nico al
+        // meterse bajo la mesa, `rotation.y`): si corría con la capa puesta, al quitarla
+        // el giro de la mano quedaba mezclado en el giro base y Nico terminaba acostado
+        // o inclinado (eje Y del personaje fuera de la vertical).
+        c.layers.undo();
         gsap.updateRoot(t);
         quake.update(dt);
         setQuake(quake.intensity); // el colchón del temblor sigue a la escena
@@ -72,8 +78,6 @@ export class StorySystem extends createSystem({
         this.calm.intensity = quake.intensity;
         book.update(dt, t, this.calm, null);
         turner.update(dt);
-        // reacciones a las manos: se quitan antes del cuento y se vuelven a poner después
-        c.layers.undo();
         story.update(dt, t, quake);
         c.layers.apply();
 

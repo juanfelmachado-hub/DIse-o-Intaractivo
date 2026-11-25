@@ -362,6 +362,7 @@ Con la **mano emulada** de IWER (pellizco real de las articulaciones) y con el c
 | Radar sin pinza | Pinza apuntando a la lámpara desde 30 cm; luego tocarla con el índice | La pinza no descubre nada; el toque sí. Tocar el sofá, alejarse 30 cm y volver a tocar: cuenta otra vez |
 | Botón «Continuar» | `tests/boton-continuar.mjs`; bajar el índice sobre el botón | Cada toque avanza el cuento (b0 → b1 → b2); el dedo quieto encima no lo presiona |
 | Nico bajo la mesa | Llevarlo con la mano bajo la mesa (`tests/radar-listo.mjs`, `tests/nico-mesa.mjs`) | Queda sentado (`sit`) bajo la mesa, mirando al lector |
+| Nico derecho | Después de soltarlo con la mano (p. ej. bajo la mesa): `tests/nico-erguido.mjs` | `inclinacion` ≈ 0° (su eje Y vertical; no queda acostado ni inclinado) |
 | Nico mira la puerta | `bash tests/pasillo-manos.sh` (usa `tests/nico-puerta.mjs`) | Llevándolo por el camino: 0° entre su frente y la puerta; al soltarlo sigue mirándola |
 | Regresión | `bash tests/recorrido.sh` (repite `tests/recorrido.mjs`) | Los 5 juegos completos (los zapatos con la "mano" de ShoesSystem) y el libro se cierra, sin errores |
 
