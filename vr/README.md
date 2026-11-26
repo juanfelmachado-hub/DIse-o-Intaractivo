@@ -253,7 +253,7 @@ ya terminada no se deshace: es parte del cuento.
 
 | Gesto | Uso |
 | --- | --- |
-| Manos | Con hand tracking se ve el contorno blanco de la mano de IWSDK. El modo «mano real» (la mano recorta lo virtual y se ve el passthrough) sigue en `HandOcclusionSystem` con `OCCLUSION_CFG.MANOS = 'oclusor'` |
+| Manos | Con hand tracking cada mano es una mano blanca, suave y sólida que se desvanece hacia la muñeca (`WhiteHand` en `HandOcclusionSystem`, `OCCLUSION_CFG.MANOS = 'blanca'`). Otras opciones: `'contorno'` (el contorno de IWSDK) y `'oclusor'` (la mano real recorta lo virtual) |
 | Pinza (índice + pulgar) | Agarrar |
 | Abrir los dedos | Soltar |
 | Manos a la cabeza | Cubrirse |
@@ -372,7 +372,7 @@ Con la **mano emulada** de IWER (pellizco real de las articulaciones) y con el c
 | Sello de la hoja (A) | Bajar el índice sobre el sello; y apuntarle con el rayo del control + gatillo | Las dos formas pasan la hoja (p0 → p1) |
 | Agarrar la hoja (B) | Pellizcar el borde y llevarlo al lomo | Con la historia bloqueada: cede hasta 0,16 rad y vuelve. Movimiento corto y soltar: vuelve. Movimiento largo: pasa la hoja adelante (p0 → p1) y atrás (p1 → p0). Durante un juego no se agarra |
 | Corazón: 12 aciertos | `bash tests/recorrido.sh` | El juego se completa con 12 golpes a tiempo |
-| Manos | Modo manos, `tests/manos-oclusion.mjs` | Con `MANOS: 'contorno'`: `occluder: false` y se ve el contorno de las dos manos. Con `'oclusor'`: `occluder: true`, `colorWrite: false`, sin contorno |
+| Manos | Modo manos, `tests/manos-oclusion.mjs` | Con `MANOS: 'blanca'`: `white: true` en las dos manos. Con `'oclusor'`: `occluder: true`, `colorWrite: false`, sin contorno |
 | «Continuar» con el dedo | `bash tests/boton-dedo.sh` (estado: `tests/boton-continuar.mjs`) | Bloqueado (torre, juegos): visible con candado, el toque se rechaza y muestra el aviso. Libre: un toque avanza un solo momento (b0 → b1) |
 | Corazón: ritmo | `bash tests/ir-corazon.sh`, luego `tests/corazon-ritmo.mjs` | Golpes cuando el anillo llega (faltan < 40 ms): cuentan y son «perfecto». A mitad del intervalo: fuera de ritmo |
 | Corazón: golpes desde arriba | `bash tests/corazon-manos.sh` | 3 pinzas: 0 golpes. 4 golpes con cada mano: 4 contactos cada una. Dedo apoyado 2 s: un solo contacto |

@@ -1,9 +1,9 @@
 /**
  * HandOcclusionSystem — cómo se ven las manos y el rayo de la mano.
  *
- * AHORA (OCCLUSION_CFG.MANOS = 'contorno'): las manos se ven como las dibuja IWSDK,
- * con el contorno blanco, igual que antes del 25 de noviembre. Lo que sigue
- * describe el modo 'oclusor', que queda disponible cambiando esa opción.
+ * AHORA (OCCLUSION_CFG.MANOS = 'blanca'): cada mano es una mano blanca, suave y
+ * sólida, que se desvanece hacia la muñeca (WhiteHand). 'contorno' deja el dibujo
+ * de IWSDK. Lo que sigue describe el modo 'oclusor', disponible con esa opción.
  *
  * IWSDK dibuja por defecto cada mano seguida como un contorno blanco
  * (AnimatedHand). Aquí ese dibujo se reemplaza por un OCLUSOR: la misma malla
@@ -40,15 +40,21 @@
  * apareciendo al apuntar al panel del cuento, donde sí se usa para elegir.
  * Con controles el rayo no cambia.
  */
-import { AnimatedHand, createSystem, DoubleSide, ShaderMaterial, VisibilityState } from '@iwsdk/core';
+import { AnimatedHand, BufferAttribute, createSystem, DoubleSide, Matrix4, ShaderMaterial, Vector3, VisibilityState } from '@iwsdk/core';
 
 export const OCCLUSION_CFG = {
     /**
-     * Cómo se ven las manos: 'contorno' = el dibujo de IWSDK (contorno blanco de la
-     * mano, como antes); 'oclusor' = la mano real recorta lo virtual (passthrough).
-     * Se volvió a 'contorno' a pedido (26 nov): el recorte no gustó en el visor.
+     * Cómo se ven las manos:
+     *  - 'blanca'   = mano blanca, suave y sólida que se desvanece hacia la muñeca
+     *                 (la referencia que se pidió el 26 nov);
+     *  - 'contorno' = el dibujo de IWSDK (contorno blanco de la mano);
+     *  - 'oclusor'  = la mano real recorta lo virtual (passthrough).
      */
-    MANOS: 'contorno',
+    MANOS: 'blanca',
+    /** Mano blanca: opacidad máxima y dónde empieza/termina el desvanecido (0 = muñeca, 1 = punta del dedo más lejano). */
+    WHITE_OPACITY: 1.0,
+    FADE_FROM: 0.0,
+    FADE_TO: 0.2,
     /** Cuánto se agranda la malla hacia afuera (m): mejor que sobre a que falte. */
     INFLATE: 0.004,
     /** Se dibuja antes que todo lo opaco del cuento. */
@@ -104,6 +110,93 @@ export class OccluderHand extends AnimatedHand {
 OccluderHand.assetKeyPrefix = 'occluder-hand-';
 OccluderHand.assetProfileId = 'generic-hand';
 
+/**
+ * Mano blanca: blanco suave con un poco de sombra en los bordes (según hacia dónde
+ * mira la superficie) y transparencia que crece hacia la muñeca, para que la mano
+ * no termine en un corte. `fade` es un atributo por vértice: 0 en la muñeca y 1
+ * en la punta del dedo más lejano (se calcula una vez desde la pose de reposo).
+ */
+const whiteMaterial = new ShaderMaterial({
+    uniforms: {
+        opacity: { value: OCCLUSION_CFG.WHITE_OPACITY },
+        fadeFrom: { value: OCCLUSION_CFG.FADE_FROM },
+        fadeTo: { value: OCCLUSION_CFG.FADE_TO },
+    },
+    vertexShader: /* glsl */ `
+        #include <common>
+        #include <skinning_pars_vertex>
+        attribute float fade;
+        varying float vFade;
+        varying vec3 vNormal;
+        varying vec3 vView;
+        void main() {
+            #include <skinbase_vertex>
+            #include <beginnormal_vertex>
+            #include <skinnormal_vertex>
+            vec3 transformed = position;
+            #include <skinning_vertex>
+            vec4 mv = modelViewMatrix * vec4(transformed, 1.0);
+            vNormal = normalize(normalMatrix * objectNormal);
+            vView = normalize(-mv.xyz);
+            vFade = fade;
+            gl_Position = projectionMatrix * mv;
+        }
+    `,
+    fragmentShader: /* glsl */ `
+        uniform float opacity;
+        uniform float fadeFrom;
+        uniform float fadeTo;
+        varying float vFade;
+        varying vec3 vNormal;
+        varying vec3 vView;
+        void main() {
+            float facing = clamp(dot(normalize(vNormal), normalize(vView)), 0.0, 1.0);
+            float shade = mix(0.8, 1.0, pow(facing, 0.6));
+            float a = opacity * smoothstep(fadeFrom, fadeTo, vFade);
+            gl_FragColor = vec4(vec3(shade), a);
+        }
+    `,
+    transparent: true,
+    depthWrite: true,
+});
+
+/** Calcula el atributo `fade` (0 en la muñeca, 1 en la punta más lejana) en la pose de reposo. */
+function addFade(mesh) {
+    const g = mesh.geometry;
+    if (g.getAttribute('fade')) return;
+    const bones = mesh.skeleton.bones;
+    let wi = bones.findIndex((b) => /wrist/i.test(b.name));
+    if (wi < 0) wi = 0;
+    const wrist = new Vector3().setFromMatrixPosition(new Matrix4().copy(mesh.skeleton.boneInverses[wi]).invert());
+    const pos = g.getAttribute('position');
+    const v = new Vector3();
+    const d = new Float32Array(pos.count);
+    let max = 1e-6;
+    for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(mesh.bindMatrix);
+        d[i] = v.distanceTo(wrist);
+        if (d[i] > max) max = d[i];
+    }
+    for (let i = 0; i < d.length; i++) d[i] /= max;
+    g.setAttribute('fade', new BufferAttribute(d, 1));
+}
+
+/** Visual de mano para IWSDK: la malla articulada, pintada como mano blanca. */
+export class WhiteHand extends AnimatedHand {
+    init() {
+        const mesh = this.model.getObjectByProperty('type', 'SkinnedMesh');
+        mesh.frustumCulled = false;
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
+        addFade(mesh);
+        mesh.material = whiteMaterial;
+        mesh.renderOrder = 10; // después de lo opaco del cuento: la transparencia se mezcla bien
+        this.mesh = mesh;
+    }
+}
+WhiteHand.assetKeyPrefix = 'white-hand-';
+WhiteHand.assetProfileId = 'generic-hand';
+
 export class HandOcclusionSystem extends createSystem({}) {
     init() {
         this.ready = false;
@@ -118,6 +211,7 @@ export class HandOcclusionSystem extends createSystem({}) {
                     out[side] = {
                         connected: !!a?.connected,
                         occluder: v instanceof OccluderHand,
+                        white: v instanceof WhiteHand,
                         visible: !!v?.model?.visible && !!v?.model?.parent,
                         colorWrite: v?.mesh ? v.mesh.material.colorWrite : null,
                         outline: v ? countOutlines(v.model) : 0,
@@ -133,8 +227,9 @@ export class HandOcclusionSystem extends createSystem({}) {
     install() {
         const hand = this.adapters();
         if (!hand) return false;
-        if (OCCLUSION_CFG.MANOS !== 'oclusor') return true; // se deja la mano de IWSDK
-        for (const side of ['left', 'right']) hand[side].updateVisualImplementation(OccluderHand);
+        const Visual = { oclusor: OccluderHand, blanca: WhiteHand }[OCCLUSION_CFG.MANOS];
+        if (!Visual) return true; // 'contorno': se deja la mano de IWSDK
+        for (const side of ['left', 'right']) hand[side].updateVisualImplementation(Visual);
         return true;
     }
 

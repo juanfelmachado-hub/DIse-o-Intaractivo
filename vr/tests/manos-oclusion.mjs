@@ -1,8 +1,8 @@
 /**
  * Emulador IWER: cómo se dibujan las manos (HandOcclusionSystem).
  * Antes: torre-entrar.sh y modo manos (xr set-input-mode hand).
- * Esperado con MANOS 'contorno' (el actual): occluder false y el contorno de IWSDK
- * visible (outlineMeshesInScene 2). Con MANOS 'oclusor': occluder true,
+ * Esperado con MANOS 'blanca' (el actual): white true en las dos manos.
+ * Con MANOS 'contorno': occluder false y el contorno de IWSDK visible. Con MANOS 'oclusor': occluder true,
  * colorWrite false y outline 0 en las dos manos.
  */
 export default async function run({ page, frame }) {
