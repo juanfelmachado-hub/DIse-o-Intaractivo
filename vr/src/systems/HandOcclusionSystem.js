@@ -1,5 +1,9 @@
 /**
- * HandOcclusionSystem — se ven las MANOS REALES del lector, no un dibujo.
+ * HandOcclusionSystem — cómo se ven las manos y el rayo de la mano.
+ *
+ * AHORA (OCCLUSION_CFG.MANOS = 'contorno'): las manos se ven como las dibuja IWSDK,
+ * con el contorno blanco, igual que antes del 25 de noviembre. Lo que sigue
+ * describe el modo 'oclusor', que queda disponible cambiando esa opción.
  *
  * IWSDK dibuja por defecto cada mano seguida como un contorno blanco
  * (AnimatedHand). Aquí ese dibujo se reemplaza por un OCLUSOR: la misma malla
@@ -39,6 +43,12 @@
 import { AnimatedHand, createSystem, DoubleSide, ShaderMaterial, VisibilityState } from '@iwsdk/core';
 
 export const OCCLUSION_CFG = {
+    /**
+     * Cómo se ven las manos: 'contorno' = el dibujo de IWSDK (contorno blanco de la
+     * mano, como antes); 'oclusor' = la mano real recorta lo virtual (passthrough).
+     * Se volvió a 'contorno' a pedido (26 nov): el recorte no gustó en el visor.
+     */
+    MANOS: 'contorno',
     /** Cuánto se agranda la malla hacia afuera (m): mejor que sobre a que falte. */
     INFLATE: 0.004,
     /** Se dibuja antes que todo lo opaco del cuento. */
@@ -123,6 +133,7 @@ export class HandOcclusionSystem extends createSystem({}) {
     install() {
         const hand = this.adapters();
         if (!hand) return false;
+        if (OCCLUSION_CFG.MANOS !== 'oclusor') return true; // se deja la mano de IWSDK
         for (const side of ['left', 'right']) hand[side].updateVisualImplementation(OccluderHand);
         return true;
     }

@@ -23,7 +23,18 @@ import { StoryPanel, StoryState } from '../story-components.js';
  */
 const font = (w) => `${import.meta.env.BASE_URL}fonts/fredoka-${w}.json`;
 const FONT = { fontFamily: 'fredoka', fontFamilies: { fredoka: { normal: font(400), medium: font(500), 'semi-bold': font(500), bold: font(700) } } };
-const TALK_COLORS = { guardian: '#2f5a3a', nico: '#2d4f7a' };
+/**
+ * Colores de los cuadros de texto (guía «2_GUIA»): fondo y trazo de cada uno.
+ * Nico azul, Guardián lila con trazo oscuro, actividad crema con trazo naranja,
+ * «¡Lo lograste!» verde. La barra de la actividad es naranja sólida.
+ */
+const BOX = {
+    nico: { backgroundColor: '#dfe9fb', borderColor: '#3f6fd8' },
+    guardian: { backgroundColor: '#e7dff6', borderColor: '#1e1b3a' },
+    activity: { backgroundColor: '#f7efe0', borderColor: '#e8913f' },
+    success: { backgroundColor: '#e1f3e9', borderColor: '#5daf84' },
+    mission: { backgroundColor: '#e8913f', borderColor: '#e8913f' },
+};
 const TEXT_SIZES = [[1, 'Texto: normal'], [1.2, 'Texto: grande'], [1.4, 'Texto: muy grande']];
 /** Solo cambian palabras del gesto (el dedo de la pantalla táctil pasa a ser el rayo). */
 const vrWords = (t) => t.replace(/\bel dedo\b/gi, 'el rayo').replace(/\bdedo\b/gi, 'rayo');
@@ -50,6 +61,13 @@ export class StoryUISystem extends createSystem({
         delete this.props[prop];
     }
 
+    /** Fondo y trazo de un cuadro de texto (uno de BOX), solo si cambió. */
+    box(el, key, kind) {
+        if (!el || this.cache.get(key + ':box') === kind) return;
+        this.cache.set(key + ':box', kind);
+        el.setProperties(BOX[kind]);
+    }
+
     show(el, key, on) {
         this.set(el, key + ':display', 'display', on ? 'flex' : 'none');
     }
@@ -69,7 +87,7 @@ export class StoryUISystem extends createSystem({
             talkBox: $s('talk-box'), speaker: $s('speaker'), dialog: $s('dialog'), narration: $s('narration'),
             next: $s('btn-next'), nextLabel: $s('btn-next-label'), turtle: $s('btn-turtle'),
             steps: $s('btn-steps'), stepsLabel: $s('btn-steps-label'),
-            near: $s('btn-near'), recenter: $s('btn-recenter'), menu: $s('btn-menu'), hide: $s('btn-hide'), reset: $s('btn-reset'),
+            near: $s('btn-near'), recenter: $s('btn-recenter'), menu: $s('btn-menu'), hide: $s('btn-hide'), reset: $m('btn-reset'),
             title: $m('title'), intro: $m('intro'), start: $m('btn-start'), startLabel: $m('btn-start-label'),
             xr: $m('btn-xr'), exit: $m('btn-exit'), text: $m('btn-text'), textLabel: $m('btn-text-label'),
             restart: $m('btn-restart'), panel: $m('btn-panel'),
@@ -91,7 +109,7 @@ export class StoryUISystem extends createSystem({
         });
         on(this.el.hide, () => this.world.globals.panel?.hide());
         // «Reiniciar»: los objetos y personajes manipulables vuelven a su lugar (no la historia)
-        on(this.el.reset, () => this.world.globals.resetObjects?.());
+        on(this.el.reset, () => { this.world.globals.resetObjects?.(); this.setPaused(false); });
         on(this.el.panel, () => { this.world.globals.panel?.reset(); this.setPaused(false); });
         on(this.el.turtle, () => ui.el.turtle.onclick?.());
         on(this.el.steps, () => ui.onStepsGo?.());
@@ -181,11 +199,11 @@ export class StoryUISystem extends createSystem({
         // --- nivel 1: actividad (o «¡Lo lograste!»)
         const m = ui.mission;
         const tab = ui.success ? ui.success : m ? (m.short ?? m.text) : '';
-        const talk = ui.talk ?? (m ? { speaker: 'guardian', text: m.text } : null);
+        const talk = ui.talk ?? (m ? { speaker: 'activity', text: m.text } : null);
         this.show(el.missionBox, 'missionBox', !!(tab && talk));
         if (tab) {
             this.set(el.missionText, 'missionText', 'text', vrWords(tab));
-            this.set(el.missionBox, 'missionColor', 'backgroundColor', ui.success ? '#3f9a54' : '#f08a45');
+            this.box(el.missionBox, 'missionBox', ui.success ? 'success' : 'mission');
         }
 
         // --- nivel 2: indicación o diálogo
@@ -203,10 +221,13 @@ export class StoryUISystem extends createSystem({
                 const [, title, ...steps] = text.split('|');
                 text = `${title}: ${steps.map((s, i) => `${i + 1}. ${s}`).join('  ')}`;
             }
+            // indicaciones de la actividad (sin personaje): cuadro de actividad, sin nombre
+            const who = talk.speaker === 'activity' || talk.kind === 'steps' || talk.text.startsWith('howto|') ? 'activity' : talk.speaker;
             const name = storyData.characters[talk.speaker]?.name ?? talk.speaker;
+            this.show(el.speaker, 'speakerName', who !== 'activity');
             this.set(el.speaker, 'speaker', 'text', name);
             this.set(el.dialog, 'dialog', 'text', vrWords(text));
-            this.set(el.talkBox, 'talkColor', 'backgroundColor', TALK_COLORS[talk.speaker] ?? TALK_COLORS.guardian);
+            this.box(el.talkBox, 'talkBox', BOX[who] ? who : 'guardian');
         }
 
         // --- nivel 3: narrador y botón siguiente (mismo texto y etiqueta que la web)

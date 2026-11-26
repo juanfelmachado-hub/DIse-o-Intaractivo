@@ -1,110 +1,171 @@
 <!--
-  Menú del cuento (VR): inicio, instrucciones, pausa, reinicio, tamaño del texto
-  y entrar o salir de VR. El título y el texto de inicio son los de la web.
+  Menú del cuento (visor): inicio, instrucciones, pausa, reinicio, tamaño del texto
+  y entrar o salir del modo inmersivo. El título y el texto de inicio son los de la web.
+  Mismo diseño que el panel del cuento (guía «2_GUIA»): fondo crema, trazo dorado,
+  botón principal amarillo y botones secundarios crema con borde naranja; tipografía #1e1b3a.
 -->
 <style>
   .root {
     flex-direction: column;
     width: 580;
+    background-color: #f0e9d8;
+    border-color: #f0b43c;
+    border-width: 3;
+    border-radius: 16;
   }
   .content {
     flex-direction: column;
     gap: 12;
-    padding-top: 26;
+    padding-top: 24;
     padding-bottom: 14;
-    padding-left: 28;
-    padding-right: 28;
+    padding-left: 26;
+    padding-right: 26;
   }
   .eyebrow {
-    color: #8a5a00;
-    font-size: 16;
+    flex-direction: row;
+    padding-top: 7;
+    padding-bottom: 7;
+    padding-left: 14;
+    padding-right: 14;
+    border-radius: 12;
+    background-color: #e8913f;
+    color: #1e1b3a;
+    font-size: 15;
     font-weight: 7000;
   }
-  .eyebrow:dark {
-    color: #ffd27a;
-  }
   .title {
-    color: #1c1d20;
-    font-size: 36;
+    color: #1e1b3a;
+    font-size: 34;
     font-weight: 7000;
     line-height: 1.15;
   }
-  .title:dark {
-    color: #fafaf7;
-  }
   .body {
-    color: #3a3b40;
+    color: #1e1b3a;
     font-size: 21;
     line-height: 1.35;
   }
-  .body:dark {
-    color: #dddfe3;
-  }
   .help {
-    color: #4b4c52;
-    font-size: 18;
+    padding-top: 10;
+    padding-bottom: 11;
+    padding-left: 14;
+    padding-right: 14;
+    border-radius: 14;
+    border-width: 2;
+    border-color: #e8913f;
+    background-color: #f7efe0;
+    color: #1e1b3a;
+    font-size: 17;
     line-height: 1.35;
-  }
-  .help:dark {
-    color: #c3c5cc;
   }
   .row {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 12;
-    padding-left: 28;
-    padding-right: 28;
-    padding-bottom: 14;
+    gap: 10;
+    padding-left: 26;
+    padding-right: 26;
+    padding-bottom: 12;
   }
   .last {
-    padding-bottom: 26;
+    padding-bottom: 24;
+  }
+  .go {
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 8;
+    height: 52;
+    padding-left: 16;
+    padding-right: 20;
+    border-radius: 12;
+    background-color: #f0b43c;
+    cursor: pointer;
+  }
+  .go:hover {
+    background-color: #f6c55f;
+  }
+  .go:active {
+    background-color: #e0a02a;
+  }
+  .go-text {
+    flex-shrink: 0;
+    color: #1e1b3a;
+    font-size: 21;
+    font-weight: 7000;
+  }
+  .go-icon {
+    width: 26;
+    height: 26;
+    color: #1e1b3a;
+  }
+  .alt {
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 7;
+    height: 46;
+    padding-left: 12;
+    padding-right: 15;
+    border-radius: 12;
+    border-width: 2;
+    border-color: #e8913f;
+    background-color: #f0e9d8;
+    cursor: pointer;
+  }
+  .alt:hover {
+    background-color: #f7e6cf;
+  }
+  .alt:active {
+    background-color: #efd9b9;
+  }
+  .alt-text {
+    flex-shrink: 0;
+    color: #1e1b3a;
+    font-size: 17;
+    font-weight: 7000;
+  }
+  .alt-icon {
+    width: 22;
+    height: 22;
+    color: #6b3410;
   }
 </style>
-<Panel id="root" class="root">
+<div id="root" class="root">
   <div class="content">
-    <div id="eyebrow" class="eyebrow">CUENTO EN REALIDAD MIXTA</div>
+    <div class="eyebrow">CUENTO EN REALIDAD MIXTA</div>
     <div id="title" class="title">Nico y su guardián personal</div>
     <div id="intro" class="body">...</div>
     <div id="help" class="help">El cuento es una maqueta sobre tu piso: camina a su alrededor y agáchate para verla de cerca. Con las manos: junta pulgar e índice sobre un objeto para agarrarlo y ábrelos para soltarlo; toca con el dedo. Con controles: botón lateral para agarrar, gatillo para tocar. Este panel se mueve tomándolo del asa de abajo. Palanca: girar o cambiar el tamaño de la maqueta. A o X: mover el libro.</div>
   </div>
   <div class="row">
-    <Button id="btn-start">
-      <ButtonIcon>
-        <BookOpen></BookOpen>
-      </ButtonIcon>
-      <ButtonLabel id="btn-start-label">Abre el libro</ButtonLabel>
-    </Button>
-    <Button id="btn-xr">
-      <ButtonIcon>
-        <RectangleGoggles></RectangleGoggles>
-      </ButtonIcon>
-      <ButtonLabel>Entrar (passthrough)</ButtonLabel>
-    </Button>
+    <div id="btn-start" class="go">
+      <BookOpen class="go-icon" style="width: 26; height: 26"></BookOpen>
+      <div id="btn-start-label" class="go-text">Abre el libro</div>
+    </div>
+    <div id="btn-xr" class="go">
+      <RectangleGoggles class="go-icon" style="width: 26; height: 26"></RectangleGoggles>
+      <div class="go-text">Entrar (passthrough)</div>
+    </div>
   </div>
   <div class="row last">
-    <Button id="btn-text" variant="secondary">
-      <ButtonIcon>
-        <Type></Type>
-      </ButtonIcon>
-      <ButtonLabel id="btn-text-label">Texto: normal</ButtonLabel>
-    </Button>
-    <Button id="btn-panel" variant="secondary">
-      <ButtonIcon>
-        <Undo2></Undo2>
-      </ButtonIcon>
-      <ButtonLabel>Panel a su lugar</ButtonLabel>
-    </Button>
-    <Button id="btn-restart" variant="secondary">
-      <ButtonIcon>
-        <RotateCcw></RotateCcw>
-      </ButtonIcon>
-      <ButtonLabel>Reiniciar</ButtonLabel>
-    </Button>
-    <Button id="btn-exit" variant="secondary" style="display: none">
-      <ButtonIcon>
-        <LogOut></LogOut>
-      </ButtonIcon>
-      <ButtonLabel>Salir</ButtonLabel>
-    </Button>
+    <div id="btn-text" class="alt">
+      <Type class="alt-icon" style="width: 22; height: 22"></Type>
+      <div id="btn-text-label" class="alt-text">Texto: normal</div>
+    </div>
+    <div id="btn-panel" class="alt">
+      <Undo2 class="alt-icon" style="width: 22; height: 22"></Undo2>
+      <div class="alt-text">Panel a su lugar</div>
+    </div>
+    <div id="btn-reset" class="alt" style="display: none">
+      <Shapes class="alt-icon" style="width: 22; height: 22"></Shapes>
+      <div class="alt-text">Reacomodar objetos</div>
+    </div>
+    <div id="btn-restart" class="alt">
+      <RotateCcw class="alt-icon" style="width: 22; height: 22"></RotateCcw>
+      <div class="alt-text">Reiniciar cuento</div>
+    </div>
+    <div id="btn-exit" class="alt" style="display: none">
+      <LogOut class="alt-icon" style="width: 22; height: 22"></LogOut>
+      <div class="alt-text">Salir</div>
+    </div>
   </div>
-</Panel>
+</div>

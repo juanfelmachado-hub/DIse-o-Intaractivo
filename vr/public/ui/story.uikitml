@@ -1,93 +1,177 @@
 <!--
-  Panel del cuento (VR). Muestra lo mismo que la interfaz web, en el mismo orden:
-  capítulo, actividad, indicación o diálogo, y el texto del narrador con el botón
-  Siguiente (que también pasa la página cuando la página está lista).
-  Los textos los escribe StoryUISystem desde el estado del cuento original.
+  Panel del cuento (visor). Diseño de la guía «2_GUIA» (cuadro de texto de la historia):
+  fondo crema con trazo dorado y esquinas redondeadas; arriba la barra naranja de la
+  actividad, debajo el cuadro de quien habla (Nico azul, Guardián lila, actividad
+  crema con borde naranja, «¡Lo lograste!» verde); el texto del narrador; abajo a la
+  izquierda los iconos redondos (Pausa, Mostrar/ocultar, Mover, Tamaño) y a la derecha
+  el botón amarillo «Siguiente». Toda la tipografía en #1e1b3a.
+  Muestra lo mismo que la interfaz web, en el mismo orden. Los textos y los colores de
+  cada cuadro los pone StoryUISystem desde el estado del cuento original.
 -->
 <style>
   .root {
     flex-direction: column;
     width: 640;
+    background-color: #f0e9d8;
+    border-color: #f0b43c;
+    border-width: 3;
+    border-radius: 16;
   }
   .content {
     flex-direction: column;
     gap: 12;
-    padding-top: 24;
-    padding-bottom: 12;
-    padding-left: 26;
-    padding-right: 26;
+    padding-top: 20;
+    padding-bottom: 14;
+    padding-left: 24;
+    padding-right: 24;
   }
   .chapter {
-    color: #8a5a00;
-    font-size: 17;
+    color: #1e1b3a;
+    font-size: 16;
     font-weight: 7000;
-  }
-  .chapter:dark {
-    color: #ffd27a;
   }
   .mission {
     flex-direction: row;
-    gap: 10;
     align-items: center;
-    padding-top: 8;
-    padding-bottom: 8;
-    padding-left: 14;
-    padding-right: 14;
-    border-radius: 14;
-    background-color: #f08a45;
+    padding-top: 9;
+    padding-bottom: 9;
+    padding-left: 16;
+    padding-right: 16;
+    border-radius: 12;
+    border-width: 2;
+    border-color: #e8913f;
+    background-color: #e8913f;
   }
   .mission-text {
-    color: #ffffff;
+    color: #1e1b3a;
     font-size: 20;
     font-weight: 7000;
   }
   .talk {
     flex-direction: column;
-    gap: 5;
-    padding-top: 12;
+    gap: 4;
+    padding-top: 11;
     padding-bottom: 12;
     padding-left: 16;
     padding-right: 16;
-    border-radius: 16;
-    background-color: #2f5a3a;
+    border-radius: 14;
+    border-width: 2;
+    border-color: #3f6fd8;
+    background-color: #dfe9fb;
   }
   .speaker {
-    color: #c8f5b0;
-    font-size: 16;
+    color: #1e1b3a;
+    font-size: 15;
     font-weight: 7000;
   }
   .dialog {
-    color: #ffffff;
-    font-size: 23;
+    color: #1e1b3a;
+    font-size: 22;
     line-height: 1.3;
   }
   .narration {
-    color: #1c1d20;
+    color: #1e1b3a;
     font-size: 25;
     line-height: 1.35;
   }
-  .narration:dark {
-    color: #fafaf7;
-  }
-  .actions {
+  .bar {
     flex-direction: row;
-    gap: 12;
-    justify-content: flex-end;
-    padding-left: 26;
-    padding-right: 26;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10;
+    padding-left: 24;
+    padding-right: 24;
     padding-bottom: 20;
   }
   .tools {
     flex-direction: row;
-    flex-wrap: wrap;
     gap: 10;
-    justify-content: space-between;
-    padding-left: 26;
-    padding-right: 26;
-    padding-bottom: 22;
+  }
+  .tool {
+    flex-shrink: 0;
+    width: 48;
+    height: 48;
+    border-radius: 24;
+    align-items: center;
+    justify-content: center;
+    background-color: #e8913f;
+    color: #6b3410;
+    cursor: pointer;
+  }
+  .tool:hover {
+    background-color: #f2a65e;
+  }
+  .tool:active {
+    background-color: #d27a2b;
+  }
+  .icon {
+    width: 26;
+    height: 26;
+    color: #6b3410;
+  }
+  .actions {
+    flex-direction: row;
+    gap: 10;
+  }
+  .go {
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 6;
+    height: 52;
+    padding-left: 20;
+    padding-right: 14;
+    border-radius: 12;
+    background-color: #f0b43c;
+    cursor: pointer;
+  }
+  .go:hover {
+    background-color: #f6c55f;
+  }
+  .go:active {
+    background-color: #e0a02a;
+  }
+  .go-text {
+    flex-shrink: 0;
+    color: #1e1b3a;
+    font-size: 21;
+    font-weight: 7000;
+  }
+  .go-icon {
+    width: 28;
+    height: 28;
+    color: #1e1b3a;
+  }
+  .alt {
+    flex-shrink: 0;
+    flex-direction: row;
+    align-items: center;
+    gap: 6;
+    height: 52;
+    padding-left: 14;
+    padding-right: 16;
+    border-radius: 12;
+    border-width: 2;
+    border-color: #e8913f;
+    background-color: #f0e9d8;
+    cursor: pointer;
+  }
+  .alt:hover {
+    background-color: #f7e6cf;
+  }
+  .alt-text {
+    flex-shrink: 0;
+    color: #1e1b3a;
+    font-size: 19;
+    font-weight: 7000;
+  }
+  .alt-icon {
+    width: 24;
+    height: 24;
+    color: #6b3410;
   }
 </style>
-<Panel id="root" class="root">
+<div id="root" class="root">
   <div class="content">
     <div id="chapter" class="chapter">Nico y su guardián personal</div>
     <div id="mission-box" class="mission" style="display: none">
@@ -99,56 +183,34 @@
     </div>
     <div id="narration" class="narration">...</div>
   </div>
-  <div class="actions">
-    <Button id="btn-turtle" style="display: none">
-      <ButtonIcon>
-        <Turtle></Turtle>
-      </ButtonIcon>
-      <ButtonLabel>Tortuga</ButtonLabel>
-    </Button>
-    <Button id="btn-steps" style="display: none">
-      <ButtonIcon>
-        <Check></Check>
-      </ButtonIcon>
-      <ButtonLabel id="btn-steps-label">Continuar</ButtonLabel>
-    </Button>
-    <Button id="btn-next">
-      <ButtonIcon>
-        <ChevronRight></ChevronRight>
-      </ButtonIcon>
-      <ButtonLabel id="btn-next-label">Siguiente</ButtonLabel>
-    </Button>
+  <div class="bar">
+    <div class="tools">
+      <div id="btn-menu" class="tool">
+        <Pause class="icon" style="width: 26; height: 26"></Pause>
+      </div>
+      <div id="btn-hide" class="tool">
+        <Eye class="icon" style="width: 26; height: 26"></Eye>
+      </div>
+      <div id="btn-recenter" class="tool">
+        <Move class="icon" style="width: 26; height: 26"></Move>
+      </div>
+      <div id="btn-near" class="tool">
+        <Expand class="icon" style="width: 26; height: 26"></Expand>
+      </div>
+    </div>
+    <div class="actions">
+      <div id="btn-turtle" class="alt" style="display: none">
+        <Turtle class="alt-icon" style="width: 22; height: 22"></Turtle>
+        <div class="alt-text">Tortuga</div>
+      </div>
+      <div id="btn-steps" class="alt" style="display: none">
+        <Check class="alt-icon" style="width: 22; height: 22"></Check>
+        <div id="btn-steps-label" class="alt-text">Continuar</div>
+      </div>
+      <div id="btn-next" class="go">
+        <div id="btn-next-label" class="go-text">Siguiente</div>
+        <ChevronRight class="go-icon" style="width: 26; height: 26"></ChevronRight>
+      </div>
+    </div>
   </div>
-  <div class="tools">
-    <Button id="btn-near" variant="secondary">
-      <ButtonIcon>
-        <Scaling></Scaling>
-      </ButtonIcon>
-      <ButtonLabel>Tamaño</ButtonLabel>
-    </Button>
-    <Button id="btn-recenter" variant="secondary">
-      <ButtonIcon>
-        <Move></Move>
-      </ButtonIcon>
-      <ButtonLabel>Mover</ButtonLabel>
-    </Button>
-    <Button id="btn-hide" variant="secondary">
-      <ButtonIcon>
-        <Minimize2></Minimize2>
-      </ButtonIcon>
-      <ButtonLabel>Ocultar</ButtonLabel>
-    </Button>
-    <Button id="btn-reset" variant="secondary">
-      <ButtonIcon>
-        <RotateCcw></RotateCcw>
-      </ButtonIcon>
-      <ButtonLabel>Reiniciar</ButtonLabel>
-    </Button>
-    <Button id="btn-menu" variant="secondary">
-      <ButtonIcon>
-        <Pause></Pause>
-      </ButtonIcon>
-      <ButtonLabel>Pausa</ButtonLabel>
-    </Button>
-  </div>
-</Panel>
+</div>

@@ -42,7 +42,7 @@ importa el código original de `../src` y los recursos de `../static`.
 | Girar la maqueta 30° | Palanca a la izquierda o la derecha | — |
 | Tamaño de la maqueta | Palanca arriba (más grande) o abajo (más pequeña), o «Tamaño» en el panel | «Tamaño» en el panel |
 | Mover el libro a otro lugar | Botón A o X, o «Mover» en el panel | «Mover» en el panel |
-| Devolver los objetos a su lugar (bloques, Nico, Guardián; reinicia la cuenta del corazón) sin cambiar la historia | «Reiniciar» en el panel | Igual |
+| Devolver los objetos a su lugar (bloques, Nico, Guardián; reinicia la cuenta del corazón) sin cambiar la historia | «Reacomodar objetos» en el menú de pausa (icono de pausa del panel) | Igual |
 | Pausa, reinicio, tamaño del texto, salir | «Pausa» en el panel abre el menú | Igual |
 
 ## Desarrollo
@@ -157,7 +157,7 @@ esta máquina de estados: **IDLE → HOVER → GRABBING → (soltar) → IDLE**.
   - Se puede tomar durante TODA la historia, también en los juegos (radar, pasillo, patio, zapatos, corazón); solo no mientras pasa la hoja o mientras vuelve a su lugar. Gira con la mano en los tres ejes.
   - Cuelga (postura `dangle`), balancea las piernas y pone cara de sorpresa si la mano va rápido. Nunca baja más que la superficie de abajo.
   - Al soltarlo hereda la velocidad de la mano (tope 1,2 m/s) y cae con gravedad real (9,8 m/s²) sobre la página o el piso real; rebota un poco, frena con fricción y recupera el equilibrio.
-  - Se queda donde cayó. Solo vuelve (caminando, con un saltito) cuando la historia avanza y lo necesita en su lugar, o con «Reiniciar».
+  - Se queda donde cayó. Solo vuelve (caminando, con un saltito) cuando la historia avanza y lo necesita en su lugar, o con «Reacomodar objetos».
   - Si un juego lo "levanta" dentro del modelo al empezar a arrastrarlo (radar, patio), con la mano ese levantamiento se anula: Nico queda en la pinza.
   - **Debajo de la mesa** (juego 1) se queda sentado en el piso, mirando al lector (en la web sigue agachado).
   - **Camino del pasillo**: mientras camina y mientras se lo lleva en la mano, mira hacia la puerta.
@@ -169,7 +169,7 @@ esta máquina de estados: **IDLE → HOVER → GRABBING → (soltar) → IDLE**.
 - **Zona del pie**: a menos de 5,8 cm (0,34 unidades del cuento) del pie que le corresponde, mirando más o menos hacia donde mira Nico (margen de 80°), aparece un **aro verde** en el pie y un **imán suave** lo acerca. Cerca del otro pie el aro es **naranja** y el Guardián dice «Ese zapato es del otro pie».
 - Al soltarlo en la zona (o al llegar a menos de 1,7 cm) se acomoda con una transición corta, queda **pegado al pie** (sigue a Nico aunque se lo lleve en la mano) y se bloquea; suena «clac» y salen chispas.
 - Con los dos puestos el juego sigue igual que en la web (zapatos del modelo, saltito, el camino).
-- Umbrales en `SHOES_CFG`. «Reiniciar» devuelve a su lugar los zapatos que no están puestos.
+- Umbrales en `SHOES_CFG`. «Reacomodar objetos» devuelve a su lugar los zapatos que no están puestos.
 
 **La torre** (`TowerSystem`, primera página):
 
@@ -223,7 +223,7 @@ superficie de golpe).
 - **Nunca con la pinza**: pellizcar (o apuntar con el rayo de la mano y pellizcar) no golpea el corazón. Con el control, el gatillo apuntando sigue valiendo.
 - **Calificación de cada golpe**: «¡Perfecto!» a menos del 12 % del intervalo del latido (más chispas, doradas), «Correcto» hasta el 38 % (la ventana del juego original, en `DrumActivity`), y «Fuera de ritmo» más allá: el corazón se apaga un instante.
 - **Progreso**: un anillo de 12 puntos alrededor del corazón; cada acierto enciende uno con chispas.
-- «Reiniciar» vuelve la cuenta a 0 y repite la demostración, sin reiniciar la historia.
+- «Reacomodar objetos» vuelve la cuenta a 0 y repite la demostración, sin reiniciar la historia.
 - Los umbrales están en `HEART_CFG`.
 
 **Radar con la punta del índice** (`RadarTouchSystem`). En el visor el radar ya
@@ -236,7 +236,7 @@ dedo 3 cm y esperar 0,6 s (vale para las dos manos: un toque se registra una vez
 distancia ya no descubre peligros (con el control, el gatillo apuntando sigue
 valiendo). Umbrales en `RADAR_CFG`.
 
-**Reiniciar** (botón del panel, `world.globals.resetObjects`): devuelve los bloques
+**Reacomodar objetos** (botón del menú de pausa, `world.globals.resetObjects`): devuelve los bloques
 (si la torre está en juego), Nico y el Guardián a su lugar, con posición, rotación y
 velocidad en cero, reinicia la cuenta del corazón y devuelve los zapatos que no están puestos. La historia no cambia. Una torre
 ya terminada no se deshace: es parte del cuento.
@@ -253,7 +253,7 @@ ya terminada no se deshace: es parte del cuento.
 
 | Gesto | Uso |
 | --- | --- |
-| Manos reales | Con hand tracking no se dibuja ninguna mano: se ve la mano real (passthrough) por delante de lo virtual que está detrás de ella (`HandOcclusionSystem`) |
+| Manos | Con hand tracking se ve el contorno blanco de la mano de IWSDK. El modo «mano real» (la mano recorta lo virtual y se ve el passthrough) sigue en `HandOcclusionSystem` con `OCCLUSION_CFG.MANOS = 'oclusor'` |
 | Pinza (índice + pulgar) | Agarrar |
 | Abrir los dedos | Soltar |
 | Manos a la cabeza | Cubrirse |
@@ -293,6 +293,28 @@ Medido en el emulador en la sala abierta: **370 llamadas de dibujo** (ambos ojos
 La fuente de UIKit incluida no trae tildes, ñ ni ¡¿. Por eso se generó **Fredoka**,
 la tipografía del cuento, como fuente MSDF (`public/fonts/`, licencia OFL). Contiene
 todos los caracteres usados en la historia.
+
+### Diseño de los paneles (guía «2_GUIA»)
+
+El panel del cuento (`public/ui/story.uikitml`) y el menú (`public/ui/menu.uikitml`)
+siguen el wireframe de la guía:
+
+- **Fondo y texto:** fondo crema `#f0e9d8`, trazo dorado `#f0b43c`, esquinas redondeadas y toda la tipografía en `#1e1b3a`.
+- **Barra de la actividad:** arriba, naranja sólida `#e8913f`. Cuando la actividad se logra, se vuelve verde.
+- **Cuadro de quien habla:** los colores los pone `StoryUISystem` (`BOX`):
+
+  | Cuadro | Fondo | Borde |
+  | --- | --- | --- |
+  | Nico | `#dfe9fb` (azul) | `#3f6fd8` |
+  | Guardián | `#e7dff6` (lila) | `#1e1b3a` |
+  | Indicaciones de una actividad (sin personaje) | crema | `#e8913f` (naranja) |
+  | «¡Lo lograste!» | `#e1f3e9` (verde) | `#5daf84` |
+
+- **Botones del panel:**
+  - abajo a la izquierda, iconos redondos naranjas: Pausa, Mostrar/ocultar, Mover y Tamaño;
+  - abajo a la derecha, el botón amarillo «Siguiente».
+  - La Tortuga y «Continuar» (pasos) usan el botón crema con borde naranja.
+- **Pausa:** el icono abre el menú, que incluye **«Reacomodar objetos»**: devuelve los bloques, Nico y el Guardián a su lugar. Antes estaba en el panel como «Reiniciar».
 
 ## Pruebas
 
@@ -350,13 +372,13 @@ Con la **mano emulada** de IWER (pellizco real de las articulaciones) y con el c
 | Sello de la hoja (A) | Bajar el índice sobre el sello; y apuntarle con el rayo del control + gatillo | Las dos formas pasan la hoja (p0 → p1) |
 | Agarrar la hoja (B) | Pellizcar el borde y llevarlo al lomo | Con la historia bloqueada: cede hasta 0,16 rad y vuelve. Movimiento corto y soltar: vuelve. Movimiento largo: pasa la hoja adelante (p0 → p1) y atrás (p1 → p0). Durante un juego no se agarra |
 | Corazón: 12 aciertos | `bash tests/recorrido.sh` | El juego se completa con 12 golpes a tiempo |
-| Manos reales (oclusión) | Modo manos, `tests/manos-oclusion.mjs`; captura con la mano sobre el libro y bajo la mesa | Las dos manos usan el oclusor (`occluder: true`, `colorWrite: false`, sin contorno). La mano recorta lo virtual de atrás; la tapa de la mesa sigue tapando la mano que está debajo |
+| Manos | Modo manos, `tests/manos-oclusion.mjs` | Con `MANOS: 'contorno'`: `occluder: false` y se ve el contorno de las dos manos. Con `'oclusor'`: `occluder: true`, `colorWrite: false`, sin contorno |
 | «Continuar» con el dedo | `bash tests/boton-dedo.sh` (estado: `tests/boton-continuar.mjs`) | Bloqueado (torre, juegos): visible con candado, el toque se rechaza y muestra el aviso. Libre: un toque avanza un solo momento (b0 → b1) |
 | Corazón: ritmo | `bash tests/ir-corazon.sh`, luego `tests/corazon-ritmo.mjs` | Golpes cuando el anillo llega (faltan < 40 ms): cuentan y son «perfecto». A mitad del intervalo: fuera de ritmo |
 | Corazón: golpes desde arriba | `bash tests/corazon-manos.sh` | 3 pinzas: 0 golpes. 4 golpes con cada mano: 4 contactos cada una. Dedo apoyado 2 s: un solo contacto |
 | Corazón: reintentar | `tests/corazon-reintentar.mjs` | La cuenta vuelve a 0, repite la demostración y la historia sigue en el mismo momento |
 | Pérdida de tracking | Sostener a Nico en el aire y desconectar la mano (`xr set-connected`); cambiar de mano a control; `tests/muestrear-nico.mjs` registra cada cuadro | Se suelta sin velocidad y cae recto (x no cambia); la mano que reaparece lejos no lo mueve. Antes del arreglo, el cambio de fuente lo lanzaba 24 cm |
-| Reiniciar | Botón del panel con el rayo (`tests/reiniciar.mjs` llama la misma acción) | Bloques, Nico y Guardián vuelven a su lugar; la historia sigue en el mismo momento |
+| Reacomodar objetos | Botón del menú de pausa con el rayo (`tests/reiniciar.mjs` llama la misma acción) | Bloques, Nico y Guardián vuelven a su lugar; la historia sigue en el mismo momento |
 | Filtro One Euro y pinza | `sh tests/torre-manos.sh` | Torre de 4 bloques con la mano, igual que antes |
 | Radar con el dedo | `tests/radar-dedo.mjs`, luego la punta del índice hacia cada objeto (`tests/radar-estado.mjs`) | La cercanía sube al acercarse (0,69 → 0,82 → 0,93) sin descubrir nada; al tocar, se descubre cada peligro; la planta (segura) no cuenta; con los 4, el radar se apaga y sigue llevar a Nico. El anillo se dibuja en la punta del dedo |
 | Colocar el libro | Entrar, cambiar a manos, apuntar con la mano al piso y pellizcar | Se coloca. El emulador no tiene hit-test, así que solo prueba el piso aproximado |
@@ -391,7 +413,7 @@ filtrado y la pérdida de tracking solo están probados en su lógica.
 - radar con el dedo: alcance del bip y que tocar los objetos de la pared sea cómodo;
 - la espera de 0,6 s entre toques del radar (en el emulador cada comando tarda ~1 s, así que no se puede probar un doble toque rápido);
 - los zapatos: tamaño de la zona del pie (5,8 cm) y el margen de orientación (80°) con manos reales; que el zapato quede bien apoyado en el pie del modelo;
-- «Reiniciar» durante el juego de los zapatos (implementado, no probado en el emulador);
+- «Reacomodar objetos» durante el juego de los zapatos (implementado, no probado en el emulador);
 - fps reales;
 - legibilidad de los paneles;
 - si los objetos de 16 cm se pueden tocar cómodamente con el rayo;
